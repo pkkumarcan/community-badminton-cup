@@ -7,11 +7,11 @@
 
   // ---------- TOURNAMENT ROSTER ----------
   const ROSTER = [
-    { id: 1, name: "Ajeet" }, { id: 2, name: "Amit" }, { id: 3, name: "Avi" },
+    { id: 1, name: "Ajeet" }, { id: 2, name: "Amit" }, { id: 3, name: "Lajpat" },
     { id: 4, name: "Deepak" }, { id: 5, name: "Hira" }, { id: 6, name: "Honey" },
     { id: 7, name: "Hrithik" }, { id: 8, name: "Manoj" }, { id: 9, name: "Naresh" },
     { id: 10, name: "Om" }, { id: 11, name: "Pardeep" }, { id: 12, name: "Partab" },
-    { id: 13, name: "Raja" }, { id: 14, name: "Rajesh M." }, { id: 15, name: "Rajesh N." },
+    { id: 13, name: "Raja" }, { id: 14, name: "Rajesh M." }, { id: 15, name: "Sunny" },
     { id: 16, name: "Ranjeet" }, { id: 17, name: "Sanjay" }, { id: 18, name: "Sarwan" }
   ];
 
@@ -44,35 +44,35 @@
   const BASE_FIXTURES = [
     ...round1Fixtures,
     { r: 2, c: 1, t1: ["Hrithik", "Naresh"], t2: ["Raja", "Rajesh M."], refs: ["Ajeet", "Amit"], s1: 15, s2: 11 },
-    { r: 2, c: 2, t1: ["Manoj", "Partab"], t2: ["Rajesh N.", "Ranjeet"], refs: ["Avi", "Deepak"], s1: 11, s2: 15 },
+    { r: 2, c: 2, t1: ["Manoj", "Partab"], t2: ["Sunny", "Ranjeet"], refs: ["Lajpat", "Deepak"], s1: 11, s2: 15 },
     { r: 2, c: 3, t1: ["Om", "Pardeep"], t2: ["Sanjay", "Sarwan"], refs: ["Hira", "Honey"], s1: 15, s2: 11 },
 
-    { r: 3, c: 1, t1: ["Raja", "Ranjeet"], t2: ["Ajeet", "Avi"], refs: ["Hrithik", "Manoj"], s1: 11, s2: 15 },
+    { r: 3, c: 1, t1: ["Raja", "Ranjeet"], t2: ["Ajeet", "Lajpat"], refs: ["Hrithik", "Manoj"], s1: 11, s2: 15 },
     { r: 3, c: 2, t1: ["Rajesh M.", "Sanjay"], t2: ["Amit", "Hira"], refs: ["Naresh", "Om"], s1: 15, s2: 11 },
-    { r: 3, c: 3, t1: ["Rajesh N.", "Sarwan"], t2: ["Deepak", "Honey"], refs: ["Pardeep", "Partab"], s1: 11, s2: 15 },
+    { r: 3, c: 3, t1: ["Sunny", "Sarwan"], t2: ["Deepak", "Honey"], refs: ["Pardeep", "Partab"], s1: 11, s2: 15 },
 
     { r: 4, c: 1, t1: ["Ajeet", "Deepak"], t2: ["Manoj", "Om"], refs: ["Raja", "Rajesh M."], s1: 15, s2: 11 },
-    { r: 4, c: 2, t1: ["Amit", "Honey"], t2: ["Hrithik", "Partab"], refs: ["Rajesh N.", "Ranjeet"], s1: 11, s2: 15 },
-    { r: 4, c: 3, t1: ["Avi", "Hira"], t2: ["Naresh", "Pardeep"], refs: ["Sanjay", "Sarwan"], s1: 15, s2: 11 },
+    { r: 4, c: 2, t1: ["Amit", "Honey"], t2: ["Hrithik", "Partab"], refs: ["Sunny", "Ranjeet"], s1: 11, s2: 15 },
+    { r: 4, c: 3, t1: ["Lajpat", "Hira"], t2: ["Naresh", "Pardeep"], refs: ["Sanjay", "Sarwan"], s1: 15, s2: 11 },
 
     { r: 5, c: 1, t1: ["Hrithik", "Om"], t2: ["Rajesh M.", "Ranjeet"], refs: ["Ajeet", "Amit"], s1: 11, s2: 15 },
-    { r: 5, c: 2, t1: ["Manoj", "Naresh"], t2: ["Rajesh N.", "Sarwan"], refs: ["Avi", "Deepak"], s1: 15, s2: 11 },
+    { r: 5, c: 2, t1: ["Manoj", "Naresh"], t2: ["Sunny", "Sarwan"], refs: ["Lajpat", "Deepak"], s1: 15, s2: 11 },
     { r: 5, c: 3, t1: ["Pardeep", "Partab"], t2: ["Raja", "Sanjay"], refs: ["Hira", "Honey"], s1: 11, s2: 15 },
 
     { r: 6, c: 1, t1: ["Rajesh M.", "Sarwan"], t2: ["Ajeet", "Honey"], refs: ["Hrithik", "Manoj"], s1: 15, s2: 11 },
-    { r: 6, c: 2, t1: ["Rajesh N.", "Raja"], t2: ["Amit", "Deepak"], refs: ["Naresh", "Om"], s1: 11, s2: 15 },
-    { r: 6, c: 3, t1: ["Ranjeet", "Sanjay"], t2: ["Avi", "Hira"], refs: ["Pardeep", "Partab"], s1: 15, s2: 11 },
+    { r: 6, c: 2, t1: ["Sunny", "Raja"], t2: ["Amit", "Deepak"], refs: ["Naresh", "Om"], s1: 11, s2: 15 },
+    { r: 6, c: 3, t1: ["Ranjeet", "Sanjay"], t2: ["Lajpat", "Hira"], refs: ["Pardeep", "Partab"], s1: 15, s2: 11 },
 
     { r: 7, c: 1, t1: ["Ajeet", "Hira"], t2: ["Naresh", "Partab"], refs: ["Raja", "Rajesh M."], s1: 11, s2: 15 },
-    { r: 7, c: 2, t1: ["Amit", "Avi"], t2: ["Manoj", "Pardeep"], refs: ["Rajesh N.", "Ranjeet"], s1: 15, s2: 11 },
+    { r: 7, c: 2, t1: ["Amit", "Lajpat"], t2: ["Manoj", "Pardeep"], refs: ["Sunny", "Ranjeet"], s1: 15, s2: 11 },
     { r: 7, c: 3, t1: ["Deepak", "Honey"], t2: ["Hrithik", "Om"], refs: ["Sanjay", "Sarwan"], s1: 11, s2: 15 },
 
-    { r: 8, c: 1, t1: ["Hrithik", "Pardeep"], t2: ["Rajesh N.", "Sanjay"], refs: ["Ajeet", "Amit"], s1: 15, s2: 11 },
-    { r: 8, c: 2, t1: ["Manoj", "Raja"], t2: ["Rajesh M.", "Sarwan"], refs: ["Avi", "Deepak"], s1: 11, s2: 15 },
+    { r: 8, c: 1, t1: ["Hrithik", "Pardeep"], t2: ["Sunny", "Sanjay"], refs: ["Ajeet", "Amit"], s1: 15, s2: 11 },
+    { r: 8, c: 2, t1: ["Manoj", "Raja"], t2: ["Rajesh M.", "Sarwan"], refs: ["Lajpat", "Deepak"], s1: 11, s2: 15 },
     { r: 8, c: 3, t1: ["Naresh", "Om"], t2: ["Ranjeet", "Partab"], refs: ["Hira", "Honey"], s1: 15, s2: 11 },
 
     { r: 9, c: 1, t1: ["Ajeet", "Raja"], t2: ["Amit", "Rajesh M."], refs: ["Hrithik", "Manoj"], s1: 11, s2: 15 },
-    { r: 9, c: 2, t1: ["Avi", "Rajesh N."], t2: ["Deepak", "Ranjeet"], refs: ["Naresh", "Om"], s1: 15, s2: 11 },
+    { r: 9, c: 2, t1: ["Lajpat", "Sunny"], t2: ["Deepak", "Ranjeet"], refs: ["Naresh", "Om"], s1: 15, s2: 11 },
     { r: 9, c: 3, t1: ["Hira", "Sanjay"], t2: ["Honey", "Sarwan"], refs: ["Pardeep", "Partab"], s1: 15, s2: 11 }
   ];
 
@@ -88,7 +88,7 @@
   let currentCourtFilter = "all"; // 'all', '1', '2', '3'
 
   // ---------- PERSISTENCE HELPERS ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v2';
+  const STORAGE_KEY = 'badminton_cup_portal_data_v3';
 
   function saveState() {
     try {
