@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="description" content="Community Badminton Cup Tournament Portal: Live mixer fixtures, automated referee assignments, real-time leaderboard, and dynamic finals pools.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:title" content="Community Badminton Cup - Tournament Portal">
+  <meta property="og:description" content="Live Fixtures, Dynamic Leaderboard, Referee Assignments, and Finals Pools for the Community Badminton Cup.">
+  <meta property="og:type" content="website">
+
+  <title>Community Badminton Cup - Live Tournament Portal</title>
+
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-wrapper">
+    <!-- Header Section -->
+    <header class="portal-header">
+      <div class="header-top-row">
+        <div>
+          <div class="brand-badge">🏸 Community Tourney</div>
+          <h1 class="portal-title">Badminton Cup</h1>
+          <p class="portal-subtitle">Live Mixer Fixtures &bull; Standings &bull; Dynamic Finals</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">🌙</button>
+          <button type="button" class="icon-btn" onclick="openOrganizerModal()" title="Organizer Tools (Backup/Reset)" aria-label="Organizer Settings">⚙️</button>
+          <button type="button" class="icon-btn" onclick="printTournament()" title="Print Scoresheet" aria-label="Print">🖨️</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-container" aria-label="Tournament Views">
+      <button type="button" class="tab-btn active" id="tabBtn-fixtures" onclick="switchTab('fixtures')">
+        <span>📅</span> Schedule
+      </button>
+      <button type="button" class="tab-btn" id="tabBtn-leaderboard" onclick="switchTab('leaderboard')">
+        <span>📊</span> Leaderboard
+      </button>
+      <button type="button" class="tab-btn" id="tabBtn-finals" onclick="switchTab('finals')">
+        <span>🏆</span> Finals
+      </button>
+      <button type="button" class="tab-btn" id="tabBtn-rules" onclick="switchTab('rules')">
+        <span>📖</span> Rules
+      </button>
+    </nav>
+
+    <!-- Filter & Personalization Card -->
+    <div class="filter-card">
+      <div class="filter-grid">
+        <div class="filter-group">
+          <label for="playerSelect">👤 Filter By Player</label>
+          <select id="playerSelect" class="select-styled">
+            <option value="">-- All 18 Players (Full Tournament View) --</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>🏸 Filter Court</label>
+          <div class="quick-filter-btns">
+            <button type="button" class="pill-btn court-filter-btn active" data-court="all" onclick="filterByCourt('all')">All Courts</button>
+            <button type="button" class="pill-btn court-filter-btn" data-court="1" onclick="filterByCourt('1')">Court 1</button>
+            <button type="button" class="pill-btn court-filter-btn" data-court="2" onclick="filterByCourt('2')">Court 2</button>
+            <button type="button" class="pill-btn court-filter-btn" data-court="3" onclick="filterByCourt('3')">Court 3</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personalized Player Hub (Shown when player selected) -->
+    <div id="playerHubCard" class="player-hub-card">
+      <div class="player-hub-header">
+        <div class="player-name-badge">
+          <span>🏸</span> <span id="hubPlayerName">Player</span>
+          <span class="rank-badge rank-1" id="hubRankBadge" style="margin-left:6px; font-size:0.75rem;">Rank #1</span>
+        </div>
+        <div class="player-stats-chips">
+          <div class="stat-chip" id="hubRecord"><strong>0W - 0L</strong></div>
+          <div class="stat-chip" id="hubDiff">Diff: <strong>+0</strong></div>
+          <span class="tier-badge tier-gold" id="hubTier">Gold Pool</span>
+        </div>
+      </div>
+      <div class="player-hub-details">
+        <div id="hubNextStatus">📢 Next: Loading match info...</div>
+        <div style="font-size:0.75rem; color:var(--text-muted);">6 matches &bull; 3 referee rotations</div>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT AREA -->
+    <main>
+      <!-- TAB 1: FIXTURES / SCHEDULE -->
+      <section id="tab-fixtures" class="tab-pane">
+        <div class="schedule-list" id="scheduleContainer">
+          <!-- Dynamic fixture cards injected by app.js -->
+        </div>
+      </section>
+
+      <!-- TAB 2: LEADERBOARD -->
+      <section id="tab-leaderboard" class="tab-pane hidden">
+        <div class="lb-card">
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; flex-wrap:wrap; gap:8px;">
+            <div>
+              <h2 style="font-size:1.1rem; font-weight:800; color:var(--text-primary); margin:0;">Stage 1 Standings</h2>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin:0;">Ranks update instantly upon score entry (Wins &rarr; Diff &rarr; Points)</p>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <span class="tier-badge tier-gold">1-6 Gold</span>
+              <span class="tier-badge tier-silver">7-12 Silver</span>
+              <span class="tier-badge tier-bronze">13-18 Bronze</span>
+            </div>
+          </div>
+          <div class="lb-table-wrap">
+            <table class="lb-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th style="text-align:left;">Player</th>
+                  <th>GP</th>
+                  <th>W</th>
+                  <th>PTS</th>
+                  <th>GA</th>
+                  <th>Diff</th>
+                  <th>Finals Pool</th>
+                </tr>
+              </thead>
+              <tbody id="lbBody">
+                <!-- Standings rows injected by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: FINALS -->
+      <section id="tab-finals" class="tab-pane hidden">
+        <div style="background:var(--primary-light); border:1px solid var(--primary-border); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:16px; font-size:0.85rem; color:var(--primary);">
+          ℹ️ <strong>Dynamic Re-seeding:</strong> Final pools are calculated directly from Stage 1 leaderboard ranks (Ranks 1–6 to Gold, 7–12 to Silver, 13–18 to Bronze). Each 3-team pool plays a round-robin (2 matches + 1 ref duty).
+        </div>
+        <div id="finalsContainer">
+          <!-- Finals pools injected by app.js -->
+        </div>
+      </section>
+
+      <!-- TAB 4: RULES & REFEREE GUIDE -->
+      <section id="tab-rules" class="tab-pane hidden">
+        <div class="rules-container">
+          <div class="rule-section-card">
+            <h3>⚡ Tournament Structure &amp; Format</h3>
+            <ul>
+              <li><strong>Zero Eliminations:</strong> Every single player plays all 8 matches (6 mixer games in Stage 1 + 2 championship games in Stage 2 Finals).</li>
+              <li><strong>"Play 2, Rest 1" Rhythm:</strong> Across 9 Stage 1 rounds, every participant plays 6 matches and officiates 3 matches when resting.</li>
+              <li><strong>100% Unique Partners:</strong> In Stage 1, you partner with 6 different teammates—never the same partner twice!</li>
+              <li><strong>Unbiased Squad Generation:</strong> Squads A, B, and C and Round 1 pairings are strictly generated by alphabetical roster order, eliminating any subjective seed bias.</li>
+            </ul>
+          </div>
+
+          <div class="rule-section-card">
+            <h3>🏸 Match Scoring &amp; Tie-Breakers</h3>
+            <ul>
+              <li><strong>Stage 1 (Mixer):</strong> 1 set to <strong>15 points sudden death</strong> (first team to 15 wins; no deuce at 14–14).</li>
+              <li><strong>Leaderboard Ranking Order:</strong>
+                <ol style="padding-left: 20px; margin-top: 4px;">
+                  <li>Total Wins</li>
+                  <li>Net Point Differential (+/-)</li>
+                  <li>Total Points Scored</li>
+                </ol>
+              </li>
+              <li><strong>Stage 2 Finals:</strong> 1 set to <strong>21 points sudden death</strong> (or 15 if time constraints apply).</li>
+            </ul>
+          </div>
+
+          <div class="rule-section-card">
+            <h3>🏆 Stage 2 Finals Qualification</h3>
+            <ul>
+              <li><strong>Gold Championship (Court 1):</strong> Players ranked 1–6 (Teams: #1 &amp; #2, #3 &amp; #4, #5 &amp; #6).</li>
+              <li><strong>Silver Plate (Court 2):</strong> Players ranked 7–12 (Teams: #7 &amp; #8, #9 &amp; #10, #11 &amp; #12).</li>
+              <li><strong>Bronze Shield (Court 3):</strong> Players ranked 13–18 (Teams: #13 &amp; #14, #15 &amp; #16, #17 &amp; #18).</li>
+            </ul>
+          </div>
+
+          <div class="rule-section-card">
+            <h3>👀 Officiating &amp; Diagonal Line Judge Guide</h3>
+            <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:10px;">
+              When your team is on rest duty, you and your assigned partner referee that court's match.
+            </p>
+            <ul>
+              <li><strong>Ref 1 (Primary Scorer):</strong> Announces current score loudly before every serve (e.g. <em>"7 serving 5"</em>) and records the final score in this portal.</li>
+              <li><strong>Ref 2 (Line Judge &amp; Shuttle):</strong> Manages shuttles and makes decisive sideline/baseline calls.</li>
+              <li><strong>Diagonal Positioning:</strong> Stand on opposite diagonal corners for 100% sideline and baseline coverage.</li>
+            </ul>
+
+            <div class="court-diagram">
+              <div style="font-size:0.75rem; font-weight:700; color:var(--court-2); margin-bottom:6px;">DIAGONAL REFEREE POSITIONING</div>
+              <div class="court-grid-visual">
+                <div class="net-line"></div>
+                <div class="ref-marker ref-1-pos">Ref 1 (Scorekeeper)</div>
+                <div class="ref-marker ref-2-pos">Ref 2 (Line Judge)</div>
+                <span style="font-size:0.78rem; font-weight:700; color:var(--court-2); opacity:0.8;">BADMINTON COURT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer style="margin-top:30px; text-align:center; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border-subtle); padding-top:16px;">
+      <p>🏸 Community Badminton Cup &bull; Optimized for Mobile &amp; GitHub Pages</p>
+      <p style="margin-top:4px; font-size:0.74rem;">Scores persist automatically in your browser's local storage.</p>
+    </footer>
+  </div>
+
+  <!-- ORGANIZER MODAL -->
+  <div id="organizerModal" class="modal-overlay" onclick="if(event.target===this) closeOrganizerModal()">
+    <div class="modal-card">
+      <h2 class="modal-title">⚙️ Tournament Desk Tools</h2>
+      <div class="modal-body">
+        <p>Manage tournament state, download backup files, or reset for a new event:</p>
+        
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <button type="button" class="btn-secondary" onclick="exportDataJSON()" style="text-align:left;">
+            💾 <strong>Export Backup (JSON)</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Save full match scores &amp; standings to your computer</div>
+          </button>
+
+          <label class="btn-secondary" style="text-align:left; cursor:pointer;">
+            📥 <strong>Import Backup (JSON)</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Restore tournament data from a saved JSON file</div>
+            <input type="file" accept=".json" onchange="importDataJSON(this)" style="display:none;">
+          </label>
+
+          <button type="button" class="btn-secondary" onclick="loadDemoData()" style="text-align:left;">
+            🎲 <strong>Load Demo Tournament Scores</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Populate test scores across all 9 rounds &amp; finals</div>
+          </button>
+
+          <button type="button" class="btn-danger" onclick="resetTournament()" style="text-align:left; margin-top:8px;">
+            ⚠️ <strong>Reset All Scores to Blank</strong>
+            <div style="font-size:0.75rem; opacity:0.85;">Clears all entered scores for a fresh tournament</div>
+          </button>
+        </div>
+      </div>
+      <div class="modal-btn-row">
+        <button type="button" class="btn-secondary" onclick="closeOrganizerModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Application Script -->
+  <script src="js/app.js"></script>
+</body>
+</html>
