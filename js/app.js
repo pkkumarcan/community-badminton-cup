@@ -173,9 +173,24 @@
     tabs.forEach((t) => {
       const panel = document.getElementById('tab-' + t);
       const btn = document.getElementById('tabBtn-' + t);
-      if (panel) panel.classList.toggle('hidden', t !== tab);
-      if (btn) btn.classList.toggle('active', t === tab);
+      const isCurrent = t === tab;
+      if (panel) {
+        if (isCurrent) {
+          panel.classList.remove('hidden');
+          panel.style.display = 'block';
+        } else {
+          panel.classList.add('hidden');
+          panel.style.display = 'none';
+        }
+      }
+      if (btn) btn.classList.toggle('active', isCurrent);
     });
+
+    // Re-render data for the newly active view
+    if (tab === 'leaderboard') renderLeaderboard();
+    if (tab === 'finals') renderFinals();
+    if (tab === 'fixtures') renderSchedule();
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
