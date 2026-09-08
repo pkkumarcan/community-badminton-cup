@@ -100,7 +100,7 @@
   let currentCourtFilter = "all"; // 'all', '1', '2', '3'
 
   // ---------- PERSISTENCE HELPERS ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v4';
+  const STORAGE_KEY = 'badminton_cup_portal_data_v5';
 
   function saveState() {
     try {
@@ -268,10 +268,15 @@
 
   function buildFinalsPools(leaderboard) {
     const tierSlice = (start) => leaderboard.slice(start, start + 6).map(s => s.name);
+    
+    // Balanced (Snake) Pairing:
+    // Team 1: Rank 1 & Rank 6 (Combined Rank = 7)
+    // Team 2: Rank 2 & Rank 5 (Combined Rank = 7)
+    // Team 3: Rank 3 & Rank 4 (Combined Rank = 7)
     const makeTeams = names => [
-      [names[0], names[1]],
-      [names[2], names[3]],
-      [names[4], names[5]]
+      [names[0], names[5]], // #1 & #6 (or #7 & #12, #13 & #18)
+      [names[1], names[4]], // #2 & #5 (or #8 & #11, #14 & #17)
+      [names[2], names[3]]  // #3 & #4 (or #9 & #10, #15 & #16)
     ];
 
     const goldNames = tierSlice(0);
@@ -285,7 +290,7 @@
     return [
       {
         key: "gold",
-        label: "Gold Championship (Court 1 — Ranks 1–6)",
+        label: "Gold Championship (Court 1 — Ranks 1–6 Balanced Snake)",
         badgeClass: "tier-gold",
         cls: "gold",
         courtNum: 1,
@@ -293,7 +298,7 @@
       },
       {
         key: "silver",
-        label: "Silver Plate (Court 2 — Ranks 7–12)",
+        label: "Silver Plate (Court 2 — Ranks 7–12 Balanced Snake)",
         badgeClass: "tier-silver",
         cls: "silver",
         courtNum: 2,
@@ -301,7 +306,7 @@
       },
       {
         key: "bronze",
-        label: "Bronze Shield (Court 3 — Ranks 13–18)",
+        label: "Bronze Shield (Court 3 — Ranks 13–18 Balanced Snake)",
         badgeClass: "tier-bronze",
         cls: "bronze",
         courtNum: 3,
