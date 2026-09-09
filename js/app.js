@@ -5,14 +5,14 @@
 (function () {
   'use strict';
 
-  // ---------- TOURNAMENT ROSTER ----------
+  // ---------- TOURNAMENT ROSTER (18 Players Strict Alphabetical) ----------
   const ROSTER = [
-    { id: 1, name: "Ajeet" }, { id: 2, name: "Amit" }, { id: 3, name: "Lajpat" },
-    { id: 4, name: "Deepak" }, { id: 5, name: "Hira" }, { id: 6, name: "Honey" },
-    { id: 7, name: "Hrithik" }, { id: 8, name: "Manoj" }, { id: 9, name: "Naresh" },
-    { id: 10, name: "Om" }, { id: 11, name: "Pardeep" }, { id: 12, name: "Partab" },
-    { id: 13, name: "Raja" }, { id: 14, name: "Rajesh M." }, { id: 15, name: "Sunny" },
-    { id: 16, name: "Ranjeet" }, { id: 17, name: "Sanjay" }, { id: 18, name: "Sarwan" }
+    { id: 1, name: "Ajeet" }, { id: 2, name: "Amit" }, { id: 3, name: "Deepak" },
+    { id: 4, name: "Hira" }, { id: 5, name: "Honey" }, { id: 6, name: "Hrithik" },
+    { id: 7, name: "Manoj" }, { id: 8, name: "Naresh" }, { id: 9, name: "Om" },
+    { id: 10, name: "Pardeep" }, { id: 11, name: "Partab" }, { id: 12, name: "Raja" },
+    { id: 13, name: "Rajesh M." }, { id: 14, name: "Rajesh N." }, { id: 15, name: "Ranjeet" },
+    { id: 16, name: "Sanjay" }, { id: 17, name: "Sarwan" }, { id: 18, name: "Sunny" }
   ];
 
   const PLAYERS = ROSTER.map(p => p.name).sort();
@@ -35,57 +35,52 @@
   const squadBPairs = pairConsecutive(squadB);
   const squadCPairs = pairConsecutive(squadC);
 
-  const round1Fixtures = squadAPairs.map((t1, i) => ({
-    r: 1, c: i + 1, t1, t2: squadBPairs[i], refs: squadCPairs[i],
-    s1: 15, s2: 11 // sensible default
-  }));
-
   // Default Stage 1 Template (Rounds 1-9 generated from strict alphabetical squads)
   const BASE_FIXTURES = [
     // Round 1: Squad C rests / refs
-    { r: 1, c: 1, t1: ["Ajeet", "Amit"], t2: ["Lajpat", "Manoj"], refs: ["Raja", "Rajesh M."], s1: 15, s2: 11 },
-    { r: 1, c: 2, t1: ["Deepak", "Hira"], t2: ["Naresh", "Om"], refs: ["Ranjeet", "Sanjay"], s1: 15, s2: 11 },
-    { r: 1, c: 3, t1: ["Honey", "Hrithik"], t2: ["Pardeep", "Partab"], refs: ["Sarwan", "Sunny"], s1: 15, s2: 11 },
+    { r: 1, c: 1, t1: ["Ajeet", "Amit"], t2: ["Manoj", "Naresh"], refs: ["Rajesh M.", "Rajesh N."], s1: 15, s2: 11 },
+    { r: 1, c: 2, t1: ["Deepak", "Hira"], t2: ["Om", "Pardeep"], refs: ["Ranjeet", "Sanjay"], s1: 15, s2: 11 },
+    { r: 1, c: 3, t1: ["Honey", "Hrithik"], t2: ["Partab", "Raja"], refs: ["Sarwan", "Sunny"], s1: 15, s2: 11 },
 
     // Round 2: Squad A rests / refs
-    { r: 2, c: 1, t1: ["Lajpat", "Sanjay"], t2: ["Om", "Ranjeet"], refs: ["Hira", "Honey"], s1: 15, s2: 11 },
-    { r: 2, c: 2, t1: ["Pardeep", "Raja"], t2: ["Manoj", "Partab"], refs: ["Deepak", "Amit"], s1: 15, s2: 11 },
-    { r: 2, c: 3, t1: ["Sarwan", "Sunny"], t2: ["Naresh", "Rajesh M."], refs: ["Ajeet", "Hrithik"], s1: 15, s2: 11 },
+    { r: 2, c: 1, t1: ["Naresh", "Sanjay"], t2: ["Rajesh N.", "Sunny"], refs: ["Honey", "Hira"], s1: 15, s2: 11 },
+    { r: 2, c: 2, t1: ["Pardeep", "Ranjeet"], t2: ["Manoj", "Sarwan"], refs: ["Amit", "Ajeet"], s1: 15, s2: 11 },
+    { r: 2, c: 3, t1: ["Om", "Partab"], t2: ["Raja", "Rajesh M."], refs: ["Deepak", "Hrithik"], s1: 15, s2: 11 },
 
     // Round 3: Squad B rests / refs
-    { r: 3, c: 1, t1: ["Honey", "Raja"], t2: ["Sanjay", "Sunny"], refs: ["Naresh", "Om"], s1: 15, s2: 11 },
-    { r: 3, c: 2, t1: ["Hira", "Sarwan"], t2: ["Ajeet", "Deepak"], refs: ["Lajpat", "Manoj"], s1: 15, s2: 11 },
-    { r: 3, c: 3, t1: ["Hrithik", "Ranjeet"], t2: ["Amit", "Rajesh M."], refs: ["Pardeep", "Partab"], s1: 15, s2: 11 },
+    { r: 3, c: 1, t1: ["Amit", "Hira"], t2: ["Honey", "Ranjeet"], refs: ["Naresh", "Om"], s1: 15, s2: 11 },
+    { r: 3, c: 2, t1: ["Rajesh M.", "Sunny"], t2: ["Ajeet", "Sanjay"], refs: ["Manoj", "Raja"], s1: 15, s2: 11 },
+    { r: 3, c: 3, t1: ["Deepak", "Sarwan"], t2: ["Hrithik", "Rajesh N."], refs: ["Pardeep", "Partab"], s1: 15, s2: 11 },
 
     // Round 4: Squad C rests / refs
-    { r: 4, c: 1, t1: ["Deepak", "Partab"], t2: ["Hira", "Lajpat"], refs: ["Raja", "Ranjeet"], s1: 15, s2: 11 },
-    { r: 4, c: 2, t1: ["Manoj", "Pardeep"], t2: ["Hrithik", "Om"], refs: ["Sarwan", "Sunny"], s1: 15, s2: 11 },
-    { r: 4, c: 3, t1: ["Amit", "Honey"], t2: ["Ajeet", "Naresh"], refs: ["Sanjay", "Rajesh M."], s1: 15, s2: 11 },
+    { r: 4, c: 1, t1: ["Hira", "Om"], t2: ["Amit", "Pardeep"], refs: ["Ranjeet", "Sunny"], s1: 15, s2: 11 },
+    { r: 4, c: 2, t1: ["Ajeet", "Manoj"], t2: ["Naresh", "Partab"], refs: ["Rajesh N.", "Sanjay"], s1: 15, s2: 11 },
+    { r: 4, c: 3, t1: ["Hrithik", "Raja"], t2: ["Deepak", "Honey"], refs: ["Sarwan", "Rajesh M."], s1: 15, s2: 11 },
 
     // Round 5: Squad A rests / refs
-    { r: 5, c: 1, t1: ["Rajesh M.", "Ranjeet"], t2: ["Om", "Partab"], refs: ["Hrithik", "Hira"], s1: 15, s2: 11 },
-    { r: 5, c: 2, t1: ["Manoj", "Sunny"], t2: ["Raja", "Sanjay"], refs: ["Deepak", "Amit"], s1: 15, s2: 11 },
-    { r: 5, c: 3, t1: ["Lajpat", "Sarwan"], t2: ["Naresh", "Pardeep"], refs: ["Honey", "Ajeet"], s1: 15, s2: 11 },
+    { r: 5, c: 1, t1: ["Raja", "Sunny"], t2: ["Naresh", "Ranjeet"], refs: ["Hira", "Deepak"], s1: 15, s2: 11 },
+    { r: 5, c: 2, t1: ["Manoj", "Om"], t2: ["Pardeep", "Sarwan"], refs: ["Ajeet", "Honey"], s1: 15, s2: 11 },
+    { r: 5, c: 3, t1: ["Rajesh M.", "Sanjay"], t2: ["Partab", "Rajesh N."], refs: ["Hrithik", "Amit"], s1: 15, s2: 11 },
 
     // Round 6: Squad B rests / refs
-    { r: 6, c: 1, t1: ["Deepak", "Sanjay"], t2: ["Rajesh M.", "Sunny"], refs: ["Lajpat", "Naresh"], s1: 15, s2: 11 },
-    { r: 6, c: 2, t1: ["Hrithik", "Sarwan"], t2: ["Hira", "Honey"], refs: ["Pardeep", "Om"], s1: 15, s2: 11 },
-    { r: 6, c: 3, t1: ["Ajeet", "Raja"], t2: ["Amit", "Ranjeet"], refs: ["Partab", "Manoj"], s1: 15, s2: 11 },
+    { r: 6, c: 1, t1: ["Deepak", "Rajesh M."], t2: ["Hira", "Honey"], refs: ["Om", "Pardeep"], s1: 15, s2: 11 },
+    { r: 6, c: 2, t1: ["Hrithik", "Sanjay"], t2: ["Sarwan", "Sunny"], refs: ["Partab", "Naresh"], s1: 15, s2: 11 },
+    { r: 6, c: 3, t1: ["Ajeet", "Rajesh N."], t2: ["Amit", "Ranjeet"], refs: ["Raja", "Manoj"], s1: 15, s2: 11 },
 
     // Round 7: Squad C rests / refs
-    { r: 7, c: 1, t1: ["Amit", "Deepak"], t2: ["Ajeet", "Om"], refs: ["Sarwan", "Rajesh M."], s1: 15, s2: 11 },
-    { r: 7, c: 2, t1: ["Hrithik", "Partab"], t2: ["Honey", "Naresh"], refs: ["Sunny", "Raja"], s1: 15, s2: 11 },
-    { r: 7, c: 3, t1: ["Hira", "Manoj"], t2: ["Lajpat", "Pardeep"], refs: ["Sanjay", "Ranjeet"], s1: 15, s2: 11 },
+    { r: 7, c: 1, t1: ["Naresh", "Om"], t2: ["Amit", "Manoj"], refs: ["Sunny", "Rajesh N."], s1: 15, s2: 11 },
+    { r: 7, c: 2, t1: ["Ajeet", "Hira"], t2: ["Honey", "Raja"], refs: ["Sanjay", "Sarwan"], s1: 15, s2: 11 },
+    { r: 7, c: 3, t1: ["Deepak", "Pardeep"], t2: ["Hrithik", "Partab"], refs: ["Rajesh M.", "Ranjeet"], s1: 15, s2: 11 },
 
     // Round 8: Squad A rests / refs
-    { r: 8, c: 1, t1: ["Om", "Raja"], t2: ["Partab", "Sanjay"], refs: ["Honey", "Hrithik"], s1: 15, s2: 11 },
-    { r: 8, c: 2, t1: ["Manoj", "Ranjeet"], t2: ["Pardeep", "Rajesh M."], refs: ["Deepak", "Ajeet"], s1: 15, s2: 11 },
-    { r: 8, c: 3, t1: ["Lajpat", "Sunny"], t2: ["Naresh", "Sarwan"], refs: ["Amit", "Hira"], s1: 15, s2: 11 },
+    { r: 8, c: 1, t1: ["Manoj", "Ranjeet"], t2: ["Om", "Raja"], refs: ["Ajeet", "Hrithik"], s1: 15, s2: 11 },
+    { r: 8, c: 2, t1: ["Sanjay", "Sunny"], t2: ["Pardeep", "Rajesh M."], refs: ["Amit", "Deepak"], s1: 15, s2: 11 },
+    { r: 8, c: 3, t1: ["Naresh", "Rajesh N."], t2: ["Partab", "Sarwan"], refs: ["Hira", "Honey"], s1: 15, s2: 11 },
 
     // Round 9: Squad B rests / refs
-    { r: 9, c: 1, t1: ["Deepak", "Honey"], t2: ["Hrithik", "Raja"], refs: ["Manoj", "Om"], s1: 15, s2: 11 },
-    { r: 9, c: 2, t1: ["Ajeet", "Sunny"], t2: ["Rajesh M.", "Sarwan"], refs: ["Lajpat", "Partab"], s1: 15, s2: 11 },
-    { r: 9, c: 3, t1: ["Amit", "Hira"], t2: ["Ranjeet", "Sanjay"], refs: ["Pardeep", "Naresh"], s1: 15, s2: 11 }
+    { r: 9, c: 1, t1: ["Ajeet", "Sarwan"], t2: ["Rajesh N.", "Ranjeet"], refs: ["Partab", "Om"], s1: 15, s2: 11 },
+    { r: 9, c: 2, t1: ["Honey", "Sunny"], t2: ["Hira", "Hrithik"], refs: ["Naresh", "Raja"], s1: 15, s2: 11 },
+    { r: 9, c: 3, t1: ["Deepak", "Sanjay"], t2: ["Amit", "Rajesh M."], refs: ["Pardeep", "Manoj"], s1: 15, s2: 11 }
   ];
 
   // Deep clone to avoid mutating baseline
@@ -100,7 +95,7 @@
   let currentCourtFilter = "all"; // 'all', '1', '2', '3'
 
   // ---------- PERSISTENCE HELPERS ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v5';
+  const STORAGE_KEY = 'badminton_cup_portal_data_v6';
 
   function saveState() {
     try {

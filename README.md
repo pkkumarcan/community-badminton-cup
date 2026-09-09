@@ -6,28 +6,28 @@ Designed to be hosted directly on **GitHub Pages** with **zero build steps** and
 
 ---
 
-## 👥 Confirmed Final 18 Roster
+## 👥 Confirmed Final 18 Roster (Strict Alphabetical)
 
 | ID | Player Name | Display Name | Squad | Notes |
 |:---:|:---|:---:|:---:|:---|
 | 1 | Ajeet Wankvani | **Ajeet** | A | |
 | 2 | Amit Jesrani | **Amit** | A | |
-| 3 | Lajpat Soni | **Lajpat** | A | *Replaces Avi* |
-| 4 | Deepak Hans | **Deepak** | A | |
-| 5 | Hira Canada | **Hira** | A | |
-| 6 | Honey Kotak | **Honey** | A | |
-| 7 | Hrithik | **Hrithik** | B | |
-| 8 | Manoj Ahuja | **Manoj** | B | |
-| 9 | Naresh Lohana | **Naresh** | B | |
-| 10 | Om Parkash | **Om** | B | |
-| 11 | Pardeep | **Pardeep** | B | Organizer |
-| 12 | Partab Madhan | **Partab** | B | |
-| 13 | Raja King | **Raja** | C | |
-| 14 | Rajesh Motwani | **Rajesh M.** | C | |
-| 15 | Sunny Kessrani | **Sunny** | C | *Replaces Rajesh N.* |
-| 16 | Ranjeet | **Ranjeet** | C | |
-| 17 | Sanjay | **Sanjay** | C | |
-| 18 | Sarwan Rajani | **Sarwan** | C | |
+| 3 | Deepak Hans | **Deepak** | A | |
+| 4 | Hira Canada | **Hira** | A | |
+| 5 | Honey Kotak | **Honey** | A | |
+| 6 | Hrithik | **Hrithik** | A | |
+| 7 | Manoj Ahuja Canada | **Manoj** | B | |
+| 8 | Naresh Lohana | **Naresh** | B | |
+| 9 | Om Parkash | **Om** | B | |
+| 10 | Pardeep | **Pardeep** | B | Organizer |
+| 11 | Partab Madhan | **Partab** | B | |
+| 12 | Raja King Canada | **Raja** | B | |
+| 13 | Rajesh Motwani | **Rajesh M.** | C | |
+| 14 | Rajesh Nachnani | **Rajesh N.** | C | Confirmed in Final 18 |
+| 15 | Ranjeet Canada | **Ranjeet** | C | |
+| 16 | Sanjay | **Sanjay** | C | |
+| 17 | Sarwan Rajani | **Sarwan** | C | |
+| 18 | Sunny Kessrani | **Sunny** | C | 18th in alphabetical order |
 
 ---
 
