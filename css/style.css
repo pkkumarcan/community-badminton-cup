@@ -27,6 +27,8 @@
   --court-2-light: #d1fae5;
   --court-3: #7c3aed;
   --court-3-light: #ede9fe;
+  --court-4: #0284c7;
+  --court-4-light: #e0f2fe;
 
   /* Tier Palettes */
   --gold: #d97706;
@@ -35,6 +37,8 @@
   --silver-bg: linear-gradient(135deg, #64748b, #475569);
   --bronze: #b45309;
   --bronze-bg: linear-gradient(135deg, #d97706, #9a3412);
+  --copper: #c2410c;
+  --copper-bg: linear-gradient(135deg, #ea580c, #9a3412);
 
   /* Status Colors */
   --win-color: #059669;
@@ -78,6 +82,8 @@
   --court-2-light: rgba(16, 185, 129, 0.15);
   --court-3: #a78bfa;
   --court-3-light: rgba(167, 139, 250, 0.15);
+  --court-4: #38bdf8;
+  --court-4-light: rgba(56, 189, 248, 0.15);
 
   --win-color: #34d399;
   --win-bg: rgba(16, 185, 129, 0.15);
@@ -111,7 +117,7 @@ body {
 }
 
 .app-wrapper {
-  max-width: 760px;
+  max-width: 1540px;
   margin: 0 auto;
 }
 
@@ -468,6 +474,7 @@ body {
 .c1 { background: var(--court-1); }
 .c2 { background: var(--court-2); }
 .c3 { background: var(--court-3); }
+.c4 { background: var(--court-4); }
 .ref-badge {
   background: var(--ref-border);
   color: #78350f;
@@ -702,6 +709,7 @@ body {
 .tier-gold { background: var(--gold-bg); }
 .tier-silver { background: var(--silver-bg); }
 .tier-bronze { background: var(--bronze-bg); }
+.tier-copper { background: var(--copper-bg); }
 
 .diff-pos { color: var(--win-color); font-weight: 800; }
 .diff-neg { color: var(--loss-color); font-weight: 800; }
@@ -727,6 +735,36 @@ body {
 .pool-banner.gold { background: var(--gold-bg); }
 .pool-banner.silver { background: var(--silver-bg); }
 .pool-banner.bronze { background: var(--bronze-bg); }
+.pool-banner.copper { background: var(--copper-bg); }
+
+/* Mini-Pod Block Divider Cards */
+.block-divider-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(245, 158, 11, 0.08));
+  border: 1px solid var(--primary-border);
+  border-left: 5px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin: 16px 0 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.block-title {
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.block-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
 
 .finals-matches-grid {
   display: flex;
@@ -1066,4 +1104,560 @@ body {
     font-size: 0.88rem;
   }
 }
+
+/* ==========================================================================
+   Schedule Table Sheet View (Single-Row Format)
+   ========================================================================== */
+
+.view-toggle-wrap {
+  display: inline-flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+  box-shadow: var(--shadow-sm);
+}
+
+.view-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+.view-toggle-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.view-toggle-btn:hover:not(.active) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* Table Container */
+.sched-table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 24px;
+}
+
+.sched-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sched-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sched-table thead th {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 12px 10px;
+  border-bottom: 2px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.sched-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.15s ease;
+}
+
+.sched-table tbody tr:hover {
+  background: var(--bg-card-hover);
+}
+
+.sched-table td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+/* Block Row Divider */
+.sched-table tr.block-header-row td {
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.08) 0%, transparent 100%);
+  padding: 10px 14px;
+  text-align: left;
+  border-top: 2px solid var(--border-card);
+  border-bottom: 1px solid var(--primary-border);
+}
+
+.block-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.block-header-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+/* Row Highlights */
+.sched-table tr.row-highlight-playing {
+  background: rgba(37, 99, 235, 0.08) !important;
+  border-left: 4px solid var(--primary);
+}
+
+.sched-table tr.row-highlight-ref {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-left: 4px solid var(--gold);
+}
+
+.sched-table tr.row-won {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.sched-table tr.row-lost {
+  background: rgba(239, 68, 68, 0.04);
+}
+
+/* Cell Specifics */
+.td-round {
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: 'Outfit', monospace, sans-serif;
+}
+
+.round-pill {
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.time-pill {
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.court-badge-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.court-sub-note {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.team-pair-cell {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.team-pair-cell.team-2 {
+  text-align: left;
+}
+
+.player-highlight-text {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 800;
+}
+
+[data-theme="dark"] .player-highlight-text {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.2);
+}
+
+/* Score Input in Table */
+.tbl-score-box {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 1px;
+  gap: 1px;
+}
+
+.tbl-score-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 18px;
+  height: 24px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: var(--transition);
+}
+
+.tbl-score-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.tbl-score-input {
+  width: 28px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.tbl-score-input::-webkit-outer-spin-button,
+.tbl-score-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tbl-score-input:focus {
+  outline: 2px solid var(--primary);
+  border-radius: 3px;
+}
+
+/* Clean View-Only Score Boxes */
+.view-score-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 26px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  font-weight: 800;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.view-score-box.win {
+  background: var(--win-bg);
+  color: var(--win-color);
+  border-color: var(--win-color);
+}
+
+.view-score-box.loss {
+  background: var(--loss-bg);
+  color: var(--loss-color);
+  border-color: var(--loss-color);
+}
+
+.view-score-box.live {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--gold);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.view-score-box.pending {
+  color: var(--text-muted);
+  border-style: dashed;
+  font-weight: 600;
+}
+
+/* W/L Badges */
+.wl-pill {
+  display: inline-block;
+  min-width: 34px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.wl-win {
+  background: var(--win-bg);
+  color: var(--win-color);
+  border: 1px solid var(--win-color);
+}
+
+.wl-loss {
+  background: var(--loss-bg);
+  color: var(--loss-color);
+  border: 1px solid var(--loss-color);
+}
+
+.wl-pending {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Point Differential */
+.diff-pill {
+  font-family: 'Outfit', monospace, sans-serif;
+  font-weight: 800;
+  font-size: 0.76rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-pill.pos {
+  color: var(--win-color);
+  background: var(--win-bg);
+}
+
+.diff-pill.neg {
+  color: var(--loss-color);
+  background: var(--loss-bg);
+}
+
+.diff-pill.even {
+  color: var(--text-muted);
+}
+
+/* Referees Cell */
+.ref-cell {
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.ref-cell strong {
+  color: var(--text-primary);
+}
+
+.ref-icon-badge {
+  font-size: 0.7rem;
+  margin-right: 3px;
+}
+
+/* ==========================================================================
+   Comprehensive Print & PDF Rules (All 11 Columns Fit in One Row)
+   ========================================================================== */
+
+@page {
+  size: landscape;
+  margin: 6mm 6mm;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 9pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide interactive and irrelevant UI elements */
+  .header-actions,
+  .tabs-container,
+  .filter-card,
+  .controls-panel,
+  .controls-bar,
+  .view-toggle-wrap,
+  .toast-container,
+  .nav-bar-sheet,
+  .tbl-score-btn,
+  .stats-summary-bar .stats-pill,
+  button,
+  .icon-btn {
+    display: none !important;
+  }
+
+  /* Expand wrappers to full paper width */
+  .app-wrapper,
+  .schedule-app-container,
+  .sched-table-card,
+  .sched-table-wrap {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .portal-header,
+  .schedule-header-card {
+    border-bottom: 2px solid #0f172a !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .portal-title,
+  .page-title {
+    font-size: 1.6rem !important;
+    color: #000 !important;
+    -webkit-text-fill-color: #000 !important;
+  }
+
+  .portal-subtitle,
+  .page-sub {
+    font-size: 0.75rem !important;
+    color: #475569 !important;
+  }
+
+  /* Force table into fixed single-row layout that fits 100% paper width */
+  .sched-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 7.5pt !important;
+  }
+
+  .sched-table th,
+  .sched-table td {
+    border: 1px solid #94a3b8 !important;
+    padding: 3px 2px !important;
+    color: #000000 !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+    vertical-align: middle !important;
+  }
+
+  .sched-table thead th {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    font-weight: 800 !important;
+    font-size: 7pt !important;
+    padding: 4px 2px !important;
+    position: static !important;
+  }
+
+  /* Specific column width percentages summing to 100% */
+  .sched-table th:nth-child(1), .sched-table td:nth-child(1) { width: 5.5% !important; } /* Round */
+  .sched-table th:nth-child(2), .sched-table td:nth-child(2) { width: 9% !important; }   /* Approx Time */
+  .sched-table th:nth-child(3), .sched-table td:nth-child(3) { width: 7.5% !important; } /* Court */
+  .sched-table th:nth-child(4), .sched-table td:nth-child(4) { width: 19% !important; }  /* Team 1 */
+  .sched-table th:nth-child(5), .sched-table td:nth-child(5) { width: 6.5% !important; } /* Score 1 */
+  .sched-table th:nth-child(6), .sched-table td:nth-child(6) { width: 5% !important; }   /* W/L 1 */
+  .sched-table th:nth-child(7), .sched-table td:nth-child(7) { width: 19% !important; }  /* Team 2 */
+  .sched-table th:nth-child(8), .sched-table td:nth-child(8) { width: 6.5% !important; } /* Score 2 */
+  .sched-table th:nth-child(9), .sched-table td:nth-child(9) { width: 5% !important; }   /* W/L 2 */
+  .sched-table th:nth-child(10), .sched-table td:nth-child(10) { width: 5% !important; } /* Point Diff */
+  .sched-table th:nth-child(11), .sched-table td:nth-child(11) { width: 12% !important; } /* Referees */
+
+  .tbl-score-box {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .tbl-score-input {
+    width: 22px !important;
+    height: 18px !important;
+    font-size: 8pt !important;
+    border: 1px solid #64748b !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .round-pill, .time-pill, .court-badge {
+    border: 1px solid #64748b !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 1px 3px !important;
+    font-size: 6.8pt !important;
+  }
+
+  .wl-pill {
+    font-size: 6.5pt !important;
+    padding: 1px 2px !important;
+    min-width: 24px !important;
+    border: 1px solid #64748b !important;
+  }
+
+  .wl-win {
+    background: #dcfce7 !important;
+    color: #15803d !important;
+    border-color: #16a34a !important;
+  }
+
+  .wl-loss {
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
+    border-color: #dc2626 !important;
+  }
+
+  .diff-pill {
+    font-size: 7pt !important;
+    padding: 1px 3px !important;
+  }
+
+  .diff-pill.pos {
+    background: #dcfce7 !important;
+    color: #15803d !important;
+  }
+
+  .diff-pill.neg {
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
+  }
+
+  .block-header-row td {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-size: 8pt !important;
+    font-weight: 800 !important;
+    border-top: 2px solid #0f172a !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+  }
+}
+
 

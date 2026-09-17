@@ -1,101 +1,1036 @@
 /**
  * Community Badminton Cup - Application Logic & State Engine
+ * 24 Players · 4 Courts · 12 Rounds · 4-Block Mini-Pod Format
  */
 
 (function () {
   'use strict';
 
-  // ---------- TOURNAMENT ROSTER (18 Players Strict Alphabetical) ----------
+  // ---------- TOURNAMENT ROSTER (24 Players Strict Alphabetical) ----------
   const ROSTER = [
-    { id: 1, name: "Ajeet" }, { id: 2, name: "Amit" }, { id: 3, name: "Deepak" },
-    { id: 4, name: "Hira" }, { id: 5, name: "Honey" }, { id: 6, name: "Hrithik" },
-    { id: 7, name: "Manoj" }, { id: 8, name: "Naresh" }, { id: 9, name: "Om" },
-    { id: 10, name: "Pardeep" }, { id: 11, name: "Partab" }, { id: 12, name: "Raja" },
-    { id: 13, name: "Rajesh M." }, { id: 14, name: "Rajesh N." }, { id: 15, name: "Ranjeet" },
-    { id: 16, name: "Sanjay" }, { id: 17, name: "Sarwan" }, { id: 18, name: "Sunny" }
-  ];
+    {
+        "id": 1,
+        "name": "Ajeet"
+    },
+    {
+        "id": 2,
+        "name": "Amit"
+    },
+    {
+        "id": 3,
+        "name": "Deepak"
+    },
+    {
+        "id": 4,
+        "name": "Hira"
+    },
+    {
+        "id": 5,
+        "name": "Honey"
+    },
+    {
+        "id": 6,
+        "name": "Hrithik"
+    },
+    {
+        "id": 7,
+        "name": "Manoj"
+    },
+    {
+        "id": 8,
+        "name": "Naresh"
+    },
+    {
+        "id": 9,
+        "name": "Om"
+    },
+    {
+        "id": 10,
+        "name": "Pardeep"
+    },
+    {
+        "id": 11,
+        "name": "Partab"
+    },
+    {
+        "id": 12,
+        "name": "Raja"
+    },
+    {
+        "id": 13,
+        "name": "Rajesh M."
+    },
+    {
+        "id": 14,
+        "name": "Rajesh N."
+    },
+    {
+        "id": 15,
+        "name": "Rakesh"
+    },
+    {
+        "id": 16,
+        "name": "Ranjeet"
+    },
+    {
+        "id": 17,
+        "name": "Ravi"
+    },
+    {
+        "id": 18,
+        "name": "Rohit"
+    },
+    {
+        "id": 19,
+        "name": "Sanjay"
+    },
+    {
+        "id": 20,
+        "name": "Sarwan"
+    },
+    {
+        "id": 21,
+        "name": "Sunny"
+    },
+    {
+        "id": 22,
+        "name": "Vijay"
+    },
+    {
+        "id": 23,
+        "name": "Vinod"
+    },
+    {
+        "id": 24,
+        "name": "Wijai"
+    }
+];
 
   const PLAYERS = ROSTER.map(p => p.name).sort();
 
-  // ---------- ALPHABETICAL SQUAD ASSIGNMENTS (Unbiased Seed) ----------
-  const sortedRoster = [...PLAYERS].sort();
-  const squadA = sortedRoster.slice(0, 6);
-  const squadB = sortedRoster.slice(6, 12);
-  const squadC = sortedRoster.slice(12, 18);
+  // Mini-Pod Blocks Definition
+  const BLOCKS = {
+    1: { num: 1, label: "Block 1: Rounds 1–3", desc: "4 Courts × 6-Player Pods • Zero Inter-Court Movement", icon: "🏸" },
+    4: { num: 2, label: "Block 2: Rounds 4–6", desc: "Reshuffle #1 Complete • 6-Player Pods Locked", icon: "🔄" },
+    7: { num: 3, label: "Block 3: Rounds 7–9", desc: "Halfway Break & Reshuffle #2 Complete • 6-Player Pods Locked", icon: "⚡" },
+    10: { num: 4, label: "Block 4: Rounds 10–12", desc: "Final Reshuffle #3 Complete • Stage 1 Sprint to Finals", icon: "🔥" }
+  };
 
-  function pairConsecutive(arr) {
-    const pairs = [];
-    for (let i = 0; i < arr.length; i += 2) {
-      pairs.push([arr[i], arr[i + 1]]);
-    }
-    return pairs;
-  }
+  // Official 10-Minute Match Time Slots from Tournament Fixture Poster
+  const ROUND_TIMES = {
+    1: "12:05 PM",
+    2: "12:15 PM",
+    3: "12:25 PM",
+    4: "12:35 PM",
+    5: "12:45 PM",
+    6: "12:55 PM",
+    7: "1:05 PM",
+    8: "1:15 PM",
+    9: "1:25 PM",
+    10: "1:35 PM",
+    11: "1:45 PM",
+    12: "1:55 PM"
+  };
 
-  const squadAPairs = pairConsecutive(squadA);
-  const squadBPairs = pairConsecutive(squadB);
-  const squadCPairs = pairConsecutive(squadC);
+  // Court Venue & Label Info
+  const COURT_INFO = {
+    1: { name: "Court 1", sub: "" },
+    2: { name: "Court 2", sub: "" },
+    3: { name: "Court 3", sub: "" },
+    4: { name: "Court 4", sub: "" }
+  };
 
-  // Default Stage 1 Template (Rounds 1-9 generated from strict alphabetical squads)
+  // Default Stage 1 Template (12 Rounds, 4 Courts, 48 Matches)
   const BASE_FIXTURES = [
-    // Round 1: Squad C rests / refs
-    { r: 1, c: 1, t1: ["Ajeet", "Amit"], t2: ["Manoj", "Naresh"], refs: ["Rajesh M.", "Rajesh N."], s1: 15, s2: 11 },
-    { r: 1, c: 2, t1: ["Deepak", "Hira"], t2: ["Om", "Pardeep"], refs: ["Ranjeet", "Sanjay"], s1: 15, s2: 11 },
-    { r: 1, c: 3, t1: ["Honey", "Hrithik"], t2: ["Partab", "Raja"], refs: ["Sarwan", "Sunny"], s1: 15, s2: 11 },
-
-    // Round 2: Squad A rests / refs
-    { r: 2, c: 1, t1: ["Naresh", "Sanjay"], t2: ["Rajesh N.", "Sunny"], refs: ["Honey", "Hira"], s1: 15, s2: 11 },
-    { r: 2, c: 2, t1: ["Pardeep", "Ranjeet"], t2: ["Manoj", "Sarwan"], refs: ["Amit", "Ajeet"], s1: 15, s2: 11 },
-    { r: 2, c: 3, t1: ["Om", "Partab"], t2: ["Raja", "Rajesh M."], refs: ["Deepak", "Hrithik"], s1: 15, s2: 11 },
-
-    // Round 3: Squad B rests / refs
-    { r: 3, c: 1, t1: ["Amit", "Hira"], t2: ["Honey", "Ranjeet"], refs: ["Naresh", "Om"], s1: 15, s2: 11 },
-    { r: 3, c: 2, t1: ["Rajesh M.", "Sunny"], t2: ["Ajeet", "Sanjay"], refs: ["Manoj", "Raja"], s1: 15, s2: 11 },
-    { r: 3, c: 3, t1: ["Deepak", "Sarwan"], t2: ["Hrithik", "Rajesh N."], refs: ["Pardeep", "Partab"], s1: 15, s2: 11 },
-
-    // Round 4: Squad C rests / refs
-    { r: 4, c: 1, t1: ["Hira", "Om"], t2: ["Amit", "Pardeep"], refs: ["Ranjeet", "Sunny"], s1: 15, s2: 11 },
-    { r: 4, c: 2, t1: ["Ajeet", "Manoj"], t2: ["Naresh", "Partab"], refs: ["Rajesh N.", "Sanjay"], s1: 15, s2: 11 },
-    { r: 4, c: 3, t1: ["Hrithik", "Raja"], t2: ["Deepak", "Honey"], refs: ["Sarwan", "Rajesh M."], s1: 15, s2: 11 },
-
-    // Round 5: Squad A rests / refs
-    { r: 5, c: 1, t1: ["Raja", "Sunny"], t2: ["Naresh", "Ranjeet"], refs: ["Hira", "Deepak"], s1: 15, s2: 11 },
-    { r: 5, c: 2, t1: ["Manoj", "Om"], t2: ["Pardeep", "Sarwan"], refs: ["Ajeet", "Honey"], s1: 15, s2: 11 },
-    { r: 5, c: 3, t1: ["Rajesh M.", "Sanjay"], t2: ["Partab", "Rajesh N."], refs: ["Hrithik", "Amit"], s1: 15, s2: 11 },
-
-    // Round 6: Squad B rests / refs
-    { r: 6, c: 1, t1: ["Deepak", "Rajesh M."], t2: ["Hira", "Honey"], refs: ["Om", "Pardeep"], s1: 15, s2: 11 },
-    { r: 6, c: 2, t1: ["Hrithik", "Sanjay"], t2: ["Sarwan", "Sunny"], refs: ["Partab", "Naresh"], s1: 15, s2: 11 },
-    { r: 6, c: 3, t1: ["Ajeet", "Rajesh N."], t2: ["Amit", "Ranjeet"], refs: ["Raja", "Manoj"], s1: 15, s2: 11 },
-
-    // Round 7: Squad C rests / refs
-    { r: 7, c: 1, t1: ["Naresh", "Om"], t2: ["Amit", "Manoj"], refs: ["Sunny", "Rajesh N."], s1: 15, s2: 11 },
-    { r: 7, c: 2, t1: ["Ajeet", "Hira"], t2: ["Honey", "Raja"], refs: ["Sanjay", "Sarwan"], s1: 15, s2: 11 },
-    { r: 7, c: 3, t1: ["Deepak", "Pardeep"], t2: ["Hrithik", "Partab"], refs: ["Rajesh M.", "Ranjeet"], s1: 15, s2: 11 },
-
-    // Round 8: Squad A rests / refs
-    { r: 8, c: 1, t1: ["Manoj", "Ranjeet"], t2: ["Om", "Raja"], refs: ["Ajeet", "Hrithik"], s1: 15, s2: 11 },
-    { r: 8, c: 2, t1: ["Sanjay", "Sunny"], t2: ["Pardeep", "Rajesh M."], refs: ["Amit", "Deepak"], s1: 15, s2: 11 },
-    { r: 8, c: 3, t1: ["Naresh", "Rajesh N."], t2: ["Partab", "Sarwan"], refs: ["Hira", "Honey"], s1: 15, s2: 11 },
-
-    // Round 9: Squad B rests / refs
-    { r: 9, c: 1, t1: ["Ajeet", "Sarwan"], t2: ["Rajesh N.", "Ranjeet"], refs: ["Partab", "Om"], s1: 15, s2: 11 },
-    { r: 9, c: 2, t1: ["Honey", "Sunny"], t2: ["Hira", "Hrithik"], refs: ["Naresh", "Raja"], s1: 15, s2: 11 },
-    { r: 9, c: 3, t1: ["Deepak", "Sanjay"], t2: ["Amit", "Rajesh M."], refs: ["Pardeep", "Manoj"], s1: 15, s2: 11 }
-  ];
+    {
+        "r": 1,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Om"
+        ],
+        "t2": [
+            "Naresh",
+            "Ranjeet"
+        ],
+        "refs": [
+            "Ravi",
+            "Wijai"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 1,
+        "c": 2,
+        "t1": [
+            "Amit",
+            "Pardeep"
+        ],
+        "t2": [
+            "Manoj",
+            "Rakesh"
+        ],
+        "refs": [
+            "Rohit",
+            "Vinod"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 1,
+        "c": 3,
+        "t1": [
+            "Deepak",
+            "Partab"
+        ],
+        "t2": [
+            "Hrithik",
+            "Rajesh N."
+        ],
+        "refs": [
+            "Sanjay",
+            "Vijay"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 1,
+        "c": 4,
+        "t1": [
+            "Hira",
+            "Raja"
+        ],
+        "t2": [
+            "Honey",
+            "Rajesh M."
+        ],
+        "refs": [
+            "Sarwan",
+            "Sunny"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 2,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Naresh"
+        ],
+        "t2": [
+            "Ravi",
+            "Wijai"
+        ],
+        "refs": [
+            "Om",
+            "Ranjeet"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 2,
+        "c": 2,
+        "t1": [
+            "Amit",
+            "Manoj"
+        ],
+        "t2": [
+            "Rohit",
+            "Vinod"
+        ],
+        "refs": [
+            "Pardeep",
+            "Rakesh"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 2,
+        "c": 3,
+        "t1": [
+            "Deepak",
+            "Hrithik"
+        ],
+        "t2": [
+            "Sanjay",
+            "Vijay"
+        ],
+        "refs": [
+            "Partab",
+            "Rajesh N."
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 2,
+        "c": 4,
+        "t1": [
+            "Hira",
+            "Honey"
+        ],
+        "t2": [
+            "Sarwan",
+            "Sunny"
+        ],
+        "refs": [
+            "Raja",
+            "Rajesh M."
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 3,
+        "c": 1,
+        "t1": [
+            "Om",
+            "Ravi"
+        ],
+        "t2": [
+            "Ranjeet",
+            "Wijai"
+        ],
+        "refs": [
+            "Ajeet",
+            "Naresh"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 3,
+        "c": 2,
+        "t1": [
+            "Pardeep",
+            "Rohit"
+        ],
+        "t2": [
+            "Rakesh",
+            "Vinod"
+        ],
+        "refs": [
+            "Amit",
+            "Manoj"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 3,
+        "c": 3,
+        "t1": [
+            "Partab",
+            "Sanjay"
+        ],
+        "t2": [
+            "Rajesh N.",
+            "Vijay"
+        ],
+        "refs": [
+            "Deepak",
+            "Hrithik"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 3,
+        "c": 4,
+        "t1": [
+            "Raja",
+            "Sarwan"
+        ],
+        "t2": [
+            "Rajesh M.",
+            "Sunny"
+        ],
+        "refs": [
+            "Hira",
+            "Honey"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 4,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Rakesh"
+        ],
+        "t2": [
+            "Manoj",
+            "Om"
+        ],
+        "refs": [
+            "Sanjay",
+            "Sarwan"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 4,
+        "c": 2,
+        "t1": [
+            "Naresh",
+            "Rajesh N."
+        ],
+        "t2": [
+            "Hrithik",
+            "Ranjeet"
+        ],
+        "refs": [
+            "Rohit",
+            "Sunny"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 4,
+        "c": 3,
+        "t1": [
+            "Amit",
+            "Rajesh M."
+        ],
+        "t2": [
+            "Honey",
+            "Pardeep"
+        ],
+        "refs": [
+            "Wijai",
+            "Vijay"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 4,
+        "c": 4,
+        "t1": [
+            "Deepak",
+            "Raja"
+        ],
+        "t2": [
+            "Hira",
+            "Partab"
+        ],
+        "refs": [
+            "Ravi",
+            "Vinod"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 5,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Manoj"
+        ],
+        "t2": [
+            "Sanjay",
+            "Sarwan"
+        ],
+        "refs": [
+            "Rakesh",
+            "Om"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 5,
+        "c": 2,
+        "t1": [
+            "Naresh",
+            "Hrithik"
+        ],
+        "t2": [
+            "Rohit",
+            "Sunny"
+        ],
+        "refs": [
+            "Rajesh N.",
+            "Ranjeet"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 5,
+        "c": 3,
+        "t1": [
+            "Amit",
+            "Honey"
+        ],
+        "t2": [
+            "Wijai",
+            "Vijay"
+        ],
+        "refs": [
+            "Rajesh M.",
+            "Pardeep"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 5,
+        "c": 4,
+        "t1": [
+            "Deepak",
+            "Hira"
+        ],
+        "t2": [
+            "Ravi",
+            "Vinod"
+        ],
+        "refs": [
+            "Raja",
+            "Partab"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 6,
+        "c": 1,
+        "t1": [
+            "Rakesh",
+            "Sanjay"
+        ],
+        "t2": [
+            "Om",
+            "Sarwan"
+        ],
+        "refs": [
+            "Ajeet",
+            "Manoj"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 6,
+        "c": 2,
+        "t1": [
+            "Rajesh N.",
+            "Rohit"
+        ],
+        "t2": [
+            "Ranjeet",
+            "Sunny"
+        ],
+        "refs": [
+            "Naresh",
+            "Hrithik"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 6,
+        "c": 3,
+        "t1": [
+            "Rajesh M.",
+            "Wijai"
+        ],
+        "t2": [
+            "Pardeep",
+            "Vijay"
+        ],
+        "refs": [
+            "Amit",
+            "Honey"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 6,
+        "c": 4,
+        "t1": [
+            "Raja",
+            "Ravi"
+        ],
+        "t2": [
+            "Partab",
+            "Vinod"
+        ],
+        "refs": [
+            "Deepak",
+            "Hira"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 7,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Rajesh M."
+        ],
+        "t2": [
+            "Hrithik",
+            "Rakesh"
+        ],
+        "refs": [
+            "Vijay",
+            "Ravi"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 7,
+        "c": 2,
+        "t1": [
+            "Manoj",
+            "Rajesh N."
+        ],
+        "t2": [
+            "Honey",
+            "Om"
+        ],
+        "refs": [
+            "Sunny",
+            "Vinod"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 7,
+        "c": 3,
+        "t1": [
+            "Naresh",
+            "Partab"
+        ],
+        "t2": [
+            "Hira",
+            "Pardeep"
+        ],
+        "refs": [
+            "Sarwan",
+            "Wijai"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 7,
+        "c": 4,
+        "t1": [
+            "Amit",
+            "Raja"
+        ],
+        "t2": [
+            "Deepak",
+            "Ranjeet"
+        ],
+        "refs": [
+            "Sanjay",
+            "Rohit"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 8,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Hrithik"
+        ],
+        "t2": [
+            "Vijay",
+            "Ravi"
+        ],
+        "refs": [
+            "Rajesh M.",
+            "Rakesh"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 8,
+        "c": 2,
+        "t1": [
+            "Manoj",
+            "Honey"
+        ],
+        "t2": [
+            "Sunny",
+            "Vinod"
+        ],
+        "refs": [
+            "Rajesh N.",
+            "Om"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 8,
+        "c": 3,
+        "t1": [
+            "Naresh",
+            "Hira"
+        ],
+        "t2": [
+            "Sarwan",
+            "Wijai"
+        ],
+        "refs": [
+            "Partab",
+            "Pardeep"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 8,
+        "c": 4,
+        "t1": [
+            "Amit",
+            "Deepak"
+        ],
+        "t2": [
+            "Sanjay",
+            "Rohit"
+        ],
+        "refs": [
+            "Raja",
+            "Ranjeet"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 9,
+        "c": 1,
+        "t1": [
+            "Rajesh M.",
+            "Vijay"
+        ],
+        "t2": [
+            "Rakesh",
+            "Ravi"
+        ],
+        "refs": [
+            "Ajeet",
+            "Hrithik"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 9,
+        "c": 2,
+        "t1": [
+            "Rajesh N.",
+            "Sunny"
+        ],
+        "t2": [
+            "Om",
+            "Vinod"
+        ],
+        "refs": [
+            "Manoj",
+            "Honey"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 9,
+        "c": 3,
+        "t1": [
+            "Partab",
+            "Sarwan"
+        ],
+        "t2": [
+            "Pardeep",
+            "Wijai"
+        ],
+        "refs": [
+            "Naresh",
+            "Hira"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 9,
+        "c": 4,
+        "t1": [
+            "Raja",
+            "Sanjay"
+        ],
+        "t2": [
+            "Ranjeet",
+            "Rohit"
+        ],
+        "refs": [
+            "Amit",
+            "Deepak"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 10,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Rajesh N."
+        ],
+        "t2": [
+            "Honey",
+            "Raja"
+        ],
+        "refs": [
+            "Wijai",
+            "Rohit"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 10,
+        "c": 2,
+        "t1": [
+            "Hrithik",
+            "Om"
+        ],
+        "t2": [
+            "Hira",
+            "Rajesh M."
+        ],
+        "refs": [
+            "Sanjay",
+            "Vinod"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 10,
+        "c": 3,
+        "t1": [
+            "Manoj",
+            "Ranjeet"
+        ],
+        "t2": [
+            "Deepak",
+            "Pardeep"
+        ],
+        "refs": [
+            "Vijay",
+            "Sarwan"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 10,
+        "c": 4,
+        "t1": [
+            "Naresh",
+            "Rakesh"
+        ],
+        "t2": [
+            "Amit",
+            "Partab"
+        ],
+        "refs": [
+            "Sunny",
+            "Ravi"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 11,
+        "c": 1,
+        "t1": [
+            "Ajeet",
+            "Honey"
+        ],
+        "t2": [
+            "Wijai",
+            "Rohit"
+        ],
+        "refs": [
+            "Rajesh N.",
+            "Raja"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 11,
+        "c": 2,
+        "t1": [
+            "Hrithik",
+            "Hira"
+        ],
+        "t2": [
+            "Sanjay",
+            "Vinod"
+        ],
+        "refs": [
+            "Om",
+            "Rajesh M."
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 11,
+        "c": 3,
+        "t1": [
+            "Manoj",
+            "Deepak"
+        ],
+        "t2": [
+            "Vijay",
+            "Sarwan"
+        ],
+        "refs": [
+            "Ranjeet",
+            "Pardeep"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 11,
+        "c": 4,
+        "t1": [
+            "Naresh",
+            "Amit"
+        ],
+        "t2": [
+            "Sunny",
+            "Ravi"
+        ],
+        "refs": [
+            "Rakesh",
+            "Partab"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 12,
+        "c": 1,
+        "t1": [
+            "Rajesh N.",
+            "Wijai"
+        ],
+        "t2": [
+            "Raja",
+            "Rohit"
+        ],
+        "refs": [
+            "Ajeet",
+            "Honey"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 12,
+        "c": 2,
+        "t1": [
+            "Om",
+            "Sanjay"
+        ],
+        "t2": [
+            "Rajesh M.",
+            "Vinod"
+        ],
+        "refs": [
+            "Hrithik",
+            "Hira"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 12,
+        "c": 3,
+        "t1": [
+            "Ranjeet",
+            "Vijay"
+        ],
+        "t2": [
+            "Pardeep",
+            "Sarwan"
+        ],
+        "refs": [
+            "Manoj",
+            "Deepak"
+        ],
+        "s1": null,
+        "s2": null
+    },
+    {
+        "r": 12,
+        "c": 4,
+        "t1": [
+            "Rakesh",
+            "Sunny"
+        ],
+        "t2": [
+            "Partab",
+            "Ravi"
+        ],
+        "refs": [
+            "Naresh",
+            "Amit"
+        ],
+        "s1": null,
+        "s2": null
+    }
+];
 
   // Deep clone to avoid mutating baseline
   let fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
 
+  // Expose on window for external views (schedule.html, poster.html, console debugging)
+  window.BASE_FIXTURES = BASE_FIXTURES;
+  window.getFixtures = function() { return fixtures; };
+  window.ROSTER = ROSTER;
+  window.BLOCKS = BLOCKS;
+  window.ROUND_TIMES = ROUND_TIMES;
+
   let finalsScores = {
     gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
     silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-    bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+    bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+    copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
   };
 
-  let currentCourtFilter = "all"; // 'all', '1', '2', '3'
+  let currentCourtFilter = "all"; // 'all', '1', '2', '3', '4'
+  let scheduleViewMode = "table"; // 'table' (single-row table sheet) or 'cards' (card layout)
 
-  // ---------- PERSISTENCE HELPERS ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v6';
+  // ---------- PERSISTENCE & SAFE MIGRATION ----------
+  const STORAGE_KEY = 'badminton_cup_portal_data_v7';
+  const LEGACY_STORAGE_KEY = 'badminton_cup_portal_data_v6';
 
   function saveState() {
     try {
@@ -104,6 +1039,7 @@
         finalsScores,
         selectedPlayer: document.getElementById("playerSelect")?.value || "",
         currentCourtFilter,
+        scheduleViewMode,
         theme: document.documentElement.getAttribute('data-theme') || 'light'
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -111,20 +1047,43 @@
       console.warn("Could not save tournament state to localStorage:", e);
     }
   }
+  window.saveState = saveState;
 
   function loadState() {
     try {
+      // Safe non-destructive archival for legacy v6 data
+      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacyRaw && !localStorage.getItem(STORAGE_KEY)) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        localStorage.setItem(`badminton_cup_portal_data_v6_archived_${timestamp}`, legacyRaw);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        setTimeout(() => {
+          showToast("📢 Fresh 24-player tournament loaded! Previous data safely archived.");
+        }, 600);
+      }
+
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        saveState(); // Ensure initial state is written immediately
+        return;
+      }
       const data = JSON.parse(raw);
       if (Array.isArray(data.fixtures) && data.fixtures.length === BASE_FIXTURES.length) {
         fixtures = data.fixtures;
       }
       if (data.finalsScores) {
-        finalsScores = data.finalsScores;
+        finalsScores = {
+          gold:   data.finalsScores.gold   || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+          silver: data.finalsScores.silver || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+          bronze: data.finalsScores.bronze || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+          copper: data.finalsScores.copper || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+        };
       }
       if (data.currentCourtFilter) {
         currentCourtFilter = data.currentCourtFilter;
+      }
+      if (data.scheduleViewMode) {
+        scheduleViewMode = data.scheduleViewMode;
       }
       if (data.theme) {
         applyTheme(data.theme);
@@ -142,8 +1101,118 @@
     toast.className = 'toast';
     toast.textContent = msg;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), 3500);
   }
+
+  // ---------- ADMIN PASSCODE & LOCK MANAGEMENT ----------
+  const ADMIN_PIN = "1234";
+
+  function isAdminUnlocked() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("admin") === ADMIN_PIN || urlParams.get("pin") === ADMIN_PIN) {
+      return true;
+    }
+    return sessionStorage.getItem("badminton_admin_unlocked") === "true";
+  }
+
+  function updateAdminUI() {
+    const isUnlocked = isAdminUnlocked();
+    const lockArea = document.getElementById("adminLockArea");
+    const viewBadge = document.getElementById("viewModeBadge");
+    
+    if (viewBadge) {
+      if (isUnlocked) {
+        viewBadge.innerHTML = "🔓 Admin Mode";
+        viewBadge.style.background = "rgba(16, 185, 129, 0.15)";
+        viewBadge.style.color = "var(--win-color)";
+        viewBadge.style.borderColor = "rgba(16, 185, 129, 0.4)";
+      } else {
+        viewBadge.innerHTML = "🔒 View Only";
+        viewBadge.style.background = "rgba(37, 99, 235, 0.12)";
+        viewBadge.style.color = "var(--primary)";
+        viewBadge.style.borderColor = "var(--primary-border)";
+      }
+    }
+
+    if (lockArea) {
+      if (isUnlocked) {
+        lockArea.innerHTML = `
+          <span class="badge" style="background:var(--win-bg); color:var(--win-color); border:1px solid var(--win-color); font-size:0.75rem; font-weight:800; padding:4px 10px; border-radius:var(--radius-full);">
+            🔓 Admin
+          </span>
+          <button type="button" class="btn-secondary" onclick="lockAdmin()" style="padding:4px 10px; font-size:0.75rem; border-radius:var(--radius-full);" title="Lock and return to participant view">
+            🔒 Lock
+          </button>
+        `;
+      } else {
+        lockArea.innerHTML = `
+          <button type="button" id="adminLockBtn" class="nav-link-btn" onclick="toggleAdminLock()" style="background:rgba(245, 158, 11, 0.15); color:var(--gold); border:1px solid rgba(245, 158, 11, 0.4); padding:6px 14px; font-size:0.8rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Enter Organizer PIN (1234) to unlock score editing">
+            🔒 Admin Unlock
+          </button>
+        `;
+      }
+    }
+  }
+
+  window.toggleAdminLock = function () {
+    if (isAdminUnlocked()) {
+      lockAdmin();
+    } else {
+      openPinModal();
+    }
+  };
+
+  window.openPinModal = function () {
+    const modal = document.getElementById("pinModal");
+    const input = document.getElementById("adminPinInput");
+    const error = document.getElementById("pinErrorMsg");
+    if (modal) modal.classList.add("open");
+    if (error) error.textContent = "";
+    if (input) {
+      input.value = "";
+      setTimeout(() => input.focus(), 150);
+    }
+  };
+
+  window.closePinModal = function () {
+    const modal = document.getElementById("pinModal");
+    if (modal) modal.classList.remove("open");
+  };
+
+  window.handlePinSubmit = function (e) {
+    if (e) e.preventDefault();
+    const input = document.getElementById("adminPinInput");
+    const error = document.getElementById("pinErrorMsg");
+    const pin = input ? input.value.trim() : "";
+    if (pin === ADMIN_PIN) {
+      sessionStorage.setItem("badminton_admin_unlocked", "true");
+      closePinModal();
+      updateAdminUI();
+      renderSchedule();
+      renderFinals();
+      showToast("🔓 Admin Mode unlocked! Score editing enabled.");
+    } else {
+      if (error) error.textContent = "Incorrect PIN. Please try again.";
+      if (input) {
+        input.value = "";
+        input.focus();
+      }
+    }
+  };
+
+  window.lockAdmin = function () {
+    sessionStorage.removeItem("badminton_admin_unlocked");
+    const url = new URL(window.location);
+    if (url.searchParams.has("admin") || url.searchParams.has("pin")) {
+      url.searchParams.delete("admin");
+      url.searchParams.delete("pin");
+      window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+    }
+    updateAdminUI();
+    renderSchedule();
+    renderFinals();
+    showToast("🔒 Locked to View-Only mode.");
+  };
 
   // ---------- THEME TOGGLE ----------
   function applyTheme(theme) {
@@ -181,7 +1250,21 @@
       if (btn) btn.classList.toggle('active', isCurrent);
     });
 
-    // Re-render data for the newly active view
+    // Only show top filter bar & personalized player hub on the Scoring Sheet (fixtures) tab
+    const filterCard = document.querySelector('.filter-card');
+    const hubCard = document.getElementById('playerHubCard');
+    if (filterCard) {
+      filterCard.style.display = (tab === 'fixtures') ? 'block' : 'none';
+    }
+    if (hubCard) {
+      if (tab === 'fixtures') {
+        const sel = document.getElementById('playerSelect');
+        hubCard.style.display = (sel && sel.value) ? 'block' : 'none';
+      } else {
+        hubCard.style.display = 'none';
+      }
+    }
+
     if (tab === 'leaderboard') renderLeaderboard();
     if (tab === 'finals') renderFinals();
     if (tab === 'fixtures') renderSchedule();
@@ -203,20 +1286,25 @@
   function computeLeaderboard() {
     const stats = {};
     PLAYERS.forEach(p => {
-      stats[p] = { name: p, gp: 0, wins: 0, pts: 0, ga: 0 };
+      stats[p] = { name: p, gp: 0, wins: 0, pts: 0, ga: 0, pa: 0 };
     });
 
     fixtures.forEach(f => {
-      if (f.s1 == null || f.s2 == null) return;
-      const t1win = Number(f.s1) > Number(f.s2);
+      if (f.s1 == null || f.s2 == null || f.s1 === "" || f.s2 === "") return;
       const s1 = Number(f.s1);
       const s2 = Number(f.s2);
+      // Stage 1 sudden death: match is concluded ONLY when one team reaches 15 points (max 15)
+      const isConcluded = (s1 === 15 || s2 === 15) && s1 !== s2;
+      if (!isConcluded) return;
+
+      const t1win = s1 === 15;
 
       f.t1.forEach(p => {
         if (!stats[p]) return;
         stats[p].gp++;
         stats[p].pts += s1;
         stats[p].ga += s2;
+        stats[p].pa += s2;
         if (t1win) stats[p].wins++;
       });
 
@@ -225,13 +1313,14 @@
         stats[p].gp++;
         stats[p].pts += s2;
         stats[p].ga += s1;
+        stats[p].pa += s1;
         if (!t1win) stats[p].wins++;
       });
     });
 
     const list = Object.values(stats).map(s => ({
       ...s,
-      diff: s.pts - s.ga
+      diff: s.pts - s.pa
     }));
 
     // Ranking criteria: 1. Total Wins -> 2. Point Differential -> 3. Points Scored
@@ -241,7 +1330,8 @@
       s.rank = idx + 1;
       if (s.rank <= 6) s.tier = 'Gold';
       else if (s.rank <= 12) s.tier = 'Silver';
-      else s.tier = 'Bronze';
+      else if (s.rank <= 18) s.tier = 'Bronze';
+      else s.tier = 'Copper';
     });
 
     return list;
@@ -264,23 +1354,25 @@
   function buildFinalsPools(leaderboard) {
     const tierSlice = (start) => leaderboard.slice(start, start + 6).map(s => s.name);
     
-    // Balanced (Snake) Pairing:
-    // Team 1: Rank 1 & Rank 6 (Combined Rank = 7)
-    // Team 2: Rank 2 & Rank 5 (Combined Rank = 7)
-    // Team 3: Rank 3 & Rank 4 (Combined Rank = 7)
+    // Balanced Snake Pairing:
+    // Team 1: #1 & #6 (or #7 & #12, #13 & #18, #19 & #24)
+    // Team 2: #2 & #5 (or #8 & #11, #14 & #17, #20 & #23)
+    // Team 3: #3 & #4 (or #9 & #10, #15 & #16, #21 & #22)
     const makeTeams = names => [
-      [names[0], names[5]], // #1 & #6 (or #7 & #12, #13 & #18)
-      [names[1], names[4]], // #2 & #5 (or #8 & #11, #14 & #17)
-      [names[2], names[3]]  // #3 & #4 (or #9 & #10, #15 & #16)
+      [names[0], names[5]],
+      [names[1], names[4]],
+      [names[2], names[3]]
     ];
 
     const goldNames = tierSlice(0);
     const silverNames = tierSlice(6);
     const bronzeNames = tierSlice(12);
+    const copperNames = tierSlice(18);
 
     const [g1, g2, g3] = makeTeams(goldNames);
     const [s1, s2, s3] = makeTeams(silverNames);
     const [b1, b2, b3] = makeTeams(bronzeNames);
+    const [c1, c2, c3] = makeTeams(copperNames);
 
     return [
       {
@@ -306,6 +1398,14 @@
         cls: "bronze",
         courtNum: 3,
         matches: genPoolMatches(b1, b2, b3, "B", "bronze")
+      },
+      {
+        key: "copper",
+        label: "Copper Bowl (Court 4 — Ranks 19–24 Balanced Snake)",
+        badgeClass: "tier-copper",
+        cls: "copper",
+        courtNum: 4,
+        matches: genPoolMatches(c1, c2, c3, "C", "copper")
       }
     ];
   }
@@ -314,40 +1414,74 @@
     const names = [...new Set(pool.matches.flatMap(m => [...m.t1, ...m.t2]))];
     const stats = {};
     names.forEach(n => {
-      stats[n] = { name: n, gp: 0, wins: 0, pts: 0, ga: 0 };
+      stats[n] = { name: n, gp: 0, wins: 0, losses: 0, pts: 0, pa: 0, ga: 0 };
     });
 
     pool.matches.forEach(m => {
-      if (m.s1 == null || m.s2 == null) return;
+      if (m.s1 == null || m.s2 == null || m.s1 === "" || m.s2 === "") return;
       const s1 = Number(m.s1);
       const s2 = Number(m.s2);
-      const t1win = s1 > s2;
+      // Stage 2 Finals: match is concluded ONLY when one team reaches 21 points (max 21)
+      const isConcluded = (s1 === 21 || s2 === 21) && s1 !== s2;
+      if (!isConcluded) return;
+
+      const t1win = s1 === 21;
 
       m.t1.forEach(p => {
         if (!stats[p]) return;
         stats[p].gp++;
         stats[p].pts += s1;
+        stats[p].pa += s2;
         stats[p].ga += s2;
         if (t1win) stats[p].wins++;
+        else stats[p].losses++;
       });
 
       m.t2.forEach(p => {
         if (!stats[p]) return;
         stats[p].gp++;
         stats[p].pts += s2;
+        stats[p].pa += s1;
         stats[p].ga += s1;
         if (!t1win) stats[p].wins++;
+        else stats[p].losses++;
       });
     });
 
     const list = Object.values(stats).map(s => ({
       ...s,
-      diff: s.pts - s.ga
+      diff: s.pts - s.pa
     }));
 
     list.sort((a, b) => (b.wins - a.wins) || (b.diff - a.diff) || (b.pts - a.pts));
     return list;
   }
+
+  // Expose calculation engines to window for standalone sheets & participant portal
+  window.computeLeaderboard = computeLeaderboard;
+  window.buildFinalsPools = buildFinalsPools;
+  window.computePoolStandings = computePoolStandings;
+  window.getFinalsScores = function() { return finalsScores; };
+
+  // Cross-tab real-time synchronization
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      loadState();
+      renderSchedule();
+      renderLeaderboard();
+      renderFinals();
+      if (typeof window.renderSheet === 'function') {
+        window.renderSheet();
+      }
+    }
+  });
+
+  // ---------- VIEW MODE TOGGLE ----------
+  window.setScheduleViewMode = function (mode) {
+    scheduleViewMode = mode;
+    saveState();
+    renderSchedule();
+  };
 
   // ---------- RENDERING: SCHEDULE TAB ----------
   function renderSchedule() {
@@ -368,7 +1502,7 @@
       hubCard.style.display = "block";
       document.getElementById("hubPlayerName").textContent = selected;
       document.getElementById("hubRankBadge").textContent = `Rank #${s.rank}`;
-      document.getElementById("hubRecord").innerHTML = `<strong>${s.wins}W - ${s.gp - s.wins}L</strong> (${s.gp}/6 Played)`;
+      document.getElementById("hubRecord").innerHTML = `<strong>${s.wins}W - ${s.gp - s.wins}L</strong> (${s.gp}/8 Played)`;
       document.getElementById("hubDiff").innerHTML = `Diff: <strong>${s.diff > 0 ? '+' : ''}${s.diff}</strong> (${s.pts} Pts)`;
       const tierBadge = document.getElementById("hubTier");
       tierBadge.textContent = `${s.tier} Pool`;
@@ -383,425 +1517,761 @@
           ? `📢 Next: <strong>Refereeing Round ${nextMatch.r}</strong> on Court ${nextMatch.c}`
           : `🏸 Next: <strong>Playing Round ${nextMatch.r}</strong> on Court ${nextMatch.c}`;
       } else {
-        nextDetail.innerHTML = `✅ All 6 Stage 1 matches completed! Check Finals tab.`;
+        nextDetail.innerHTML = `✅ All 8 Stage 1 matches completed! Check Finals tab.`;
       }
     } else if (hubCard) {
       hubCard.style.display = "none";
     }
 
-    let lastRound = 0;
-
+    // Filter fixtures
+    const visibleFixtures = [];
     fixtures.forEach((f, idx) => {
-      // Court filter
-      if (currentCourtFilter !== "all" && String(f.c) !== currentCourtFilter) {
-        return;
-      }
-
-      // Player filter
-      const inT1 = f.t1.includes(selected);
-      const inT2 = f.t2.includes(selected);
-      const isRef = f.refs.includes(selected);
-      if (selected && !inT1 && !inT2 && !isRef) {
-        return;
-      }
-
-      // Add round divider if viewing all courts
-      if (currentCourtFilter === "all" && f.r !== lastRound) {
-        lastRound = f.r;
-        const divider = document.createElement("div");
-        divider.className = "round-divider";
-        divider.innerHTML = `
-          <span class="round-divider-label">Round ${f.r}</span>
-          <div class="round-divider-line"></div>
-        `;
-        container.appendChild(divider);
-      }
-
-      const card = document.createElement("div");
-      card.className = "card";
-      const badgeClass = f.c === 1 ? "c1" : (f.c === 2 ? "c2" : "c3");
-      const hasScore = f.s1 != null && f.s2 != null;
-      const t1win = hasScore && Number(f.s1) > Number(f.s2);
-
-      const scoreControls = `
-        <div class="score-box">
-          <div class="score-stepper">
-            <button type="button" class="stepper-btn" onclick="adjustStage1Score(${idx}, 's1', -1)" title="Minus 1">-</button>
-            <input type="number" min="0" max="99" placeholder="-" value="${f.s1 ?? ''}"
-              class="score-input ${hasScore ? (t1win ? 'winner' : 'loser') : ''}"
-              data-idx="${idx}" data-side="s1" onchange="onStage1InputChange(this)">
-            <button type="button" class="stepper-btn" onclick="adjustStage1Score(${idx}, 's1', 1)" title="Plus 1">+</button>
-          </div>
-          <span class="score-colon">:</span>
-          <div class="score-stepper">
-            <button type="button" class="stepper-btn" onclick="adjustStage1Score(${idx}, 's2', -1)" title="Minus 1">-</button>
-            <input type="number" min="0" max="99" placeholder="-" value="${f.s2 ?? ''}"
-              class="score-input ${hasScore ? (!t1win ? 'winner' : 'loser') : ''}"
-              data-idx="${idx}" data-side="s2" onchange="onStage1InputChange(this)">
-            <button type="button" class="stepper-btn" onclick="adjustStage1Score(${idx}, 's2', 1)" title="Plus 1">+</button>
-          </div>
-        </div>
-      `;
-
-      if (isRef) {
-        card.classList.add("ref");
-        const partnerRef = f.refs.find(r => r !== selected) || "Assigned Partner";
-        card.innerHTML = `
-          <div class="card-top">
-            <span class="round-badge">Round ${f.r}</span>
-            <span class="court-badge ref-badge">📢 OFFICIATING Court ${f.c}</span>
-          </div>
-          <div class="card-body">
-            <div class="match-row">
-              <div class="teams-container">
-                <div class="team-name">${f.t1.join(" & ")} <span class="vs-badge">vs</span> ${f.t2.join(" & ")}</div>
-              </div>
-              ${scoreControls}
-            </div>
-            <div class="ref-callout">
-              <span>📍 Position: Diagonal Line Judge &amp; Scorekeeper (paired with ${partnerRef})</span>
-            </div>
-          </div>
-        `;
-      } else {
-        if (selected) card.classList.add("playing");
-        if (selected && hasScore) {
-          card.classList.add((inT1 && t1win) || (inT2 && !t1win) ? "won" : "lost");
-        }
-
-        const t1Display = f.t1.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
-        const t2Display = f.t2.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
-
-        card.innerHTML = `
-          <div class="card-top">
-            <span class="round-badge">Round ${f.r}</span>
-            <span class="court-badge ${badgeClass}">Court ${f.c}</span>
-          </div>
-          <div class="card-body">
-            <div class="match-row">
-              <div class="teams-container">
-                <div class="team-name">${t1Display} <span class="vs-badge">vs</span> ${t2Display}</div>
-              </div>
-              ${scoreControls}
-            </div>
-            <div class="sub-refs-info">
-              <span>👀 Officiating: ${f.refs.join(" & ")}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      container.appendChild(card);
+      if (currentCourtFilter !== "all" && String(f.c) !== currentCourtFilter) return;
+      const isPlayer = selected && (f.t1.includes(selected) || f.t2.includes(selected));
+      const isRef = selected && f.refs.includes(selected);
+      if (selected && !isPlayer && !isRef) return;
+      visibleFixtures.push({ f, idx, isPlayer, isRef });
     });
 
-    if (container.children.length === 0) {
-      container.innerHTML = `
-        <div class="card" style="text-align:center; padding: 30px 20px;">
-          <p style="color:var(--text-muted); font-weight:600;">No matches found matching the current court or player filter.</p>
+    // Top Controls Bar (View Switcher + Match count + Link to schedule.html)
+    const topBar = document.createElement("div");
+    topBar.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;";
+    topBar.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:0.85rem; font-weight:700; color:var(--text-secondary);">View:</span>
+        <div class="view-toggle-wrap">
+          <button type="button" class="view-toggle-btn ${scheduleViewMode === 'table' ? 'active' : ''}" onclick="setScheduleViewMode('table')">
+            <span>📝</span> Scoring Sheet
+          </button>
+          <button type="button" class="view-toggle-btn ${scheduleViewMode === 'cards' ? 'active' : ''}" onclick="setScheduleViewMode('cards')">
+            <span>🃏</span> Cards
+          </button>
         </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600; margin-right:4px;">
+          Showing <strong>${visibleFixtures.length}</strong> of 48 matches
+        </span>
+        <button type="button" class="pill-btn" onclick="captureSchedulePhoto('schedTableCard')" style="font-size:0.75rem; padding:5px 10px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border-card); cursor:pointer;" title="Save all 11 columns as high-resolution PNG image">
+          <span>📸</span> Save Photo
+        </button>
+        <button type="button" class="pill-btn" onclick="window.print()" style="font-size:0.75rem; padding:5px 10px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border-card); cursor:pointer;" title="Print / Save PDF (Landscape, all 11 columns fit in 1 row)">
+          <span>🖨️</span> Print PDF
+        </button>
+        <a href="schedule.html" class="pill-btn" style="text-decoration:none; font-size:0.75rem; padding:5px 10px; background:var(--primary-light); color:var(--primary); border:1px solid var(--primary-border);">
+          <span>👥 Participant View</span>
+        </a>
+      </div>
+    `;
+    container.appendChild(topBar);
+
+    if (visibleFixtures.length === 0) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.style.cssText = "text-align:center; padding:40px; color:var(--text-muted); background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-card);";
+      emptyDiv.textContent = "No matches found for the selected filter.";
+      container.appendChild(emptyDiv);
+      return;
+    }
+
+    if (scheduleViewMode === "table") {
+      // Render Single-Row Tabular Schedule Sheet
+      const tableCard = document.createElement("div");
+      tableCard.className = "sched-table-card";
+      tableCard.id = "schedTableCard";
+
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "sched-table-wrap";
+
+      const table = document.createElement("table");
+      table.className = "sched-table";
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Round</th>
+            <th>Time</th>
+            <th>Court</th>
+            <th style="text-align:left;">Team 1 Pair</th>
+            <th>Score 1</th>
+            <th>W / L</th>
+            <th style="text-align:left;">Team 2 Pair</th>
+            <th>Score 2</th>
+            <th>W / L</th>
+            <th>Diff</th>
+            <th style="text-align:left;">Referee Duty</th>
+          </tr>
+        </thead>
+        <tbody id="schedTableBody"></tbody>
       `;
+      tableWrap.appendChild(table);
+      tableCard.appendChild(tableWrap);
+      container.appendChild(tableCard);
+
+      const tbody = table.querySelector("#schedTableBody");
+      let lastBlock = 0;
+
+      visibleFixtures.forEach(({ f, idx, isPlayer, isRef }) => {
+        // Block divider row
+        const blockNum = Math.ceil(f.r / 3);
+        if (blockNum !== lastBlock && BLOCKS[f.r] && (currentCourtFilter === "all" || currentCourtFilter === String(f.c))) {
+          lastBlock = blockNum;
+          const bInfo = BLOCKS[f.r];
+          const bRow = document.createElement("tr");
+          bRow.className = "block-header-row";
+          bRow.innerHTML = `
+            <td colspan="11">
+              <span class="block-header-title">${bInfo.icon} ${bInfo.label}</span>
+              <span class="block-header-sub">${bInfo.desc}</span>
+            </td>
+          `;
+          tbody.appendChild(bRow);
+        }
+
+        const s1 = (f.s1 != null && f.s1 !== "") ? Number(f.s1) : null;
+        const s2 = (f.s2 != null && f.s2 !== "") ? Number(f.s2) : null;
+        const hasScores = s1 != null && s2 != null;
+        // Stage 1 sudden death: match is concluded ONLY when one team reaches 15 points (max 15)
+        const isConcluded = hasScores && (s1 === 15 || s2 === 15) && s1 !== s2;
+        const t1Won = isConcluded && s1 === 15;
+        const t2Won = isConcluded && s2 === 15;
+        const diff = hasScores ? Math.abs(s1 - s2) : null;
+
+        // Differential Badge
+        let diffHtml = '<span class="diff-pill even">-</span>';
+        if (hasScores) {
+          const diffSign = s1 > s2 ? "+" : (s2 > s1 ? "-" : "");
+          diffHtml = `<span class="diff-pill ${s1 > s2 ? 'pos' : (s2 > s1 ? 'neg' : 'even')}">${diffSign}${diff}</span>`;
+        }
+
+        let wl1Html = '<span class="wl-pill wl-pending">-</span>';
+        let wl2Html = '<span class="wl-pill wl-pending">-</span>';
+        if (isConcluded) {
+          wl1Html = `<span class="wl-pill ${t1Won ? 'wl-win' : 'wl-loss'}">${t1Won ? 'WIN' : 'LOSS'}</span>`;
+          wl2Html = `<span class="wl-pill ${t2Won ? 'wl-win' : 'wl-loss'}">${t2Won ? 'WIN' : 'LOSS'}</span>`;
+        } else if (hasScores && (s1 > 0 || s2 > 0)) {
+          wl1Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 15">Live</span>`;
+          wl2Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 15">Live</span>`;
+        }
+
+        const t1Html = f.t1.map(p => p === selected ? `<span class="player-highlight-text">${p}</span>` : p).join(" & ");
+        const t2Html = f.t2.map(p => p === selected ? `<span class="player-highlight-text">${p}</span>` : p).join(" & ");
+        const refHtml = f.refs.map(p => p === selected ? `<span class="player-highlight-text">${p}</span>` : p).join(" & ");
+
+        const cInfo = COURT_INFO[f.c] || { name: `Court ${f.c}`, sub: "" };
+        const courtBadge = `
+          <div class="court-badge-cell">
+            <span class="court-badge c${f.c}">${cInfo.name}</span>
+            ${cInfo.sub ? `<span class="court-sub-note">${cInfo.sub}</span>` : ""}
+          </div>
+        `;
+
+        let rowClass = "";
+        if (isPlayer) {
+          rowClass = "row-highlight-playing";
+          if (isConcluded) {
+            const won = (f.t1.includes(selected) && t1Won) || (f.t2.includes(selected) && t2Won);
+            rowClass += won ? " row-won" : " row-lost";
+          }
+        } else if (isRef) {
+          rowClass = "row-highlight-ref";
+        }
+
+        const isAdmin = isAdminUnlocked();
+        const score1Html = isAdmin
+          ? `<div class="tbl-score-box">
+              <button type="button" class="tbl-score-btn" onclick="adjustScore(${idx}, 1, -1)" title="Score Down">-</button>
+              <input type="number" class="tbl-score-input" id="tbl-score-${idx}-1" value="${f.s1 ?? ''}" placeholder="0" min="0" max="15" onchange="updateScore(${idx}, 1, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+              <button type="button" class="tbl-score-btn" onclick="adjustScore(${idx}, 1, 1)" title="Score Up">+</button>
+            </div>`
+          : (hasScores 
+              ? `<span class="view-score-box ${isConcluded ? (t1Won ? 'win' : 'loss') : 'live'}">${s1}</span>` 
+              : `<span class="view-score-box pending">-</span>`);
+
+        const score2Html = isAdmin
+          ? `<div class="tbl-score-box">
+              <button type="button" class="tbl-score-btn" onclick="adjustScore(${idx}, 2, -1)" title="Score Down">-</button>
+              <input type="number" class="tbl-score-input" id="tbl-score-${idx}-2" value="${f.s2 ?? ''}" placeholder="0" min="0" max="15" onchange="updateScore(${idx}, 2, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+              <button type="button" class="tbl-score-btn" onclick="adjustScore(${idx}, 2, 1)" title="Score Up">+</button>
+            </div>`
+          : (hasScores 
+              ? `<span class="view-score-box ${isConcluded ? (t2Won ? 'win' : 'loss') : 'live'}">${s2}</span>` 
+              : `<span class="view-score-box pending">-</span>`);
+
+        const tr = document.createElement("tr");
+        tr.className = rowClass;
+        tr.innerHTML = `
+          <td class="td-round"><span class="round-pill">R${String(f.r).padStart(2, '0')}</span></td>
+          <td><span class="time-pill">${ROUND_TIMES[f.r] || ''}</span></td>
+          <td>${courtBadge}</td>
+          <td class="team-pair-cell">🏸 <strong>${t1Html}</strong></td>
+          <td>${score1Html}</td>
+          <td>${wl1Html}</td>
+          <td class="team-pair-cell team-2">🏸 <strong>${t2Html}</strong></td>
+          <td>${score2Html}</td>
+          <td>${wl2Html}</td>
+          <td>${diffHtml}</td>
+          <td class="ref-cell"><span class="ref-icon-badge">👀</span><strong>${refHtml}</strong></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+    } else {
+      // Render Mobile Card View
+      let lastRound = 0;
+      visibleFixtures.forEach(({ f, idx, isPlayer, isRef }) => {
+        if (BLOCKS[f.r] && f.r !== lastRound && (currentCourtFilter === "all" || currentCourtFilter === String(f.c))) {
+          const bInfo = BLOCKS[f.r];
+          const blockDiv = document.createElement("div");
+          blockDiv.className = "block-divider-card";
+          blockDiv.innerHTML = `
+            <div class="block-title">
+              <span>${bInfo.icon}</span>
+              <span>${bInfo.label}</span>
+            </div>
+            <div class="block-subtitle">${bInfo.desc}</div>
+          `;
+          container.appendChild(blockDiv);
+        }
+
+        if (f.r !== lastRound) {
+          lastRound = f.r;
+          const div = document.createElement("div");
+          div.className = "round-divider";
+          div.innerHTML = `
+            <span class="round-divider-label">Round ${f.r} • ${ROUND_TIMES[f.r] || ''}</span>
+            <div class="round-divider-line"></div>
+          `;
+          container.appendChild(div);
+        }
+
+        let cardStatus = "";
+        const s1 = (f.s1 != null && f.s1 !== "") ? Number(f.s1) : null;
+        const s2 = (f.s2 != null && f.s2 !== "") ? Number(f.s2) : null;
+        const hasScores = s1 != null && s2 != null;
+        const isConcluded = hasScores && (s1 === 15 || s2 === 15) && s1 !== s2;
+        const t1Won = isConcluded && s1 === 15;
+        const t2Won = isConcluded && s2 === 15;
+
+        if (isRef) cardStatus = "ref";
+        else if (isPlayer) {
+          if (isConcluded) {
+            const isT1 = f.t1.includes(selected);
+            const won = (isT1 && s1 === 15) || (!isT1 && s2 === 15);
+            cardStatus = won ? "won" : "lost";
+          } else {
+            cardStatus = "playing";
+          }
+        }
+
+        const card = document.createElement("div");
+        card.className = `card ${cardStatus}`;
+
+        const t1Html = f.t1.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
+        const t2Html = f.t2.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
+        const refHtml = f.refs.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
+
+        const cInfo = COURT_INFO[f.c] || { name: `Court ${f.c}`, sub: "" };
+        const courtBadge = `<span class="court-badge c${f.c}">${cInfo.name} ${cInfo.sub ? '(' + cInfo.sub + ')' : ''}</span>`;
+
+        const isAdmin = isAdminUnlocked();
+        const cardScoreBoxHtml = isAdmin
+          ? `<div class="score-stepper">
+              <button type="button" class="stepper-btn" onclick="adjustScore(${idx}, 1, -1)" title="Score Down">-</button>
+              <input type="number" class="score-input" id="score-${idx}-1" value="${f.s1 ?? ''}" placeholder="0" min="0" max="15" onchange="updateScore(${idx}, 1, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+              <button type="button" class="stepper-btn" onclick="adjustScore(${idx}, 1, 1)" title="Score Up">+</button>
+            </div>
+            <span style="font-weight:700; color:var(--text-muted);">-</span>
+            <div class="score-stepper">
+              <button type="button" class="stepper-btn" onclick="adjustScore(${idx}, 2, -1)" title="Score Down">-</button>
+              <input type="number" class="score-input" id="score-${idx}-2" value="${f.s2 ?? ''}" placeholder="0" min="0" max="15" onchange="updateScore(${idx}, 2, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+              <button type="button" class="stepper-btn" onclick="adjustScore(${idx}, 2, 1)" title="Score Up">+</button>
+            </div>`
+          : `<div style="display:flex; align-items:center; gap:8px;">
+              <span class="view-score-box ${isConcluded ? (t1Won ? 'win' : 'loss') : (hasScores ? 'live' : 'pending')}">${s1 ?? '-'}</span>
+              <span style="font-weight:700; color:var(--text-muted);">:</span>
+              <span class="view-score-box ${isConcluded ? (t2Won ? 'win' : 'loss') : (hasScores ? 'live' : 'pending')}">${s2 ?? '-'}</span>
+            </div>`;
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="round-badge">
+              <span>Round ${f.r} (${ROUND_TIMES[f.r] || ''})</span>
+              ${courtBadge}
+            </div>
+            ${isRef ? `<span class="badge ref-badge">👀 Referee Duty</span>` : ""}
+          </div>
+          <div class="card-body">
+            <div class="match-row">
+              <div class="teams-container">
+                <div class="team-name">
+                  <span>🏸</span> <span>${t1Html}</span>
+                </div>
+                <span class="vs-badge">VS</span>
+                <div class="team-name">
+                  <span>🏸</span> <span>${t2Html}</span>
+                </div>
+              </div>
+              <div class="score-box">
+                ${cardScoreBoxHtml}
+              </div>
+            </div>
+            <div class="sub-refs-info">
+              <span class="ref-callout">👀 Refs:</span>
+              <span>${refHtml}</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
     }
   }
 
-  // ---------- SCORE INPUT HANDLERS (STAGE 1) ----------
-  window.onStage1InputChange = function (input) {
-    const idx = parseInt(input.dataset.idx, 10);
-    const side = input.dataset.side;
-    const val = input.value.trim();
-    fixtures[idx][side] = val === "" ? null : Math.max(0, parseInt(val, 10));
+  // ---------- INTERACTIVE SCORE UPDATING ----------
+  window.adjustScore = function (fixtureIdx, teamNum, delta) {
+    const f = fixtures[fixtureIdx];
+    if (!f) return;
+    const current = teamNum === 1 ? (f.s1 ?? 0) : (f.s2 ?? 0);
+    const next = Math.min(15, Math.max(0, Number(current) + delta));
+    if (teamNum === 1) {
+      f.s1 = next;
+      if (f.s2 == null) f.s2 = 0;
+    } else {
+      f.s2 = next;
+      if (f.s1 == null) f.s1 = 0;
+    }
+
     saveState();
-    renderAll();
+    renderSchedule();
+    renderLeaderboard();
   };
 
-  window.adjustStage1Score = function (idx, side, delta) {
-    const current = fixtures[idx][side] == null ? 0 : Number(fixtures[idx][side]);
-    const nextVal = Math.max(0, current + delta);
-    fixtures[idx][side] = nextVal;
+  window.updateScore = function (fixtureIdx, teamNum, val) {
+    const f = fixtures[fixtureIdx];
+    if (!f) return;
+    const num = val === "" ? null : Math.min(15, Math.max(0, parseInt(val, 10)));
+    if (teamNum === 1) {
+      f.s1 = num;
+      if (num != null && f.s2 == null) f.s2 = 0;
+    } else {
+      f.s2 = num;
+      if (num != null && f.s1 == null) f.s1 = 0;
+    }
+
     saveState();
-    renderAll();
+    renderSchedule();
+    renderLeaderboard();
   };
 
   // ---------- RENDERING: LEADERBOARD TAB ----------
   function renderLeaderboard() {
-    const selected = document.getElementById("playerSelect")?.value || "";
-    const leaderboard = computeLeaderboard();
-    const body = document.getElementById("lbBody");
-    if (!body) return;
-    body.innerHTML = "";
+    const tbody = document.getElementById("lbBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
 
-    leaderboard.forEach(s => {
+    const select = document.getElementById("playerSelect");
+    const selected = select ? select.value : "";
+
+    const standings = computeLeaderboard();
+
+    standings.forEach(s => {
       const tr = document.createElement("tr");
-      if (s.name === selected) tr.classList.add("selected-row");
+      if (s.name === selected) tr.className = "selected-row";
 
-      const rankBadgeClass = s.rank === 1 ? 'rank-1' : (s.rank === 2 ? 'rank-2' : (s.rank === 3 ? 'rank-3' : ''));
-      const tierClass = s.tier === "Gold" ? "tier-gold" : (s.tier === "Silver" ? "tier-silver" : "tier-bronze");
       const diffClass = s.diff > 0 ? "diff-pos" : (s.diff < 0 ? "diff-neg" : "");
+      const diffFormatted = s.diff > 0 ? `+${s.diff}` : s.diff;
+      const rankBadgeClass = s.rank === 1 ? "rank-1" : (s.rank === 2 ? "rank-2" : (s.rank === 3 ? "rank-3" : ""));
 
       tr.innerHTML = `
         <td><span class="rank-badge ${rankBadgeClass}">${s.rank}</span></td>
-        <td class="player-cell"><strong>${s.name}</strong> ${s.name === selected ? '⭐' : ''}</td>
-        <td>${s.gp}</td>
-        <td><strong>${s.wins}</strong></td>
+        <td class="player-cell"><span>🏸</span> ${s.name}</td>
+        <td><strong>${s.gp}</strong></td>
+        <td><strong style="color:var(--win-color);">${s.wins}</strong></td>
         <td>${s.pts}</td>
         <td>${s.ga}</td>
-        <td class="${diffClass}">${s.diff > 0 ? '+' : ''}${s.diff}</td>
-        <td><span class="tier-badge ${tierClass}">${s.tier}</span></td>
+        <td class="${diffClass}"><strong>${diffFormatted}</strong></td>
+        <td><span class="tier-badge tier-${s.tier.toLowerCase()}">${s.tier}</span></td>
       `;
-      body.appendChild(tr);
+      tbody.appendChild(tr);
     });
   }
 
   // ---------- RENDERING: FINALS TAB ----------
   function renderFinals() {
-    const selected = document.getElementById("playerSelect")?.value || "";
-    const leaderboard = computeLeaderboard();
-    const finalsPools = buildFinalsPools(leaderboard);
     const container = document.getElementById("finalsContainer");
     if (!container) return;
     container.innerHTML = "";
 
-    finalsPools.forEach(pool => {
-      const section = document.createElement("div");
-      section.className = "finals-pool-section";
+    const leaderboard = computeLeaderboard();
+    const pools = buildFinalsPools(leaderboard);
 
-      let matchesHtml = "";
-      pool.matches.forEach((m, idx) => {
-        const involvesSel = selected && (m.t1.includes(selected) || m.t2.includes(selected) || m.refs.includes(selected));
-        const isRef = selected && m.refs.includes(selected);
-        const hasScore = m.s1 != null && m.s2 != null;
-        const t1win = hasScore && Number(m.s1) > Number(m.s2);
-
-        const t1Display = m.t1.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
-        const t2Display = m.t2.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
-
-        const scoreControls = `
-          <div class="score-box">
-            <div class="score-stepper">
-              <button type="button" class="stepper-btn" onclick="adjustFinalsScore('${pool.key}', ${idx}, 's1', -1)">-</button>
-              <input type="number" min="0" max="99" placeholder="-" value="${m.s1 ?? ''}"
-                class="score-input ${hasScore ? (t1win ? 'winner' : 'loser') : ''}"
-                data-pool="${pool.key}" data-match="${idx}" data-side="s1" onchange="onFinalsInputChange(this)">
-              <button type="button" class="stepper-btn" onclick="adjustFinalsScore('${pool.key}', ${idx}, 's1', 1)">+</button>
-            </div>
-            <span class="score-colon">:</span>
-            <div class="score-stepper">
-              <button type="button" class="stepper-btn" onclick="adjustFinalsScore('${pool.key}', ${idx}, 's2', -1)">-</button>
-              <input type="number" min="0" max="99" placeholder="-" value="${m.s2 ?? ''}"
-                class="score-input ${hasScore ? (!t1win ? 'winner' : 'loser') : ''}"
-                data-pool="${pool.key}" data-match="${idx}" data-side="s2" onchange="onFinalsInputChange(this)">
-              <button type="button" class="stepper-btn" onclick="adjustFinalsScore('${pool.key}', ${idx}, 's2', 1)">+</button>
-            </div>
-          </div>
-        `;
-
-        matchesHtml += `
-          <div class="card ${isRef ? 'ref' : (involvesSel ? 'playing' : '')}">
-            <div class="card-top">
-              <span class="round-badge">${m.id} ${isRef ? '— 📢 YOU OFFICIATE' : ''}</span>
-              <span class="court-badge c${pool.courtNum}">Court ${pool.courtNum}</span>
-            </div>
-            <div class="card-body">
-              <div class="match-row">
-                <div class="teams-container">
-                  <div class="team-name">${t1Display} <span class="vs-badge">vs</span> ${t2Display}</div>
-                </div>
-                ${scoreControls}
-              </div>
-              <div class="sub-refs-info">
-                <span>Officiating Team: ${m.refs.join(" & ")}</span>
-              </div>
-            </div>
-          </div>
-        `;
-      });
-
+    pools.forEach(pool => {
       const standings = computePoolStandings(pool);
-      const standingsHtml = `
-        <div class="lb-card" style="margin-top: 10px;">
-          <div class="lb-table-wrap">
-            <table class="lb-table">
+      const isConcluded = pool.matches.every(m => m.s1 != null && m.s2 != null && (Number(m.s1) === 21 || Number(m.s2) === 21) && Number(m.s1) !== Number(m.s2));
+      let champName = null;
+      if (isConcluded && standings.length >= 2) {
+        champName = `${standings[0].name} & ${standings[1].name}`;
+      }
+
+      const sec = document.createElement("div");
+      sec.className = "finals-pool-section";
+
+      sec.innerHTML = `
+        <div class="pool-banner ${pool.cls}">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.2rem;">🏆</span>
+            <div>
+              <div style="font-weight:800; font-size:1.05rem;">${pool.label}</div>
+              <div style="font-size:0.75rem; opacity:0.9; font-weight:500;">Dedicated Court ${pool.courtNum} • 3 Round-Robin Matches • 21 Pts Sudden Death</div>
+            </div>
+          </div>
+          ${champName ? `<span class="badge" style="background:#fff; color:#0f172a; font-weight:800; padding:4px 10px; border-radius:var(--radius-full); box-shadow:0 2px 4px rgba(0,0,0,0.15);">🥇 Champions: ${champName}</span>` : ""}
+        </div>
+
+        <div class="sched-table-card" style="margin-top:10px; margin-bottom:12px;">
+          <div class="sched-table-wrap">
+            <table class="sched-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th style="text-align:left;">Player</th>
-                  <th>GP</th>
-                  <th>W</th>
+                  <th>Match</th>
+                  <th>Court</th>
+                  <th style="text-align:left;">Team 1 Pair</th>
+                  <th>Score 1</th>
+                  <th>W / L</th>
+                  <th style="text-align:left;">Team 2 Pair</th>
+                  <th>Score 2</th>
+                  <th>W / L</th>
                   <th>Diff</th>
-                  <th>Points</th>
+                  <th style="text-align:left;">Referee Duty</th>
                 </tr>
               </thead>
               <tbody>
-                ${standings.map((s, i) => `
-                  <tr class="${s.name === selected ? 'selected-row' : ''}">
-                    <td><span class="rank-badge ${i === 0 ? 'rank-1' : ''}">${i + 1}</span></td>
-                    <td class="player-cell"><strong>${s.name}</strong> ${s.name === selected ? '⭐' : ''}</td>
-                    <td>${s.gp}</td>
-                    <td><strong>${s.wins}</strong></td>
-                    <td class="${s.diff > 0 ? 'diff-pos' : (s.diff < 0 ? 'diff-neg' : '')}">${s.diff > 0 ? '+' : ''}${s.diff}</td>
-                    <td>${s.pts}</td>
-                  </tr>
-                `).join("")}
+                ${pool.matches.map((m, mIdx) => {
+                  const s1 = (m.s1 != null && m.s1 !== "") ? Number(m.s1) : null;
+                  const s2 = (m.s2 != null && m.s2 !== "") ? Number(m.s2) : null;
+                  const hasScores = s1 != null && s2 != null;
+                  // Stage 2 Finals: match is concluded ONLY when one team reaches 21 points (max 21)
+                  const isConcluded = hasScores && (s1 === 21 || s2 === 21) && s1 !== s2;
+                  const t1Won = isConcluded && s1 === 21;
+                  const t2Won = isConcluded && s2 === 21;
+                  const diff = hasScores ? Math.abs(s1 - s2) : null;
+                  let diffHtml = '<span class="diff-pill even">-</span>';
+                  if (hasScores) {
+                    const diffSign = s1 > s2 ? "+" : (s2 > s1 ? "-" : "");
+                    diffHtml = '<span class="diff-pill ' + (s1 > s2 ? 'pos' : (s2 > s1 ? 'neg' : 'even')) + '">' + diffSign + diff + '</span>';
+                  }
+
+                  let wl1Html = '<span class="wl-pill wl-pending">-</span>';
+                  let wl2Html = '<span class="wl-pill wl-pending">-</span>';
+                  if (isConcluded) {
+                    wl1Html = '<span class="wl-pill ' + (t1Won ? 'wl-win' : 'wl-loss') + '">' + (t1Won ? 'WIN' : 'LOSS') + '</span>';
+                    wl2Html = '<span class="wl-pill ' + (t2Won ? 'wl-win' : 'wl-loss') + '">' + (t2Won ? 'WIN' : 'LOSS') + '</span>';
+                  } else if (hasScores && (s1 > 0 || s2 > 0)) {
+                    wl1Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 21">Live</span>';
+                    wl2Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 21">Live</span>';
+                  }
+
+                  const isAdmin = isAdminUnlocked();
+                  const fScore1Html = isAdmin
+                    ? `<div class="tbl-score-box">
+                        <button type="button" class="tbl-score-btn" onclick="adjustFinalsScore('${pool.key}', ${mIdx}, 1, -1)" title="Score Down">-</button>
+                        <input type="number" class="tbl-score-input" value="${m.s1 ?? ''}" placeholder="0" min="0" max="21" onchange="updateFinalsScore('${pool.key}', ${mIdx}, 1, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+                        <button type="button" class="tbl-score-btn" onclick="adjustFinalsScore('${pool.key}', ${mIdx}, 1, 1)" title="Score Up">+</button>
+                      </div>`
+                    : (hasScores 
+                        ? `<span class="view-score-box ${isConcluded ? (t1Won ? 'win' : 'loss') : 'live'}">${s1}</span>` 
+                        : `<span class="view-score-box pending">-</span>`);
+
+                  const fScore2Html = isAdmin
+                    ? `<div class="tbl-score-box">
+                        <button type="button" class="tbl-score-btn" onclick="adjustFinalsScore('${pool.key}', ${mIdx}, 2, -1)" title="Score Down">-</button>
+                        <input type="number" class="tbl-score-input" value="${m.s2 ?? ''}" placeholder="0" min="0" max="21" onchange="updateFinalsScore('${pool.key}', ${mIdx}, 2, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+                        <button type="button" class="tbl-score-btn" onclick="adjustFinalsScore('${pool.key}', ${mIdx}, 2, 1)" title="Score Up">+</button>
+                      </div>`
+                    : (hasScores 
+                        ? `<span class="view-score-box ${isConcluded ? (t2Won ? 'win' : 'loss') : 'live'}">${s2}</span>` 
+                        : `<span class="view-score-box pending">-</span>`);
+
+                  return `
+                    <tr>
+                      <td class="td-round"><span class="round-pill">${m.id}</span></td>
+                      <td><span class="court-badge c${pool.courtNum}">Court ${pool.courtNum}</span></td>
+                      <td class="team-pair-cell">🏸 <strong>${m.t1.join(" & ")}</strong></td>
+                      <td>${fScore1Html}</td>
+                      <td>${wl1Html}</td>
+                      <td class="team-pair-cell team-2">🏸 <strong>${m.t2.join(" & ")}</strong></td>
+                      <td>${fScore2Html}</td>
+                      <td>${wl2Html}</td>
+                      <td>${diffHtml}</td>
+                      <td class="ref-cell"><span class="ref-icon-badge">👀</span><strong>${m.refs.join(" & ")}</strong></td>
+                    </tr>
+                  `;
+                }).join("")}
               </tbody>
             </table>
           </div>
         </div>
+
+        <div style="background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-card); overflow:hidden; margin-top:10px;">
+          <div style="padding: 8px 14px; background:var(--bg-main); font-size:0.82rem; font-weight:700; color:var(--text-secondary); border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center;">
+            <span>📊 ${pool.label.split('(')[0].trim()} Standings</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Points to 21 • Ranked by Wins &rarr; Diff &rarr; PTS</span>
+          </div>
+          <table class="lb-table" style="font-size:0.8rem;">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th style="text-align:left;">Player</th>
+                <th>GP</th>
+                <th>W</th>
+                <th>L</th>
+                <th>PTS</th>
+                <th>PA</th>
+                <th>Diff</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${standings.map((s, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td class="player-cell">🏸 ${s.name}</td>
+                  <td>${s.gp}</td>
+                  <td><strong style="color:var(--win-color);">${s.wins}</strong></td>
+                  <td>${s.losses}</td>
+                  <td>${s.pts}</td>
+                  <td>${s.pa}</td>
+                  <td class="${s.diff > 0 ? 'diff-pos' : (s.diff < 0 ? 'diff-neg' : '')}">${s.diff > 0 ? '+' : ''}${s.diff}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
       `;
 
-      section.innerHTML = `
-        <div class="pool-banner ${pool.cls}">
-          <span>🏆 ${pool.label}</span>
-          <span style="font-size:0.8rem; font-weight:700; opacity:0.9;">1 Set to 21</span>
-        </div>
-        <div class="finals-matches-grid">${matchesHtml}</div>
-        ${standingsHtml}
-      `;
-      container.appendChild(section);
+      container.appendChild(sec);
     });
   }
 
-  // ---------- SCORE INPUT HANDLERS (FINALS) ----------
-  window.onFinalsInputChange = function (input) {
-    const poolKey = input.dataset.pool;
-    const matchIdx = parseInt(input.dataset.match, 10);
-    const side = input.dataset.side;
-    const val = input.value.trim();
-    finalsScores[poolKey][matchIdx][side] = val === "" ? null : Math.max(0, parseInt(val, 10));
+  window.adjustFinalsScore = function (poolKey, matchIdx, teamNum, delta) {
+    const match = finalsScores[poolKey][matchIdx];
+    if (!match) return;
+    const current = teamNum === 1 ? (match.s1 ?? 0) : (match.s2 ?? 0);
+    const next = Math.min(21, Math.max(0, Number(current) + delta));
+    if (teamNum === 1) {
+      match.s1 = next;
+      if (match.s2 == null) match.s2 = 0;
+    } else {
+      match.s2 = next;
+      if (match.s1 == null) match.s1 = 0;
+    }
+
     saveState();
     renderFinals();
   };
 
-  window.adjustFinalsScore = function (poolKey, matchIdx, side, delta) {
-    const current = finalsScores[poolKey][matchIdx][side] == null ? 0 : Number(finalsScores[poolKey][matchIdx][side]);
-    const nextVal = Math.max(0, current + delta);
-    finalsScores[poolKey][matchIdx][side] = nextVal;
+  window.updateFinalsScore = function (poolKey, matchIdx, teamNum, val) {
+    const match = finalsScores[poolKey][matchIdx];
+    if (!match) return;
+    const num = val === "" ? null : Math.min(21, Math.max(0, parseInt(val, 10)));
+    if (teamNum === 1) {
+      match.s1 = num;
+      if (num != null && match.s2 == null) match.s2 = 0;
+    } else {
+      match.s2 = num;
+      if (num != null && match.s1 == null) match.s1 = 0;
+    }
+
     saveState();
     renderFinals();
   };
 
-  // ---------- ORGANIZER ACTIONS & MODAL ----------
+  // ---------- POPULATE PLAYER DROPDOWN ----------
+  function populatePlayerSelect() {
+    const select = document.getElementById("playerSelect");
+    if (!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- All 24 Players (Full Tournament View) --</option>';
+
+    PLAYERS.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      select.appendChild(opt);
+    });
+
+    if (currentVal && PLAYERS.includes(currentVal)) {
+      select.value = currentVal;
+    }
+
+    select.onchange = function () {
+      saveState();
+      renderSchedule();
+      renderLeaderboard();
+    };
+  }
+
+  // ---------- ORGANIZER DESK TOOLS ----------
   window.openOrganizerModal = function () {
-    const modal = document.getElementById('organizerModal');
-    if (modal) modal.classList.add('open');
+    if (!isAdminUnlocked()) {
+      openPinModal();
+      return;
+    }
+    document.getElementById("organizerModal")?.classList.add("open");
   };
 
   window.closeOrganizerModal = function () {
-    const modal = document.getElementById('organizerModal');
-    if (modal) modal.classList.remove('open');
-  };
-
-  window.resetTournament = function () {
-    if (!confirm("Are you sure you want to reset all match scores to blank? This cannot be undone.")) return;
-    fixtures.forEach(f => { f.s1 = null; f.s2 = null; });
-    finalsScores = {
-      gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-      silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-      bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
-    };
-    saveState();
-    renderAll();
-    closeOrganizerModal();
-    showToast("Tournament scores reset to blank!");
-  };
-
-  window.loadDemoData = function () {
-    fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
-    finalsScores = {
-      gold:   [ { s1: 21, s2: 17 }, { s1: 19, s2: 21 }, { s1: 21, s2: 18 } ],
-      silver: [ { s1: 21, s2: 15 }, { s1: 21, s2: 19 }, { s1: 16, s2: 21 } ],
-      bronze: [ { s1: 21, s2: 14 }, { s1: 18, s2: 21 }, { s1: 21, s2: 19 } ]
-    };
-    saveState();
-    renderAll();
-    closeOrganizerModal();
-    showToast("Demo tournament data loaded!");
+    document.getElementById("organizerModal")?.classList.remove("open");
   };
 
   window.exportDataJSON = function () {
-    const payload = {
-      timestamp: new Date().toISOString(),
+    const data = {
+      version: "v7",
+      exportDate: new Date().toISOString(),
       fixtures,
-      finalsScores,
-      leaderboard: computeLeaderboard()
+      finalsScores
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `badminton_cup_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `badminton_cup_backup_24p_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast("Tournament JSON backup downloaded!");
+    showToast("💾 Backup JSON exported successfully!");
   };
 
-  window.importDataJSON = function (fileInput) {
-    const file = fileInput.files[0];
+  window.importDataJSON = function (input) {
+    const file = input.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function (e) {
       try {
-        const imported = JSON.parse(e.target.result);
-        if (Array.isArray(imported.fixtures)) {
-          fixtures = imported.fixtures;
+        const parsed = JSON.parse(e.target.result);
+        if (Array.isArray(parsed.fixtures)) {
+          fixtures = parsed.fixtures;
+          if (parsed.finalsScores) finalsScores = parsed.finalsScores;
+          saveState();
+          renderSchedule();
+          renderLeaderboard();
+          renderFinals();
+          closeOrganizerModal();
+          showToast("📥 Tournament data imported successfully!");
+        } else {
+          alert("Invalid backup file structure.");
         }
-        if (imported.finalsScores) {
-          finalsScores = imported.finalsScores;
-        }
-        saveState();
-        renderAll();
-        closeOrganizerModal();
-        showToast("Tournament data imported successfully!");
       } catch (err) {
-        alert("Invalid JSON file format.");
+        alert("Error parsing backup JSON file.");
       }
     };
     reader.readAsText(file);
+  };
+
+  window.loadDemoData = function (skipConfirm = false) {
+    if (!skipConfirm && !confirm("Load realistic demo scores for all 12 rounds and finals?")) return;
+
+    fixtures.forEach((f, idx) => {
+      // Realistic 15-point sudden death scores
+      const scoreCombos = [
+        [15, 11], [15, 13], [12, 15], [14, 15],
+        [15, 9],  [10, 15], [15, 12], [8, 15]
+      ];
+      const combo = scoreCombos[idx % scoreCombos.length];
+      f.s1 = combo[0];
+      f.s2 = combo[1];
+    });
+
+    // Finals demo scores (21-point sets)
+    const finalsCombos = [
+      [21, 18], [19, 21], [21, 16]
+    ];
+    Object.keys(finalsScores).forEach((tier, tIdx) => {
+      finalsScores[tier] = [
+        { s1: finalsCombos[0][0], s2: finalsCombos[0][1] },
+        { s1: finalsCombos[1][0], s2: finalsCombos[1][1] },
+        { s1: finalsCombos[2][0], s2: finalsCombos[2][1] }
+      ];
+    });
+
+    saveState();
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+    closeOrganizerModal();
+    showToast("🎲 Realistic demo scores loaded for all 48 matches & finals!");
+  };
+
+  window.resetTournament = function (skipConfirm = false) {
+    if (!skipConfirm && !confirm("⚠️ Are you sure you want to reset ALL scores to blank? This cannot be undone.")) return;
+
+    fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
+    finalsScores = {
+      gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+      silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+      bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+      copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+    };
+
+    saveState();
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+    closeOrganizerModal();
+    showToast("⚠️ All tournament scores have been reset to blank.");
   };
 
   window.printTournament = function () {
     window.print();
   };
 
-  // ---------- MASTER RENDER ----------
-  window.renderAll = function () {
-    renderSchedule();
-    renderLeaderboard();
-    renderFinals();
+  window.captureSchedulePhoto = function (customTargetId) {
+    const target = (customTargetId && document.getElementById(customTargetId)) ||
+                   document.querySelector('.sched-table-card') ||
+                   document.getElementById('scheduleContainer');
+    if (!target) {
+      window.print();
+      return;
+    }
+    showToast("📸 Capturing high-resolution scoresheet photo...");
+    if (typeof html2canvas === 'undefined') {
+      window.print();
+      return;
+    }
+    html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: document.documentElement.getAttribute('data-theme') === 'dark' ? '#131b2e' : '#ffffff',
+      scrollX: 0,
+      scrollY: 0
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `badminton_cup_scoresheet_${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast("✅ Scoresheet photo downloaded successfully!");
+    }).catch(err => {
+      console.warn("Screenshot capture error, falling back to print:", err);
+      window.print();
+    });
   };
 
   // ---------- INITIALIZATION ----------
-  document.addEventListener("DOMContentLoaded", function () {
-    loadState();
-
-    // Populate player dropdown
-    const select = document.getElementById("playerSelect");
-    if (select) {
-      PLAYERS.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-      });
-
-      // Restore selected player if saved
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const data = JSON.parse(raw);
-          if (data.selectedPlayer) select.value = data.selectedPlayer;
-        }
-      } catch (e) {}
-
-      select.addEventListener("change", function () {
-        renderAll();
-        saveState();
-      });
+  document.addEventListener("DOMContentLoaded", () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "1" || params.get("demo") === "true") {
+      sessionStorage.setItem("badminton_admin_unlocked", "true");
+      loadDemoData(true);
+    } else {
+      loadState();
     }
 
-    // Set initial court filter button active state
+    updateAdminUI();
+    populatePlayerSelect();
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+
+    // Set active court filter button
     document.querySelectorAll('.court-filter-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.court === currentCourtFilter);
     });
-
-    renderAll();
   });
+
 })();

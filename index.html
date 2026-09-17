@@ -18,7 +18,13 @@
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=9">
+  <style>
+    .app-wrapper {
+      max-width: 1540px !important;
+      margin: 0 auto;
+    }
+  </style>
 </head>
 <body>
 
@@ -27,11 +33,21 @@
     <header class="portal-header">
       <div class="header-top-row">
         <div>
-          <div class="brand-badge">🏸 Sindhi Boys Tourney</div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+            <div class="brand-badge">🏸 Sindhi Boys Tourney</div>
+            <div id="viewModeBadge" class="badge" style="background:rgba(37, 99, 235, 0.12); color:var(--primary); border:1px solid var(--primary-border); font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:9999px; text-transform:uppercase;">
+              🔒 View Only
+            </div>
+          </div>
           <h1 class="portal-title">Sindhi Boys Badminton Cup</h1>
           <p class="portal-subtitle">Live Mixer Fixtures &bull; Standings &bull; Dynamic Finals</p>
         </div>
         <div class="header-actions">
+          <div id="adminLockArea" style="display:inline-flex; align-items:center; gap:6px;">
+            <button type="button" id="adminLockBtn" class="nav-link-btn" onclick="toggleAdminLock()" style="background:rgba(245, 158, 11, 0.15); color:var(--gold); border:1px solid rgba(245, 158, 11, 0.4); padding:6px 14px; font-size:0.8rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Enter Organizer PIN (1234) to unlock score editing">
+              🔒 Admin Unlock
+            </button>
+          </div>
           <a href="poster.html" class="icon-btn" title="View FIFA-Style Poster / Wallchart" aria-label="Poster Wallchart" style="text-decoration:none;">🖼️</a>
           <button type="button" class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">🌙</button>
           <button type="button" class="icon-btn" onclick="openOrganizerModal()" title="Organizer Tools (Backup/Reset)" aria-label="Organizer Settings">⚙️</button>
@@ -43,7 +59,7 @@
     <!-- Navigation Tabs -->
     <nav class="tabs-container" aria-label="Tournament Views">
       <button type="button" class="tab-btn active" id="tabBtn-fixtures" onclick="switchTab('fixtures')">
-        <span>📅</span> Schedule
+        <span>📝</span> Scoring Sheet
       </button>
       <button type="button" class="tab-btn" id="tabBtn-leaderboard" onclick="switchTab('leaderboard')">
         <span>📊</span> Leaderboard
@@ -54,7 +70,7 @@
       <button type="button" class="tab-btn" id="tabBtn-rules" onclick="switchTab('rules')">
         <span>📖</span> Rules
       </button>
-      <a href="poster.html" class="tab-btn" style="text-decoration:none;" title="FIFA Tournament Wallchart Poster">
+      <a href="poster.html" class="tab-btn" style="text-decoration:none;" title="Tournament Wallchart Poster">
         <span>🖼️</span> Poster
       </a>
     </nav>
@@ -65,7 +81,7 @@
         <div class="filter-group">
           <label for="playerSelect">👤 Filter By Player</label>
           <select id="playerSelect" class="select-styled">
-            <option value="">-- All 18 Players (Full Tournament View) --</option>
+            <option value="">-- All 24 Players (Full Tournament View) --</option>
           </select>
         </div>
         <div class="filter-group">
@@ -75,6 +91,7 @@
             <button type="button" class="pill-btn court-filter-btn" data-court="1" onclick="filterByCourt('1')">Court 1</button>
             <button type="button" class="pill-btn court-filter-btn" data-court="2" onclick="filterByCourt('2')">Court 2</button>
             <button type="button" class="pill-btn court-filter-btn" data-court="3" onclick="filterByCourt('3')">Court 3</button>
+            <button type="button" class="pill-btn court-filter-btn" data-court="4" onclick="filterByCourt('4')">Court 4</button>
           </div>
         </div>
       </div>
@@ -95,7 +112,7 @@
       </div>
       <div class="player-hub-details">
         <div id="hubNextStatus">📢 Next: Loading match info...</div>
-        <div style="font-size:0.75rem; color:var(--text-muted);">6 matches &bull; 3 referee rotations</div>
+        <div style="font-size:0.75rem; color:var(--text-muted);">8 matches &bull; 4 referee rotations</div>
       </div>
     </div>
 
@@ -116,10 +133,11 @@
               <h2 style="font-size:1.1rem; font-weight:800; color:var(--text-primary); margin:0;">Stage 1 Standings</h2>
               <p style="font-size:0.8rem; color:var(--text-muted); margin:0;">Ranks update instantly upon score entry (Wins &rarr; Diff &rarr; Points)</p>
             </div>
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <span class="tier-badge tier-gold">1-6 Gold</span>
               <span class="tier-badge tier-silver">7-12 Silver</span>
               <span class="tier-badge tier-bronze">13-18 Bronze</span>
+              <span class="tier-badge tier-copper">19-24 Copper</span>
             </div>
           </div>
           <div class="lb-table-wrap">
@@ -131,7 +149,7 @@
                   <th>GP</th>
                   <th>W</th>
                   <th>PTS</th>
-                  <th>GA</th>
+                  <th>PA</th>
                   <th>Diff</th>
                   <th>Finals Pool</th>
                 </tr>
@@ -158,12 +176,13 @@
       <section id="tab-rules" class="tab-pane hidden">
         <div class="rules-container">
           <div class="rule-section-card">
-            <h3>⚡ Tournament Structure &amp; Format</h3>
+            <h3>⚡ Tournament Structure &amp; 4-Block Format</h3>
             <ul>
-              <li><strong>Zero Eliminations:</strong> Every single player plays all 8 matches (6 mixer games in Stage 1 + 2 championship games in Stage 2 Finals).</li>
-              <li><strong>"Play 2, Rest 1" Rhythm:</strong> Across 9 Stage 1 rounds, every participant plays 6 matches and officiates 3 matches when resting.</li>
-              <li><strong>100% Unique Partners:</strong> In Stage 1, you partner with 6 different teammates—never the same partner twice!</li>
-              <li><strong>Unbiased Squad Generation:</strong> Squads A, B, and C and Round 1 pairings are strictly generated by alphabetical roster order, eliminating any subjective seed bias.</li>
+              <li><strong>Zero Eliminations:</strong> Every participant plays all 10 matches (8 Stage 1 mini-pod matches + 2 championship finals matches).</li>
+              <li><strong>Autonomous 6-Player Court Pods:</strong> Each court runs independently as a self-contained 6-player pod. Zero inter-court roaming; as soon as a match finishes, resting referees step on as players.</li>
+              <li><strong>Only 3 Reshuffle Moments:</strong> Organized reshuffles occur only after Round 3, Round 6 (Halfway Break), and Round 9.</li>
+              <li><strong>"Play 2, Rest 1" Rhythm:</strong> Every participant plays exactly 8 matches and officiates 4 matches across Stage 1. Max consecutive plays = 2!</li>
+              <li><strong>100% Unique Partners:</strong> You partner with 8 different teammates across Stage 1—zero partner repeats!</li>
             </ul>
           </div>
 
@@ -183,12 +202,13 @@
           </div>
 
           <div class="rule-section-card">
-            <h3>🏆 Stage 2 Finals (Balanced Snake Pairing)</h3>
+            <h3>🏆 Stage 2 Finals (4 Courts • Balanced Snake Pairing)</h3>
             <ul>
-              <li><strong>Gold Championship (Court 1):</strong> Players ranked 1–6 (Balanced Teams: <strong>#1 &amp; #6</strong>, <strong>#2 &amp; #5</strong>, <strong>#3 &amp; #4</strong> &bull; Combined Rank = 7).</li>
-              <li><strong>Silver Plate (Court 2):</strong> Players ranked 7–12 (Balanced Teams: <strong>#7 &amp; #12</strong>, <strong>#8 &amp; #11</strong>, <strong>#9 &amp; #10</strong> &bull; Combined Rank = 19).</li>
-              <li><strong>Bronze Shield (Court 3):</strong> Players ranked 13–18 (Balanced Teams: <strong>#13 &amp; #18</strong>, <strong>#14 &amp; #17</strong>, <strong>#15 &amp; #16</strong> &bull; Combined Rank = 31).</li>
-              <li><strong>Fairness &amp; Balance:</strong> Eliminates "super-teams" and ensures every match in the finals is tightly contested.</li>
+              <li><strong>Court 1 — Gold Championship:</strong> Ranks 1–6 (Balanced Teams: <strong>#1 &amp; #6</strong>, <strong>#2 &amp; #5</strong>, <strong>#3 &amp; #4</strong>)</li>
+              <li><strong>Court 2 — Silver Plate:</strong> Ranks 7–12 (Balanced Teams: <strong>#7 &amp; #12</strong>, <strong>#8 &amp; #11</strong>, <strong>#9 &amp; #10</strong>)</li>
+              <li><strong>Court 3 — Bronze Shield:</strong> Ranks 13–18 (Balanced Teams: <strong>#13 &amp; #18</strong>, <strong>#14 &amp; #17</strong>, <strong>#15 &amp; #16</strong>)</li>
+              <li><strong>Court 4 — Copper Bowl:</strong> Ranks 19–24 (Balanced Teams: <strong>#19 &amp; #24</strong>, <strong>#20 &amp; #23</strong>, <strong>#21 &amp; #22</strong>)</li>
+              <li><strong>Round-Robin with Sitting Refs:</strong> Each pool plays a 3-match round-robin where the sitting team referees the other two teams (2 plays + 1 ref per player).</li>
             </ul>
           </div>
 
@@ -222,6 +242,24 @@
       <p>🏸 Sindhi Boys Badminton Cup &bull; Optimized for Mobile &amp; GitHub Pages</p>
       <p style="margin-top:4px; font-size:0.74rem;">Scores persist automatically in your browser's local storage.</p>
     </footer>
+  </div>
+
+  <!-- PIN UNLOCK MODAL -->
+  <div id="pinModal" class="modal-overlay" onclick="if(event.target===this) closePinModal()">
+    <div class="modal-card" style="max-width:380px; text-align:center;">
+      <div style="font-size:2.2rem; margin-bottom:6px;">🔒</div>
+      <h2 class="modal-title" style="margin-bottom:6px;">Admin Passcode</h2>
+      <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:16px;">Enter 4-digit organizer passcode to unlock score editing and desk tools.</p>
+      
+      <form onsubmit="handlePinSubmit(event)" style="display:flex; flex-direction:column; gap:12px; align-items:center;">
+        <input type="password" id="adminPinInput" maxlength="4" inputmode="numeric" placeholder="••••" style="font-size:2rem; letter-spacing:8px; text-align:center; width:170px; padding:8px 12px; border-radius:var(--radius-md); border:2px solid var(--primary); background:var(--bg-card); color:var(--text-primary); font-family:monospace;" autocomplete="off">
+        <div id="pinErrorMsg" style="color:var(--loss-color); font-size:0.8rem; font-weight:700; min-height:18px;"></div>
+        <div style="display:flex; gap:10px; width:100%; justify-content:center;">
+          <button type="button" class="btn-secondary" onclick="closePinModal()" style="flex:1;">Cancel</button>
+          <button type="submit" class="btn-primary" style="flex:1;">Unlock 🔓</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- ORGANIZER MODAL -->
@@ -263,7 +301,9 @@
   <!-- Notification Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- External High-Res Screenshot Library -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <!-- Application Script -->
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=15"></script>
 </body>
 </html>
