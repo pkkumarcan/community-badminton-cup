@@ -228,6 +228,8 @@
               </tbody>
             </table>
           </div>
+          <!-- Phase 6: Lock/Unlock area (admin only, rendered by app.js) -->
+          <div id="lbLockArea" style="padding:12px 14px;"></div>
         </div>
       </section>
 
@@ -543,6 +545,107 @@
   <!-- External High-Res Screenshot Library -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <!-- Application Script -->
-  <script src="js/app.js?v=21"></script>
+  <script src="js/app.js?v=22"></script>
+
+  <!-- PHASE 6: STAGE 1 LOCK BLOCKED MODAL (incomplete matches) -->
+  <div id="stage1LockBlockedModal" class="modal-overlay" onclick="if(event.target===this) closeLockBlockedModal()">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon-warn">⚠️</div>
+      <h3>Cannot Lock Stage 1</h3>
+      <p id="lockBlockedMsg" style="margin:10px 0 18px; color:var(--text-muted); font-size:0.9rem;"></p>
+      <button type="button" class="btn-primary" onclick="closeLockBlockedModal()">OK — Continue Scoring</button>
+    </div>
+  </div>
+
+  <!-- PHASE 6: STAGE 1 LOCK CONFIRM MODAL -->
+  <div id="stage1LockConfirmModal" class="modal-overlay" onclick="if(event.target===this) closeLockConfirmModal()">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon-lock">🔒</div>
+      <h3>Stage 1 COMPLETE?</h3>
+      <p style="margin:8px 0 4px; font-size:0.9rem; color:var(--text-muted);">All 48 Stage 1 matches are complete.</p>
+      <p style="margin:4px 0 16px; font-size:0.9rem; color:var(--text-muted);">Locking Stage 1 will:</p>
+      <ul class="modal-bullet-list">
+        <li>Freeze the official Stage 1 standings</li>
+        <li>Confirm Gold, Silver, Bronze and Copper qualification</li>
+        <li>Generate the official Finals teams</li>
+        <li>Prevent Stage 1 scores from being changed without unlocking</li>
+      </ul>
+      <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="btn-secondary" onclick="closeLockConfirmModal()">Cancel</button>
+        <button type="button" class="btn-lock-confirm" onclick="confirmStage1Lock()">🔒 LOCK STAGE 1 &amp; GENERATE FINALS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 6: STAGE 1 LOCK SUCCESS MODAL -->
+  <div id="stage1LockSuccessModal" class="modal-overlay" onclick="if(event.target===this) closeLockSuccessModal()">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon-success">✅</div>
+      <h3>Stage 1 LOCKED ✓</h3>
+      <p style="margin:8px 0 16px; font-size:0.95rem; color:var(--text-primary);">Official Finals teams have been generated.</p>
+      <p style="font-size:0.85rem; color:var(--text-muted);">Locked at: <strong id="lockSuccessTimestamp"></strong></p>
+      <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="btn-secondary" onclick="closeLockSuccessModal()">Close</button>
+        <button type="button" class="btn-primary" onclick="closeLockSuccessModal(); switchTab('finals')">🏆 View Official Finals</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 6: STAGE 1 UNLOCK CONFIRM MODAL (no finals scores) -->
+  <div id="stage1UnlockConfirmModal" class="modal-overlay" onclick="if(event.target===this) closeUnlockConfirmModal()">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon-warn">🔓</div>
+      <h3>Unlock Stage 1?</h3>
+      <p style="margin:8px 0 4px; font-size:0.9rem; color:var(--text-muted);">This will:</p>
+      <ul class="modal-bullet-list">
+        <li>Invalidate official Stage 1 standings</li>
+        <li>Return Finals teams to projected status</li>
+        <li>Allow Stage 1 scores to be edited</li>
+      </ul>
+      <p style="margin:12px 0 0; font-size:0.82rem; color:var(--text-muted);">No match scores will be deleted.</p>
+      <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="btn-secondary" onclick="closeUnlockConfirmModal()">Cancel</button>
+        <button type="button" class="btn-danger" onclick="confirmStage1Unlock()">🔓 Unlock Stage 1</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 6: STAGE 1 UNLOCK BLOCKED (finals have started) -->
+  <div id="stage1UnlockBlockedModal" class="modal-overlay" onclick="if(event.target===this) closeUnlockBlockedModal()">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon-danger">🚫</div>
+      <h3>Finals Have Already Started</h3>
+      <p style="margin:8px 0 16px; font-size:0.9rem; color:var(--text-muted);">Stage 1 cannot be unlocked while Finals results exist. Clear or reset Finals first from Organizer Tools, then unlock Stage 1.</p>
+      <button type="button" class="btn-primary" onclick="closeUnlockBlockedModal()">OK</button>
+    </div>
+  </div>
+
+  <!-- PHASE 6: TIE RESOLUTION MODAL -->
+  <div id="tieResolutionModal" class="modal-overlay" onclick="if(event.target===this) closeTieResolutionModal()">
+    <div class="modal-box" style="max-width:540px; max-height:80vh; overflow-y:auto;">
+      <div class="modal-icon modal-icon-warn">⚖️</div>
+      <h3>Ranking Tie — Organizer Resolution Required</h3>
+      <p style="margin:8px 0 14px; font-size:0.88rem; color:var(--text-muted);">The following players are completely tied after Wins, Differential, and Points Scored. Use the ↑ / ↓ arrows to set their final order before locking.</p>
+      <div id="tieResolutionContainer"></div>
+      <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="btn-secondary" onclick="closeTieResolutionModal()">Cancel</button>
+        <button type="button" class="btn-lock-confirm" onclick="confirmTieResolutionAndLock()">✅ Confirm Order &amp; Lock Stage 1</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 6: SCORE EDIT BLOCKED BY LOCK MODAL -->
+  <div id="scoreLockBlockModal" class="modal-overlay" onclick="if(event.target===this) closeScoreLockBlockModal()">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon-lock">🔒</div>
+      <h3>Stage 1 Is Locked</h3>
+      <p style="margin:8px 0 16px; font-size:0.9rem; color:var(--text-muted);">Official Finals teams have already been generated. To change a Stage 1 result, Stage 1 must first be unlocked by an organizer.</p>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button type="button" class="btn-secondary" onclick="closeScoreLockBlockModal()">Cancel</button>
+        <button type="button" class="btn-secondary" onclick="closeScoreLockBlockModal(); switchTab('leaderboard')">Review Unlock Options</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

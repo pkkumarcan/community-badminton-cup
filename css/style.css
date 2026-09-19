@@ -3253,9 +3253,276 @@ body {
   font-size: 0.95rem !important;
 }
 
+/* ============================================================
+   PHASE 6 — STAGE 1 LOCK + FINALS QUALIFICATION STYLES
+   ============================================================ */
 
+/* Modal icons */
+.modal-icon {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  display: block;
+  text-align: center;
+}
+.modal-icon-lock   { filter: none; }
+.modal-icon-warn   { filter: none; }
+.modal-icon-success { filter: none; }
+.modal-icon-danger  { filter: none; }
 
+.modal-box h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  text-align: center;
+}
+.modal-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+  text-align: left;
+}
+.modal-bullet-list li {
+  padding: 4px 0 4px 20px;
+  position: relative;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+.modal-bullet-list li::before {
+  content: '•';
+  position: absolute;
+  left: 6px;
+  color: var(--primary);
+  font-weight: 700;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
 
+/* Lock/Unlock confirm button */
+.btn-lock-confirm {
+  background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.btn-lock-confirm:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+}
+
+/* Danger button */
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+  transform: translateY(-1px);
+}
+.btn-danger-sm {
+  background: rgba(220,38,38,0.12);
+  color: #dc2626;
+  border: 1px solid rgba(220,38,38,0.35);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-danger-sm:hover {
+  background: rgba(220,38,38,0.22);
+}
+
+/* Lock status banner inside leaderboard */
+.lock-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.lock-status-banner.locked {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #065f46;
+}
+[data-theme="dark"] .lock-status-banner.locked {
+  color: #6ee7b7;
+}
+.lock-status-banner.unlocked {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--text-secondary);
+}
+.lock-count-note {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+/* Lock Stage 1 button */
+.btn-lock {
+  background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+  color: #fff;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn-lock:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+}
+.btn-lock-disabled {
+  background: rgba(100,116,139,0.18) !important;
+  color: var(--text-muted) !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.lock-progress-mini {
+  background: rgba(255,255,255,0.2);
+  border-radius: 50px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Qualified badge (locked state) */
+.tier-badge.locked-badge {
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  letter-spacing: 0.01em;
+}
+
+/* Finals status banners */
+.finals-status-banner {
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.finals-locked {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #065f46;
+}
+[data-theme="dark"] .finals-locked {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+}
+.finals-pending {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #92400e;
+}
+[data-theme="dark"] .finals-pending {
+  color: #fcd34d;
+}
+.finals-projected {
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  color: var(--primary);
+}
+
+/* Tie resolution modal */
+.tie-group {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.tie-group-header {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--warn-color, #d97706);
+  margin-bottom: 6px;
+}
+.tie-group-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.tie-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+  margin-bottom: 8px;
+}
+.tie-stats-table th,
+.tie-stats-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+.tie-stats-table thead th {
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+/* Court View lock banner */
+.court-lock-banner {
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.court-lock-banner.locked {
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.3);
+  color: #065f46;
+}
+[data-theme="dark"] .court-lock-banner.locked {
+  color: #6ee7b7;
+}
+.court-lock-banner.complete {
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  color: #92400e;
+}
+[data-theme="dark"] .court-lock-banner.complete {
+  color: #fcd34d;
+}
 
 
 

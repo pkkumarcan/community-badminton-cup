@@ -1078,6 +1078,20 @@ const ROSTER = [
   let currentBlockFilter = "all"; // 'all', '1', '2', '3', '4'
   let scheduleViewMode = (typeof window !== 'undefined' && window.innerWidth <= 768) ? "cards" : "table"; // 'table' or 'cards'
 
+  // ---------- PHASE 6: STAGE 1 LOCK STATE ----------
+  let stage1Locked = false;             // true after organizer confirms lock
+  let stage1LockedAt = null;            // ISO string timestamp of lock
+  let officialStage1Rankings = null;    // deep-cloned snapshot of computeLeaderboard() at lock time
+  let tieResolutions = {};              // { 'tie-group-id': ['Player A', 'Player B', ...] }
+  let officialFinalsPools = null;       // buildFinalsPools(officialStage1Rankings) stored at lock time
+
+  window.getStage1Locked = function () { return stage1Locked; };
+  window.getStage1LockedAt = function () { return stage1LockedAt; };
+  window.getOfficialStage1Rankings = function () { return officialStage1Rankings; };
+  window.getOfficialFinalsPools = function () { return officialFinalsPools; };
+  window.getTieResolutions = function () { return tieResolutions; };
+  window.getFinalsScores = function () { return finalsScores; };
+
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
   const STORAGE_KEY = 'badminton_cup_portal_data_v8';
   const LEGACY_STORAGE_KEY = 'badminton_cup_portal_data_v7';
@@ -1125,7 +1139,13 @@ const ROSTER = [
         selectedPlayer: identity || document.getElementById("playerSelect")?.value || "",
         currentCourtFilter,
         scheduleViewMode,
-        theme: document.documentElement.getAttribute('data-theme') || 'light'
+        theme: document.documentElement.getAttribute('data-theme') || 'light',
+        // Phase 6 lock state
+        stage1Locked,
+        stage1LockedAt,
+        officialStage1Rankings,
+        tieResolutions,
+        officialFinalsPools
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -1167,6 +1187,14 @@ const ROSTER = [
           bronze: data.finalsScores.bronze || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
           copper: data.finalsScores.copper || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
         };
+      }
+      // Phase 6 lock state restoration
+      if (data.stage1Locked === true) {
+        stage1Locked = true;
+        stage1LockedAt = data.stage1LockedAt || null;
+        officialStage1Rankings = data.officialStage1Rankings || null;
+        tieResolutions = data.tieResolutions || {};
+        officialFinalsPools = data.officialFinalsPools || null;
       }
       if (data.currentCourtFilter) {
         currentCourtFilter = data.currentCourtFilter;
@@ -1567,10 +1595,11 @@ const ROSTER = [
   function getPlayerTournamentSummary(player) {
     if (!player) return null;
     const totalCompleted = fixtures.filter(isMatchConcluded).length;
-    const leaderboard = computeLeaderboard();
+    // Phase 6: Use official snapshot if locked, else live leaderboard
+    const leaderboard = (stage1Locked && officialStage1Rankings) ? officialStage1Rankings : computeLeaderboard();
     const stats = leaderboard.find(s => s.name === player) || { gp: 0, wins: 0, pts: 0, pa: 0, diff: 0, rank: 24, tier: 'Copper' };
     const isStage1Complete = stats.gp === 8;
-    const isStage1Locked = totalCompleted === fixtures.length;
+    const isStage1Locked = stage1Locked; // Phase 6: use the actual lock flag
 
     return {
       player,
@@ -1864,9 +1893,12 @@ const ROSTER = [
 
     // Stats Grid
     const rankDisplay = summary.totalTournamentCompleted === 0 ? "NOT STARTED" : `#${summary.rank}`;
-    const rankLabel = summary.totalTournamentCompleted === 0 ? "STANDINGS" : "PROVISIONAL RANK";
-    const poolLabel = summary.isStage1Locked ? "QUALIFIED POOL" : "PROJECTED POOL";
-    const poolVal = summary.totalTournamentCompleted === 0 ? "TBD" : (summary.isStage1Locked ? `QUALIFIED ${summary.tier.toUpperCase()}` : `PROJECTED ${summary.tier.toUpperCase()}`);
+    const rankLabel = summary.totalTournamentCompleted === 0 ? "STANDINGS" : (summary.isStage1Locked ? "OFFICIAL RANK" : "PROVISIONAL RANK");
+    const POOL_FULL_NAMES = { Gold: 'Gold Championship', Silver: 'Silver Plate', Bronze: 'Bronze Shield', Copper: 'Copper Cup' };
+    const poolLabel = summary.isStage1Locked ? "OFFICIAL FINALS POOL" : "PROJECTED POOL";
+    const poolVal = summary.totalTournamentCompleted === 0 ? "TBD" : (summary.isStage1Locked
+      ? `QUALIFIED — ${POOL_FULL_NAMES[summary.tier] || summary.tier}`
+      : `PROJECTED ${summary.tier.toUpperCase()}`);
 
     const statsGridHtml = `
       <div class="home-stats-grid">
@@ -2794,6 +2826,9 @@ const ROSTER = [
         </button>
       </div>
 
+      <!-- Phase 6: Lock Status Banner -->
+      ${stage1Locked ? `<div class="court-lock-banner locked">🔒 Stage 1 LOCKED — Official Finals teams are active. View the <a href="javascript:void(0)" onclick="switchTab('finals')" style="color:inherit; font-weight:800; text-decoration:underline;">Finals tab</a> for team assignments.</div>` : (isStage1AllComplete ? `<div class="court-lock-banner complete">⏳ Stage 1 COMPLETE — Awaiting organizer lock to confirm Finals qualification.</div>` : '')}
+
       <!-- Player Next Court Shortcut -->
       ${playerShortcutHtml}
 
@@ -3196,8 +3231,22 @@ const ROSTER = [
     renderCourtView();
   }
 
+  // ---------- PHASE 6: STAGE 1 SCORE EDIT GUARD ----------
+  // Returns true if the edit is allowed. Shows blocking modal and returns false if Stage 1 is locked.
+  function checkStage1LockBeforeEdit() {
+    if (!stage1Locked) return true;
+    document.getElementById('scoreLockBlockModal')?.classList.add('open');
+    return false;
+  }
+  window.checkStage1LockBeforeEdit = checkStage1LockBeforeEdit;
+
+  window.closeScoreLockBlockModal = function () {
+    document.getElementById('scoreLockBlockModal')?.classList.remove('open');
+  };
+
   // ---------- INTERACTIVE SCORE UPDATING ----------
   window.adjustScore = function (fixtureIdx, teamNum, delta) {
+    if (!checkStage1LockBeforeEdit()) return;
     const f = fixtures[fixtureIdx];
     if (!f) return;
     const current = teamNum === 1 ? (f.s1 ?? 0) : (f.s2 ?? 0);
@@ -3216,6 +3265,7 @@ const ROSTER = [
   };
 
   window.updateScore = function (fixtureIdx, teamNum, val) {
+    if (!checkStage1LockBeforeEdit()) return;
     const f = fixtures[fixtureIdx];
     if (!f) return;
     const num = val === "" ? null : Math.min(15, Math.max(0, parseInt(val, 10)));
@@ -3232,7 +3282,244 @@ const ROSTER = [
     renderLeaderboard();
   };
 
-  // ---------- RENDERING: LEADERBOARD TAB (Phase 3: Mobile Optimized) ----------
+  // ---------- PHASE 6: LOCK VALIDATION ----------
+  function validateStage1ForLock() {
+    const total = fixtures.length; // 48
+    const concluded = fixtures.filter(isMatchConcluded);
+    if (concluded.length < total) {
+      return { ok: false, reason: 'incomplete', missing: total - concluded.length };
+    }
+    // Detect ties after official ranking criteria
+    const lb = computeLeaderboard();
+    const tieGroups = [];
+    let i = 0;
+    while (i < lb.length) {
+      const cur = lb[i];
+      // Find all players with identical wins, diff, pts
+      let j = i + 1;
+      while (j < lb.length && lb[j].wins === cur.wins && lb[j].diff === cur.diff && lb[j].pts === cur.pts) j++;
+      if (j - i > 1) {
+        const group = lb.slice(i, j);
+        const groupId = `tie-${i}-${j-1}`;
+        // Check if this group crosses pool boundary (ranks straddle 6, 12, or 18)
+        const ranks = group.map(p => p.rank);
+        const crossesBoundary = [6, 12, 18].some(b => ranks[0] <= b && ranks[ranks.length-1] > b);
+        tieGroups.push({ id: groupId, players: group, crossesBoundary });
+      }
+      i = j;
+    }
+    // Only blocking ties are ones that cross pool boundaries or aren't already resolved
+    const unresolvedBlockingTies = tieGroups.filter(tg => {
+      if (!tg.crossesBoundary) return false; // tie within same pool is fine
+      const resolved = tieResolutions[tg.id];
+      if (!resolved) return true;
+      // Validate resolution completeness
+      const resolvedNames = resolved;
+      const expectedNames = tg.players.map(p => p.name);
+      return !expectedNames.every(n => resolvedNames.includes(n)) || resolvedNames.length !== expectedNames.length;
+    });
+    if (unresolvedBlockingTies.length > 0) {
+      return { ok: false, reason: 'ties', tieGroups: unresolvedBlockingTies };
+    }
+    return { ok: true, leaderboard: lb };
+  }
+  window.validateStage1ForLock = validateStage1ForLock;
+
+  // ---------- PHASE 6: LOCK ATTEMPT ----------
+  function attemptStage1Lock() {
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    const result = validateStage1ForLock();
+    if (!result.ok) {
+      if (result.reason === 'incomplete') {
+        const modal = document.getElementById('stage1LockBlockedModal');
+        const msg = document.getElementById('lockBlockedMsg');
+        if (msg) msg.textContent = `${result.missing} of 48 Stage 1 matches are not yet complete. All matches must have valid scores (one team reaching 15 points) before Stage 1 can be locked.`;
+        if (modal) modal.classList.add('open');
+      } else if (result.reason === 'ties') {
+        renderTieResolutionModal(result.tieGroups);
+        document.getElementById('tieResolutionModal')?.classList.add('open');
+      }
+      return;
+    }
+    // All checks pass — show confirmation dialog
+    document.getElementById('stage1LockConfirmModal')?.classList.add('open');
+  }
+  window.attemptStage1Lock = attemptStage1Lock;
+
+  function confirmStage1Lock() {
+    const result = validateStage1ForLock();
+    if (!result.ok) {
+      document.getElementById('stage1LockConfirmModal')?.classList.remove('open');
+      attemptStage1Lock();
+      return;
+    }
+    // Apply tieResolutions to re-order if needed
+    let lb = result.leaderboard;
+    Object.values(tieResolutions).forEach(resolvedOrder => {
+      if (!Array.isArray(resolvedOrder) || resolvedOrder.length < 2) return;
+      const indices = resolvedOrder.map(name => lb.findIndex(p => p.name === name)).filter(i => i >= 0);
+      if (indices.length < 2) return;
+      const minIdx = Math.min(...indices);
+      const extracted = resolvedOrder.map(name => lb.find(p => p.name === name)).filter(Boolean);
+      indices.sort((a, b) => a - b).forEach((origIdx, i) => { lb[origIdx] = extracted[i]; });
+    });
+    // Re-assign ranks after resolution
+    lb.forEach((s, idx) => {
+      s.rank = idx + 1;
+      if (s.rank <= 6) s.tier = 'Gold';
+      else if (s.rank <= 12) s.tier = 'Silver';
+      else if (s.rank <= 18) s.tier = 'Bronze';
+      else s.tier = 'Copper';
+    });
+    // Deep clone — immutable snapshot
+    officialStage1Rankings = JSON.parse(JSON.stringify(lb));
+    // Generate official Finals pools using snapshot only
+    officialFinalsPools = JSON.parse(JSON.stringify(buildFinalsPools(officialStage1Rankings)));
+    stage1Locked = true;
+    stage1LockedAt = new Date().toISOString();
+    saveState();
+    document.getElementById('stage1LockConfirmModal')?.classList.remove('open');
+    // Show success banner
+    const successModal = document.getElementById('stage1LockSuccessModal');
+    if (successModal) {
+      const ts = document.getElementById('lockSuccessTimestamp');
+      if (ts) ts.textContent = new Date(stage1LockedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      successModal.classList.add('open');
+    }
+    renderLeaderboard();
+    renderFinals();
+    renderCourtView();
+    renderHomeDashboard();
+    renderMyMatches();
+    showToast('🔒 Stage 1 LOCKED ✓ — Official Finals teams have been generated!');
+  }
+  window.confirmStage1Lock = confirmStage1Lock;
+
+  window.closeLockBlockedModal = function () {
+    document.getElementById('stage1LockBlockedModal')?.classList.remove('open');
+  };
+  window.closeLockConfirmModal = function () {
+    document.getElementById('stage1LockConfirmModal')?.classList.remove('open');
+  };
+  window.closeLockSuccessModal = function () {
+    document.getElementById('stage1LockSuccessModal')?.classList.remove('open');
+  };
+
+  // ---------- PHASE 6: UNLOCK ATTEMPT ----------
+  function hasAnyFinalsScores() {
+    return Object.values(finalsScores).some(pool =>
+      pool.some(m => m.s1 != null || m.s2 != null)
+    );
+  }
+
+  function attemptStage1Unlock() {
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    if (!stage1Locked) return;
+    if (hasAnyFinalsScores()) {
+      // Block: Finals have started
+      document.getElementById('stage1UnlockBlockedModal')?.classList.add('open');
+      return;
+    }
+    // Normal unlock confirmation
+    document.getElementById('stage1UnlockConfirmModal')?.classList.add('open');
+  }
+  window.attemptStage1Unlock = attemptStage1Unlock;
+
+  function confirmStage1Unlock() {
+    stage1Locked = false;
+    stage1LockedAt = null;
+    officialStage1Rankings = null;
+    officialFinalsPools = null;
+    tieResolutions = {};
+    saveState();
+    document.getElementById('stage1UnlockConfirmModal')?.classList.remove('open');
+    renderLeaderboard();
+    renderFinals();
+    renderCourtView();
+    renderHomeDashboard();
+    renderMyMatches();
+    showToast('🔓 Stage 1 unlocked — Standings returned to provisional status.');
+  }
+  window.confirmStage1Unlock = confirmStage1Unlock;
+
+  window.closeUnlockConfirmModal = function () {
+    document.getElementById('stage1UnlockConfirmModal')?.classList.remove('open');
+  };
+  window.closeUnlockBlockedModal = function () {
+    document.getElementById('stage1UnlockBlockedModal')?.classList.remove('open');
+  };
+
+  // ---------- PHASE 6: TIE RESOLUTION ----------
+  function renderTieResolutionModal(tieGroups) {
+    const container = document.getElementById('tieResolutionContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    tieGroups.forEach(tg => {
+      const div = document.createElement('div');
+      div.className = 'tie-group';
+      const existing = tieResolutions[tg.id] || tg.players.map(p => p.name);
+      div.innerHTML = `
+        <div class="tie-group-header">⚠️ Ranking Tie at Positions ${tg.players.map(p => p.rank).join(', ')}</div>
+        <div class="tie-group-note">These players are fully tied on Wins, Differential, and Points Scored. Drag to resolve order, or use arrows. Only organizer resolution can break this tie.</div>
+        <table class="tie-stats-table">
+          <thead><tr><th>Order</th><th>Player</th><th>W</th><th>Diff</th><th>PTS</th></tr></thead>
+          <tbody id="tie-tbody-${tg.id}">
+            ${existing.map((name, i) => {
+              const p = tg.players.find(x => x.name === name) || tg.players[i];
+              return `<tr draggable="true" data-player="${name}" data-group="${tg.id}">
+                <td><strong>#${tg.players[0].rank + i}</strong></td>
+                <td>🏸 ${name}</td>
+                <td>${p ? p.wins : '?'}</td>
+                <td>${p ? (p.diff > 0 ? '+' : '') + p.diff : '?'}</td>
+                <td>${p ? p.pts : '?'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+          ${existing.map((name, i) => {
+            const canUp = i > 0;
+            const canDown = i < existing.length - 1;
+            return `<button class="btn-secondary" style="font-size:0.75rem; padding:3px 8px;" onclick="moveTiePlayer('${tg.id}',${i},-1)" ${canUp ? '' : 'disabled'}>↑ ${name}</button>
+                    <button class="btn-secondary" style="font-size:0.75rem; padding:3px 8px;" onclick="moveTiePlayer('${tg.id}',${i},1)" ${canDown ? '' : 'disabled'}>↓ ${name}</button>`;
+          }).join('')}
+        </div>
+      `;
+      container.appendChild(div);
+      // Init stored if not yet set
+      if (!tieResolutions[tg.id]) {
+        tieResolutions[tg.id] = existing.slice();
+      }
+    });
+  }
+
+  window.moveTiePlayer = function (groupId, fromIdx, direction) {
+    const arr = tieResolutions[groupId];
+    if (!arr) return;
+    const toIdx = fromIdx + direction;
+    if (toIdx < 0 || toIdx >= arr.length) return;
+    const temp = arr[fromIdx]; arr[fromIdx] = arr[toIdx]; arr[toIdx] = temp;
+    // Re-render the tie resolution modal
+    const result = validateStage1ForLock();
+    if (result.reason === 'ties') renderTieResolutionModal(result.tieGroups);
+  };
+
+  window.confirmTieResolutionAndLock = function () {
+    document.getElementById('tieResolutionModal')?.classList.remove('open');
+    // Attempt lock again — should now pass
+    const result = validateStage1ForLock();
+    if (!result.ok) {
+      attemptStage1Lock();
+      return;
+    }
+    document.getElementById('stage1LockConfirmModal')?.classList.add('open');
+  };
+
+  window.closeTieResolutionModal = function () {
+    document.getElementById('tieResolutionModal')?.classList.remove('open');
+  };
+
+  // ---------- RENDERING: LEADERBOARD TAB (Phase 3 + Phase 6) ----------
   function renderLeaderboard() {
     const tbody = document.getElementById("lbBody");
     if (!tbody) return;
@@ -3244,20 +3531,33 @@ const ROSTER = [
 
     const totalCompleted = fixtures.filter(isMatchConcluded).length;
     const isStarted = totalCompleted > 0;
+    const totalMatches = fixtures.length; // 48
 
-    // Update banner / subtitle wording per Requirement 10
+    // Phase 6: determine heading based on lock state
     const lbHeaderTitle = document.querySelector(".lb-header h2");
     const lbHeaderSub = document.querySelector(".lb-header p");
     if (lbHeaderTitle) {
-      lbHeaderTitle.textContent = isStarted ? "Stage 1 Provisional Standings" : "Stage 1 Standings • NOT STARTED";
+      if (stage1Locked) {
+        lbHeaderTitle.textContent = 'Final Stage 1 Standings';
+      } else if (isStarted) {
+        lbHeaderTitle.textContent = 'Stage 1 Provisional Standings';
+      } else {
+        lbHeaderTitle.textContent = 'Stage 1 Standings • NOT STARTED';
+      }
     }
     if (lbHeaderSub) {
-      lbHeaderSub.innerHTML = isStarted 
-        ? "Live Rankings &bull; Top 6 qualify for Gold Championship (Wins &rarr; Net Diff &rarr; Points)"
-        : "Matches begin at 12:00 PM &bull; Rankings will calculate automatically as scores are recorded";
+      if (stage1Locked) {
+        const lockedTime = stage1LockedAt ? new Date(stage1LockedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+        lbHeaderSub.innerHTML = `🔒 Official Rankings Locked${lockedTime ? ' at ' + lockedTime : ''} &bull; Finals qualification confirmed`;
+      } else if (isStarted) {
+        lbHeaderSub.innerHTML = 'Live Rankings &bull; Top 6 qualify for Gold Championship (Wins &rarr; Net Diff &rarr; Points)';
+      } else {
+        lbHeaderSub.innerHTML = 'Matches begin at 12:00 PM &bull; Rankings will calculate automatically as scores are recorded';
+      }
     }
 
-    const standings = computeLeaderboard();
+    // Use official snapshot if locked, otherwise live
+    const standings = stage1Locked ? officialStage1Rankings : computeLeaderboard();
 
     standings.forEach(s => {
       const tr = document.createElement("tr");
@@ -3269,6 +3569,17 @@ const ROSTER = [
       const rankBadgeClass = isStarted ? (s.rank === 1 ? "rank-1" : (s.rank === 2 ? "rank-2" : (s.rank === 3 ? "rank-3" : ""))) : "";
       const rankText = isStarted ? s.rank : "-";
       const poolDisplay = isStarted ? s.tier : "TBD";
+
+      // Phase 6: PROJECTED vs QUALIFIED labels
+      let poolBadgeText;
+      const POOL_FULL_NAMES = { Gold: 'Gold Championship', Silver: 'Silver Plate', Bronze: 'Bronze Shield', Copper: 'Copper Cup' };
+      if (stage1Locked) {
+        poolBadgeText = `QUALIFIED — ${POOL_FULL_NAMES[poolDisplay] || poolDisplay}`;
+      } else if (isStarted) {
+        poolBadgeText = `PROJECTED ${poolDisplay}`;
+      } else {
+        poolBadgeText = poolDisplay;
+      }
 
       const playerLabel = isSelected
         ? `<span>🏸</span> <strong><span class="you-tag">YOU</span> ${s.name}</strong>`
@@ -3282,10 +3593,41 @@ const ROSTER = [
         <td class="col-secondary">${s.pts}</td>
         <td class="col-secondary">${s.ga}</td>
         <td class="${diffClass}"><strong>${diffFormatted}</strong></td>
-        <td><span class="tier-badge tier-${poolDisplay.toLowerCase()}">${isStarted ? 'Projected ' + poolDisplay : poolDisplay}</span></td>
+        <td><span class="tier-badge tier-${poolDisplay.toLowerCase()} ${stage1Locked ? 'locked-badge' : ''}">${poolBadgeText}</span></td>
       `;
       tbody.appendChild(tr);
     });
+
+    // Phase 6: Lock / Unlock buttons (Admin only)
+    const lockArea = document.getElementById('lbLockArea');
+    if (lockArea) {
+      if (!isAdminUnlocked()) {
+        lockArea.innerHTML = '';
+      } else if (stage1Locked) {
+        const lockedTime = stage1LockedAt ? new Date(stage1LockedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+        lockArea.innerHTML = `
+          <div class="lock-status-banner locked">
+            <span>🔒 Stage 1 LOCKED${lockedTime ? ' at ' + lockedTime : ''} — Official Finals teams active</span>
+            <button type="button" class="btn-danger-sm" onclick="attemptStage1Unlock()">🔓 Unlock Stage 1</button>
+          </div>
+        `;
+      } else {
+        const remaining = totalMatches - totalCompleted;
+        const canLock = remaining === 0;
+        lockArea.innerHTML = `
+          <div class="lock-status-banner unlocked">
+            <div>
+              <span>📋 Stage 1: ${totalCompleted}/${totalMatches} matches complete</span>
+              ${!canLock ? `<span class="lock-count-note">${remaining} remaining</span>` : ''}
+            </div>
+            <button type="button" class="btn-lock ${canLock ? '' : 'btn-lock-disabled'}" onclick="attemptStage1Lock()" ${canLock ? '' : ''} title="${canLock ? 'Lock Stage 1 and generate official Finals teams' : remaining + ' matches still remaining'}">
+              🔒 Lock Stage 1 &amp; Generate Finals
+              ${!canLock ? `<span class="lock-progress-mini">${totalCompleted}/${totalMatches}</span>` : ''}
+            </button>
+          </div>
+        `;
+      }
+    }
   }
 
   
@@ -3364,6 +3706,7 @@ const ROSTER = [
       }
     ];
   }
+  window.buildFinalsPools = buildFinalsPools;
 
   // ---------- COMPUTE POOL STANDINGS ----------
   function computePoolStandings(pool) {
@@ -3410,14 +3753,36 @@ const ROSTER = [
     return list;
   }
 
-  // ---------- RENDERING: FINALS TAB ----------
+  // ---------- RENDERING: FINALS TAB (Phase 6: lock-aware) ----------
   function renderFinals() {
     const container = document.getElementById("finalsContainer");
     if (!container) return;
     container.innerHTML = "";
 
-    const leaderboard = computeLeaderboard();
-    const pools = buildFinalsPools(leaderboard);
+    // Phase 6: If locked, use OFFICIAL snapshot only — never regenerate from live data
+    let pools;
+    if (stage1Locked && officialStage1Rankings) {
+      pools = buildFinalsPools(officialStage1Rankings);
+    } else {
+      pools = buildFinalsPools(computeLeaderboard());
+    }
+
+    // Status banner at top of Finals tab
+    const totalCompleted = fixtures.filter(isMatchConcluded).length;
+    const allStage1Done = totalCompleted === fixtures.length;
+    const bannerDiv = document.createElement('div');
+    if (stage1Locked) {
+      const lockedTime = stage1LockedAt ? new Date(stage1LockedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+      bannerDiv.className = 'finals-status-banner finals-locked';
+      bannerDiv.innerHTML = `\ud83d\udd12 <strong>OFFICIAL FINALS TEAMS</strong> — Stage 1 Locked${lockedTime ? ' at ' + lockedTime : ''}. Teams below are confirmed and immutable.`;
+    } else if (allStage1Done) {
+      bannerDiv.className = 'finals-status-banner finals-pending';
+      bannerDiv.innerHTML = `\u23f3 Stage 1 COMPLETE — Awaiting organizer lock to confirm Finals qualification.`;
+    } else {
+      bannerDiv.className = 'finals-status-banner finals-projected';
+      bannerDiv.innerHTML = `\ud83d\udcca <strong>PROJECTED FINALS</strong> — Subject to change until Stage 1 is locked by the organizer.`;
+    }
+    container.appendChild(bannerDiv);
 
     pools.forEach(pool => {
       const standings = computePoolStandings(pool);
@@ -3627,24 +3992,32 @@ const ROSTER = [
   }
 
   // ---------- ORGANIZER DESK TOOLS ----------
-  window.openOrganizerModal = function () {
+  function openOrganizerModal() {
     if (!isAdminUnlocked()) {
       openPinModal();
       return;
     }
     document.getElementById("organizerModal")?.classList.add("open");
-  };
+  }
+  window.openOrganizerModal = openOrganizerModal;
 
-  window.closeOrganizerModal = function () {
+  function closeOrganizerModal() {
     document.getElementById("organizerModal")?.classList.remove("open");
-  };
+  }
+  window.closeOrganizerModal = closeOrganizerModal;
 
   window.exportDataJSON = function () {
     const data = {
-      version: "v7",
+      version: "v8",
       exportDate: new Date().toISOString(),
       fixtures,
-      finalsScores
+      finalsScores,
+      // Phase 6 lock state
+      stage1Locked,
+      stage1LockedAt,
+      officialStage1Rankings,
+      tieResolutions,
+      officialFinalsPools
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -3663,18 +4036,51 @@ const ROSTER = [
     reader.onload = function (e) {
       try {
         const parsed = JSON.parse(e.target.result);
-        if (Array.isArray(parsed.fixtures)) {
-          fixtures = parsed.fixtures;
-          if (parsed.finalsScores) finalsScores = parsed.finalsScores;
-          saveState();
-          renderSchedule();
-          renderLeaderboard();
-          renderFinals();
-          closeOrganizerModal();
-          showToast("📥 Tournament data imported successfully!");
-        } else {
+        if (!Array.isArray(parsed.fixtures)) {
           alert("Invalid backup file structure.");
+          return;
         }
+        // Phase 6: Warn if current tournament is locked
+        if (stage1Locked) {
+          const ok = confirm(
+            "⚠️ Stage 1 is currently LOCKED with official Finals teams.\n\n" +
+            "Importing this backup will REPLACE the current lock state with the imported data.\n\n" +
+            "Proceed with import?"
+          );
+          if (!ok) { input.value = ''; return; }
+        }
+        fixtures = parsed.fixtures;
+        if (parsed.finalsScores) {
+          finalsScores = {
+            gold:   parsed.finalsScores.gold   || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+            silver: parsed.finalsScores.silver || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+            bronze: parsed.finalsScores.bronze || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+            copper: parsed.finalsScores.copper || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+          };
+        }
+        // Restore Phase 6 state from backup
+        if (parsed.stage1Locked === true) {
+          stage1Locked = true;
+          stage1LockedAt = parsed.stage1LockedAt || null;
+          officialStage1Rankings = parsed.officialStage1Rankings || null;
+          tieResolutions = parsed.tieResolutions || {};
+          officialFinalsPools = parsed.officialFinalsPools || null;
+        } else {
+          stage1Locked = false;
+          stage1LockedAt = null;
+          officialStage1Rankings = null;
+          tieResolutions = {};
+          officialFinalsPools = null;
+        }
+        saveState();
+        renderSchedule();
+        renderLeaderboard();
+        renderFinals();
+        renderHomeDashboard();
+        renderMyMatches();
+        renderCourtView();
+        closeOrganizerModal();
+        showToast("📥 Tournament data imported successfully!");
       } catch (err) {
         alert("Error parsing backup JSON file.");
       }
@@ -3683,8 +4089,10 @@ const ROSTER = [
   };
 
   window.loadDemoData = function (skipConfirm = false) {
-    if (!skipConfirm && !confirm("Load realistic demo scores for all Stage 1 blocks and Finals?")) return;
+    if (!checkStage1LockBeforeEdit()) return;
+    if (!skipConfirm && !confirm("Load realistic demo scores for all Stage 1 blocks and Finals?\n\nNote: This does NOT automatically lock Stage 1.")) return;
 
+    // Do NOT touch the lock state — organizer must manually lock after reviewing
     fixtures.forEach((f, idx) => {
       // Realistic 15-point sudden death scores
       const scoreCombos = [
@@ -3696,11 +4104,11 @@ const ROSTER = [
       f.s2 = combo[1];
     });
 
-    // Finals demo scores (21-point sets)
+    // Finals demo scores (21-point sets) — also NOT locked automatically
     const finalsCombos = [
       [21, 18], [19, 21], [21, 16]
     ];
-    Object.keys(finalsScores).forEach((tier, tIdx) => {
+    Object.keys(finalsScores).forEach((tier) => {
       finalsScores[tier] = [
         { s1: finalsCombos[0][0], s2: finalsCombos[0][1] },
         { s1: finalsCombos[1][0], s2: finalsCombos[1][1] },
@@ -3713,11 +4121,13 @@ const ROSTER = [
     renderLeaderboard();
     renderFinals();
     closeOrganizerModal();
-    showToast("🎲 Realistic demo scores loaded for all 48 matches & finals!");
+    showToast("🎲 Demo scores loaded. Review provisional standings, then LOCK Stage 1 to generate official Finals.");
   };
 
   window.resetTournament = function (skipConfirm = false) {
-    if (!skipConfirm && !confirm("⚠️ Are you sure you want to reset ALL scores to blank? This cannot be undone.")) return;
+    if (stage1Locked && !skipConfirm) {
+      if (!confirm("⚠️ Stage 1 is currently LOCKED with official Finals rankings.\n\nResetting will unlock Stage 1, erase official rankings, and clear all scores.\n\nProceed with full tournament reset?")) return;
+    } else if (!skipConfirm && !confirm("⚠️ Are you sure you want to reset ALL scores to blank? This cannot be undone.")) return;
 
     fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
     finalsScores = {
@@ -3726,11 +4136,20 @@ const ROSTER = [
       bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
       copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
     };
+    // Phase 6: Clear all lock state on reset
+    stage1Locked = false;
+    stage1LockedAt = null;
+    officialStage1Rankings = null;
+    tieResolutions = {};
+    officialFinalsPools = null;
 
     saveState();
     renderSchedule();
     renderLeaderboard();
     renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
     closeOrganizerModal();
     showToast("⚠️ All tournament scores have been reset to blank.");
   };
