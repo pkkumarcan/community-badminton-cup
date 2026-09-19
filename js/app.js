@@ -1067,11 +1067,21 @@ const ROSTER = [
   window.BLOCKS = BLOCKS;
   window.ROUND_TIMES = ROUND_TIMES;
 
+  const FINALS_TARGET_SCORE = 21; // 1 set to 21 points sudden death (established tournament rule)
+
   let finalsScores = {
     gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
     silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
     bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
     copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+  };
+
+  // Phase 7: Array-based playoff structure per pool
+  let finalsPlayoffs = {
+    gold: [],
+    silver: [],
+    bronze: [],
+    copper: []
   };
 
   let currentCourtFilter = "all"; // 'all', '1', '2', '3', '5', '8'
@@ -1085,16 +1095,20 @@ const ROSTER = [
   let tieResolutions = {};              // { 'tie-group-id': ['Player A', 'Player B', ...] }
   let officialFinalsPools = null;       // buildFinalsPools(officialStage1Rankings) stored at lock time
 
+  window.FINALS_TARGET_SCORE = FINALS_TARGET_SCORE;
+  window.isStage1Locked = function () { return stage1Locked; };
   window.getStage1Locked = function () { return stage1Locked; };
   window.getStage1LockedAt = function () { return stage1LockedAt; };
   window.getOfficialStage1Rankings = function () { return officialStage1Rankings; };
   window.getOfficialFinalsPools = function () { return officialFinalsPools; };
   window.getTieResolutions = function () { return tieResolutions; };
   window.getFinalsScores = function () { return finalsScores; };
+  window.getFinalsPlayoffs = function () { return finalsPlayoffs; };
 
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v8';
-  const LEGACY_STORAGE_KEY = 'badminton_cup_portal_data_v7';
+  const STORAGE_KEY = 'badminton_cup_portal_data_v9';
+  const LEGACY_STORAGE_KEY_V8 = 'badminton_cup_portal_data_v8';
+  const LEGACY_STORAGE_KEY_V7 = 'badminton_cup_portal_data_v7';
   const PLAYER_IDENTITY_KEY = 'badminton_player_identity';
 
   function getStoredPlayerIdentity() {
@@ -1136,6 +1150,7 @@ const ROSTER = [
       const payload = {
         fixtures,
         finalsScores,
+        finalsPlayoffs,
         selectedPlayer: identity || document.getElementById("playerSelect")?.value || "",
         currentCourtFilter,
         scheduleViewMode,
@@ -1156,18 +1171,15 @@ const ROSTER = [
 
   function loadState() {
     try {
-      // Safe non-destructive archival for legacy v6 data
-      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (legacyRaw && !localStorage.getItem(STORAGE_KEY)) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        localStorage.setItem(`badminton_cup_portal_data_v7_archived_${timestamp}`, legacyRaw);
-        localStorage.removeItem(LEGACY_STORAGE_KEY);
-        setTimeout(() => {
-          showToast("📢 Fresh 24-player tournament loaded! Previous data safely archived.");
-        }, 600);
+      let raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        // Check for v8 data to migrate
+        const v8Raw = localStorage.getItem(LEGACY_STORAGE_KEY_V8);
+        if (v8Raw) {
+          raw = v8Raw;
+        }
       }
 
-      const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
         saveState(); // Ensure initial state is written immediately
         return;
@@ -1175,7 +1187,6 @@ const ROSTER = [
       const data = JSON.parse(raw);
       if (Array.isArray(data.fixtures) && data.fixtures.length === BASE_FIXTURES.length) {
         fixtures = data.fixtures;
-        // Ensure every fixture has its match code even if restored from an older saved session
         fixtures.forEach((f, idx) => {
           if (!f.m) f.m = BASE_FIXTURES[idx]?.m || ('M' + String(idx + 1).padStart(2, '0'));
         });
@@ -1186,6 +1197,14 @@ const ROSTER = [
           silver: data.finalsScores.silver || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
           bronze: data.finalsScores.bronze || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
           copper: data.finalsScores.copper || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+        };
+      }
+      if (data.finalsPlayoffs) {
+        finalsPlayoffs = {
+          gold:   data.finalsPlayoffs.gold   || [],
+          silver: data.finalsPlayoffs.silver || [],
+          bronze: data.finalsPlayoffs.bronze || [],
+          copper: data.finalsPlayoffs.copper || []
         };
       }
       // Phase 6 lock state restoration
@@ -1780,9 +1799,92 @@ const ROSTER = [
       `;
     }
 
-    // Hero Match Card
+    // Hero Match Card (Phase 7: Finals-aware)
     let heroCardHtml = "";
-    if (summary.isStage1Complete) {
+    const nextFinalsAssign = stage1Locked ? getNextPlayerFinalsAssignment(player) : null;
+    const playerFinalsAll = stage1Locked ? getPlayerFinalsAssignments(player) : [];
+    const isPlayerFinalsComplete = stage1Locked && playerFinalsAll.length > 0 && playerFinalsAll.every(a => a.concluded);
+
+    if (stage1Locked && nextFinalsAssign) {
+      if (nextFinalsAssign.duty === 'PLAY') {
+        heroCardHtml = `
+          <div class="hero-match-card" style="border-color: var(--primary);">
+            <div class="hero-match-badge-bar">
+              <span class="hero-match-title" style="color: var(--primary);">STAGE 2 FINALS &bull; ${nextFinalsAssign.status}</span>
+              <div class="hero-match-badges">
+                <span class="badge badge-court">COURT ${nextFinalsAssign.court}</span>
+                <span class="badge badge-blue">MATCH ${nextFinalsAssign.id}</span>
+                <span class="badge badge-gold">${nextFinalsAssign.poolLabel.split('(')[0].trim().toUpperCase()}</span>
+              </div>
+            </div>
+
+            <div class="hero-pairing-container">
+              <div class="hero-team-box is-you">
+                <div class="hero-team-label">Your Team (Team ${nextFinalsAssign.teamLetter})</div>
+                <div class="hero-team-names">YOU (${player})<br>+ ${nextFinalsAssign.partner}</div>
+              </div>
+              <div class="hero-vs-badge">VS</div>
+              <div class="hero-team-box">
+                <div class="hero-team-label">Opponents</div>
+                <div class="hero-team-names">${nextFinalsAssign.opponents ? nextFinalsAssign.opponents[0] + '<br>+ ' + nextFinalsAssign.opponents[1] : 'TBD'}</div>
+              </div>
+            </div>
+
+            <div class="hero-queue-hint" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <div><span>📍</span> Court ${nextFinalsAssign.court} &bull; 21 Pts Sudden Death</div>
+              <button type="button" class="court-link-btn" onclick="switchTab('finals')" title="View Finals"><span>🏅</span> View Finals &rarr;</button>
+            </div>
+          </div>
+        `;
+      } else {
+        heroCardHtml = `
+          <div class="hero-match-card" style="border-color: var(--primary);">
+            <div class="hero-match-badge-bar">
+              <span class="hero-match-title" style="color: var(--primary);">STAGE 2 FINALS &bull; NEXT ASSIGNMENT: REFEREE</span>
+              <div class="hero-match-badges">
+                <span class="badge badge-court">COURT ${nextFinalsAssign.court}</span>
+                <span class="badge badge-ref">MATCH ${nextFinalsAssign.id}</span>
+              </div>
+            </div>
+
+            <div class="hero-ref-body" style="padding: 12px 0;">
+              <div style="font-size:1.05rem; font-weight:900; color:var(--text-primary); margin-bottom:4px;">
+                Officiating Match ${nextFinalsAssign.id} on Court ${nextFinalsAssign.court}
+              </div>
+              <div style="font-size:0.88rem; color:var(--text-secondary);">
+                ${nextFinalsAssign.t1.join(' & ')} vs ${nextFinalsAssign.t2.join(' & ')}
+              </div>
+            </div>
+
+            <div class="hero-queue-hint" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <div><span>👀</span> Officiating on Court ${nextFinalsAssign.court}</div>
+              <button type="button" class="court-link-btn" onclick="switchTab('finals')" title="View Finals"><span>🏅</span> View Finals &rarr;</button>
+            </div>
+          </div>
+        `;
+      }
+    } else if (isPlayerFinalsComplete) {
+      const pPoolKey = playerFinalsAll[0].poolKey;
+      const champInfo = getPoolChampion(pPoolKey);
+      const isChamp = champInfo.isComplete && champInfo.championTeam && champInfo.championTeam.players.includes(player);
+      heroCardHtml = `
+        <div class="hero-match-card" style="border-color: var(--win-color);">
+          <div class="hero-match-badge-bar">
+            <span class="hero-match-title" style="color: var(--win-color);">🎉 FINALS COMPLETE</span>
+            <span class="badge badge-gold">${playerFinalsAll[0].poolLabel.split('(')[0].trim().toUpperCase()}</span>
+          </div>
+          <h3 style="margin: 8px 0; font-size: 1.3rem; font-weight: 900; color: var(--text-primary);">
+            ${isChamp ? `🏆 Congratulations, ${player}! You won the ${playerFinalsAll[0].poolLabel.split('(')[0].trim()}!` : `Great Tournament, ${player}!`}
+          </h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin: 0 0 16px;">
+            All Finals matches in your division have concluded.
+          </p>
+          <button type="button" class="btn-primary" onclick="openWinnersModal()" style="font-weight:800; padding:8px 16px;">
+            🏆 View Division Awards &rarr;
+          </button>
+        </div>
+      `;
+    } else if (summary.isStage1Complete) {
       heroCardHtml = `
         <div class="hero-match-card" style="border-color: var(--win-color);">
           <div class="hero-match-badge-bar">
@@ -2515,6 +2617,66 @@ const ROSTER = [
       }
     }
 
+    // Phase 7: Stage 2 Finals Assignments section (cleanly separated from Stage 1)
+    let finalsSectionHtml = "";
+    if (stage1Locked) {
+      const finalsAssigns = getPlayerFinalsAssignments(player);
+      if (finalsAssigns.length > 0) {
+        finalsSectionHtml = `
+          <div class="my-matches-section" style="border: 2px solid var(--primary-border, rgba(37,99,235,0.3)); border-radius: var(--radius-lg); padding: 14px; background: rgba(37,99,235,0.03); margin-bottom: 20px;">
+            <div class="section-title-row" style="margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+              <h3 class="section-title" style="color: var(--primary); margin:0;">🏅 STAGE 2 — FINALS (${finalsAssigns[0].poolLabel.split('(')[0].trim().toUpperCase()})</h3>
+              <span class="badge badge-court">Court ${finalsAssigns[0].court}</span>
+            </div>
+            <div class="mobile-card-list">
+              ${finalsAssigns.map(a => {
+                const isPlay = a.duty === 'PLAY';
+                const s1 = (a.s1 != null && a.s1 !== "") ? Number(a.s1) : null;
+                const s2 = (a.s2 != null && a.s2 !== "") ? Number(a.s2) : null;
+                const hasScore = s1 != null && s2 != null;
+                const scoreText = hasScore ? `${s1} : ${s2}` : '-';
+
+                let statusBadge = '<span class="wl-pill wl-pending">UPCOMING</span>';
+                if (a.concluded) {
+                  if (isPlay) {
+                    statusBadge = `<span class="wl-pill ${a.won ? 'wl-win' : 'wl-loss'}">${a.won ? 'WON' : 'LOST'} (${scoreText})</span>`;
+                  } else {
+                    statusBadge = `<span class="wl-pill wl-win">OFFICIATED (${scoreText})</span>`;
+                  }
+                } else if (hasScore) {
+                  statusBadge = `<span class="wl-pill wl-pending" style="opacity:0.8;">IN PROGRESS (${scoreText})</span>`;
+                }
+
+                return `
+                  <div class="card ${a.concluded ? (a.won ? 'won' : (isPlay ? 'lost' : 'ref')) : ''} match-card">
+                    <div class="card-top">
+                      <div class="round-badge">
+                        <span class="match-pill">${a.id}</span>
+                        <span class="badge ${isPlay ? 'badge-blue' : 'badge-ref'}">${a.duty}</span>
+                        <span class="badge badge-court">C${a.court}</span>
+                      </div>
+                      ${statusBadge}
+                    </div>
+                    <div class="card-matchup">
+                      ${isPlay ? `
+                        <div><strong>YOU</strong> (${player}) + ${a.partner}</div>
+                        <div class="vs-text">VS</div>
+                        <div>${a.opponents ? a.opponents.join(' & ') : 'TBD'}</div>
+                      ` : `
+                        <div style="font-size:0.85rem; color:var(--text-secondary);">
+                          <strong>Officiating:</strong> ${a.t1.join(' & ')} vs ${a.t2.join(' & ')}
+                        </div>
+                      `}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
     container.innerHTML = `
       <!-- Compact Top Player Header (Requirement 13) -->
       <div class="my-matches-top-bar">
@@ -2529,6 +2691,9 @@ const ROSTER = [
           <span>🔄</span> Change Player
         </button>
       </div>
+
+      <!-- Finals Section when locked -->
+      ${finalsSectionHtml}
 
       <!-- Filters & View Toggle (Requirement 8 & 14) -->
       <div class="my-matches-filter-row">
@@ -2624,6 +2789,9 @@ const ROSTER = [
   window.getCourtQueue = getCourtQueue;
 
   function getVisibleCourtNumbers() {
+    if (stage1Locked) {
+      return [1, 2, 3, 8];
+    }
     // Block 1: Courts 1, 2, 5, 8
     // Blocks 2-4: Courts 1, 2, 3, 8
     // Court 5 exists only in Block 1 (M02, M07, M11).
@@ -2638,7 +2806,7 @@ const ROSTER = [
   }
   window.getVisibleCourtNumbers = getVisibleCourtNumbers;
 
-  // ---------- RENDERING: COURT VIEW (Phase 5) ----------
+  // ---------- RENDERING: COURT VIEW (Phase 5 + Phase 7 Finals) ----------
   function renderCourtView() {
     const container = document.getElementById("courtsContainer");
     if (!container) return;
@@ -2653,21 +2821,39 @@ const ROSTER = [
     // Shortcut for selected player
     let playerShortcutHtml = "";
     if (activePlayer) {
-      const pAssign = getNextPlayerAssignment(activePlayer);
-      if (pAssign && pAssign.nextAssignment) {
-        const myCourt = pAssign.nextAssignment.fixture.c;
-        const myMatch = pAssign.nextAssignment.fixture.m;
-        const myRole = pAssign.nextAssignment.type === 'play' ? 'PLAYING' : 'REFEREE';
-        playerShortcutHtml = `
-          <div class="court-player-shortcut">
-            <div>
-              <strong><span>🏸</span> ${activePlayer}'s Next Assignment:</strong> Court ${myCourt} &bull; <strong>${myRole}</strong> in Match ${myMatch}
+      if (stage1Locked) {
+        const nextFinals = getNextPlayerFinalsAssignment(activePlayer);
+        if (nextFinals) {
+          const myCourt = nextFinals.court;
+          const myRole = nextFinals.duty === 'PLAY' ? 'PLAYING' : 'REFEREE';
+          playerShortcutHtml = `
+            <div class="court-player-shortcut">
+              <div>
+                <strong><span>🏸</span> ${activePlayer}'s Next Finals Duty:</strong> Court ${myCourt} &bull; <strong>${myRole}</strong> in Match ${nextFinals.id} (${nextFinals.poolLabel.split('(')[0].trim()})
+              </div>
+              <button type="button" class="btn-primary" style="padding:4px 12px; font-size:0.8rem; border-radius:var(--radius-full); cursor:pointer;" onclick="setCourtViewFilter('${myCourt}')">
+                🎯 Focus Court ${myCourt}
+              </button>
             </div>
-            <button type="button" class="btn-primary" style="padding:4px 12px; font-size:0.8rem; border-radius:var(--radius-full); cursor:pointer;" onclick="setCourtViewFilter('${myCourt}')">
-              🎯 Focus Court ${myCourt}
-            </button>
-          </div>
-        `;
+          `;
+        }
+      } else {
+        const pAssign = getNextPlayerAssignment(activePlayer);
+        if (pAssign && pAssign.nextAssignment) {
+          const myCourt = pAssign.nextAssignment.fixture.c;
+          const myMatch = pAssign.nextAssignment.fixture.m;
+          const myRole = pAssign.nextAssignment.type === 'play' ? 'PLAYING' : 'REFEREE';
+          playerShortcutHtml = `
+            <div class="court-player-shortcut">
+              <div>
+                <strong><span>🏸</span> ${activePlayer}'s Next Assignment:</strong> Court ${myCourt} &bull; <strong>${myRole}</strong> in Match ${myMatch}
+              </div>
+              <button type="button" class="btn-primary" style="padding:4px 12px; font-size:0.8rem; border-radius:var(--radius-full); cursor:pointer;" onclick="setCourtViewFilter('${myCourt}')">
+                🎯 Focus Court ${myCourt}
+              </button>
+            </div>
+          `;
+        }
       }
     }
 
@@ -2678,44 +2864,111 @@ const ROSTER = [
 
     // Build Court Cards
     const courtCardsHtml = courtsToRender.map(cNum => {
-      const q = getCourtQueue(cNum);
       const cInfo = COURT_INFO[cNum] || { name: `Court ${cNum}`, sub: "" };
 
-      // Check if Finals active
-      if (isStage1AllComplete) {
-        const poolMap = {
-          1: { key: 'gold', name: 'Gold Championship Pool', badge: 'badge-gold' },
-          2: { key: 'silver', name: 'Silver Plate Pool', badge: 'badge-gray' },
-          3: { key: 'bronze', name: 'Bronze Shield Pool', badge: 'badge-court' },
-          8: { key: 'copper', name: 'Copper Cup Pool', badge: 'badge-ref' }
+      // Phase 7: Stage 2 Finals Court Departure Board
+      if (stage1Locked) {
+        const fq = getFinalsCourtQueue(cNum);
+        if (!fq) return "";
+
+        const poolNames = {
+          gold:   { label: 'Gold Championship', cls: 'tier-gold', badge: 'badge-gold' },
+          silver: { label: 'Silver Plate', cls: 'tier-silver', badge: 'badge-gray' },
+          bronze: { label: 'Bronze Shield', cls: 'tier-bronze', badge: 'badge-court' },
+          copper: { label: 'Copper Cup', cls: 'tier-copper', badge: 'badge-ref' }
         };
-        const poolInfo = poolMap[cNum] || { key: 'gold', name: 'Finals Pool', badge: 'badge-gold' };
-        return `
-          <div class="court-card" id="court-card-${cNum}">
-            <div class="court-card-header">
-              <div class="court-title-box">
-                <div class="court-main-num"><span>🏟️</span> ${cInfo.name}</div>
-                <div class="court-sub-loc">${cInfo.sub ? cInfo.sub + ' &bull; ' : ''}STAGE 2 FINALS</div>
-              </div>
-              <span class="badge ${poolInfo.badge}">FINALS READY</span>
+        const pMeta = poolNames[fq.poolKey] || { label: 'Finals Pool', cls: 'tier-gold', badge: 'badge-gold' };
+
+        const hasYou = activePlayer && fq.currentMatch && (
+          fq.currentMatch.t1.includes(activePlayer) ||
+          fq.currentMatch.t2.includes(activePlayer) ||
+          fq.currentMatch.refs.includes(activePlayer)
+        );
+
+        let courtBodyHtml = "";
+        if (fq.isPoolComplete && fq.championTeam) {
+          courtBodyHtml = `
+            <div class="court-match-box" style="text-align:center; padding:18px;">
+              <div style="font-size:1.6rem; margin-bottom:4px;">🏆</div>
+              <div style="font-weight:900; color:var(--win-color); font-size:1.05rem;">${pMeta.label.toUpperCase()} COMPLETE</div>
+              <div style="font-size:0.95rem; color:var(--text-primary); margin-top:4px;"><strong>Winner: Team ${fq.championTeam.id} (${fq.championTeam.name})</strong></div>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:3px;">All 3 Finals matches concluded.</div>
             </div>
+          `;
+        } else if (fq.currentMatch) {
+          const m = fq.currentMatch;
+          const s1 = (m.s1 != null && m.s1 !== "") ? Number(m.s1) : null;
+          const s2 = (m.s2 != null && m.s2 !== "") ? Number(m.s2) : null;
+          const hasScores = s1 != null && s2 != null && (s1 > 0 || s2 > 0);
+          const statusBadge = hasScores 
+            ? `<span class="badge badge-gold">IN PROGRESS ${s1}–${s2}</span>` 
+            : `<span class="badge badge-blue">CURRENT / READY</span>`;
+
+          const formatCardP = (p) => (p === activePlayer ? `<span class="player-highlight-text"><span class="you-tag">YOU</span> ${p}</span>` : p);
+
+          courtBodyHtml = `
             <div class="court-match-box">
               <div class="court-match-label">
-                <span>🏆 ${poolInfo.name}</span>
-                <span>Best of 21 Pts</span>
+                <span>MATCH ${m.id} &bull; 21 PTS SUDDEN DEATH</span>
+                ${statusBadge}
               </div>
-              <div class="court-teams-block" style="font-size:0.95rem;">
-                3-Match Snake Round-Robin scheduled on this court.
+              <div class="court-teams-block">
+                <div>🏸 <strong>Team ${m.t1Id}:</strong> ${m.t1.map(formatCardP).join(" & ")}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:800; margin:2px 0 2px 14px;">VS</div>
+                <div>🏸 <strong>Team ${m.t2Id}:</strong> ${m.t2.map(formatCardP).join(" & ")}</div>
+              </div>
+              <div class="court-ref-box">
+                <span class="court-ref-label">👀 Refs:</span>
+                <div class="court-ref-names"><strong>Team ${m.refId}:</strong> ${m.refs.map(formatCardP).join(" & ")}</div>
               </div>
             </div>
-            <div style="font-size:0.8rem; color:var(--text-muted); text-align:right;">
-              View full matches in <a href="javascript:void(0)" onclick="switchTab('finals')" style="color:var(--primary); font-weight:700;">Finals Tab &rarr;</a>
+          `;
+        }
+
+        // Up Next
+        let upNextHtml = "";
+        if (fq.upNextMatch) {
+          const nm = fq.upNextMatch;
+          const formatCardP = (p) => (p === activePlayer ? `<span class="player-highlight-text"><span class="you-tag">YOU</span> ${p}</span>` : p);
+          upNextHtml = `
+            <div class="court-next-box">
+              <div class="court-next-label">⚡ UP NEXT: MATCH ${nm.id}</div>
+              <div class="court-next-teams">Team ${nm.t1Id} (${nm.t1.map(formatCardP).join(" & ")}) vs Team ${nm.t2Id} (${nm.t2.map(formatCardP).join(" & ")})</div>
+              <div style="font-size:0.76rem; color:var(--text-muted);">Refs: Team ${nm.refId} (${nm.refs.map(formatCardP).join(" & ")})</div>
             </div>
+          `;
+        }
+
+        // After That
+        let afterThatHtml = "";
+        if (fq.afterThatMatch) {
+          afterThatHtml = `
+            <div style="font-size:0.74rem; color:var(--text-muted); margin-top:6px; border-top:1px dotted var(--border-card); padding-top:4px;">
+              <span>➡️ Then:</span> Match ${fq.afterThatMatch.id} (Team ${fq.afterThatMatch.t1Id} vs Team ${fq.afterThatMatch.t2Id})
+            </div>
+          `;
+        }
+
+        return `
+          <div class="court-card ${hasYou ? 'has-you' : ''}" id="court-card-${cNum}">
+            <div class="court-card-header">
+              <div class="court-title-box">
+                <h2 class="court-main-num" style="margin:0;"><span>🏟️</span> ${cInfo.name}</h2>
+                <div class="court-sub-loc">🏆 ${pMeta.label}</div>
+              </div>
+              <span class="badge ${fq.isPoolComplete ? 'badge-gold' : pMeta.badge}">
+                ${fq.isPoolComplete ? '🏆 COMPLETE' : `${fq.completedCount}/${fq.totalCount} Done`}
+              </span>
+            </div>
+            ${courtBodyHtml}
+            ${upNextHtml}
+            ${afterThatHtml}
           </div>
         `;
       }
 
       // Stage 1 Court Rendering
+      const q = getCourtQueue(cNum);
       const hasYou = activePlayer && q.currentMatch && (
         q.currentMatch.t1.includes(activePlayer) ||
         q.currentMatch.t2.includes(activePlayer) ||
@@ -2818,7 +3071,7 @@ const ROSTER = [
             <span>🏟️</span> 4 Tournament Courts
           </div>
           <div class="court-summary-sub">
-            Stage 1 &bull; ${totalCompleted} of 48 matches completed &bull; Live Gym Departure Board
+            ${stage1Locked ? 'Stage 2 Finals &bull; Live Division Court Departure Board' : `Stage 1 &bull; ${totalCompleted} of 48 matches completed &bull; Live Gym Departure Board`}
           </div>
         </div>
         <button type="button" class="pill-btn" onclick="toggleGymMode()" title="Toggle large text / tablet gym display" style="font-weight:800; padding:6px 12px; font-size:0.8rem; cursor:pointer;">
@@ -2826,8 +3079,8 @@ const ROSTER = [
         </button>
       </div>
 
-      <!-- Phase 6: Lock Status Banner -->
-      ${stage1Locked ? `<div class="court-lock-banner locked">🔒 Stage 1 LOCKED — Official Finals teams are active. View the <a href="javascript:void(0)" onclick="switchTab('finals')" style="color:inherit; font-weight:800; text-decoration:underline;">Finals tab</a> for team assignments.</div>` : (isStage1AllComplete ? `<div class="court-lock-banner complete">⏳ Stage 1 COMPLETE — Awaiting organizer lock to confirm Finals qualification.</div>` : '')}
+      <!-- Lock Status Banner -->
+      ${stage1Locked ? `<div class="court-lock-banner locked">🔒 Stage 1 LOCKED — Official Finals teams are active on Courts 1, 2, 3, 8. View the <a href="javascript:void(0)" onclick="switchTab('finals')" style="color:inherit; font-weight:800; text-decoration:underline;">Finals tab</a> for full tables.</div>` : (isStage1AllComplete ? `<div class="court-lock-banner complete">⏳ Stage 1 COMPLETE — Awaiting organizer lock to confirm Finals qualification.</div>` : '')}
 
       <!-- Player Next Court Shortcut -->
       ${playerShortcutHtml}
@@ -2839,7 +3092,7 @@ const ROSTER = [
           <button type="button" class="pill-btn ${courtViewFilter === '1' ? 'active' : ''}" onclick="setCourtViewFilter('1')">Court 1</button>
           <button type="button" class="pill-btn ${courtViewFilter === '2' ? 'active' : ''}" onclick="setCourtViewFilter('2')">Court 2</button>
           <button type="button" class="pill-btn ${courtViewFilter === '3' ? 'active' : ''}" onclick="setCourtViewFilter('3')">Court 3</button>
-          <button type="button" class="pill-btn ${courtViewFilter === '5' ? 'active' : ''}" onclick="setCourtViewFilter('5')">Court 5</button>
+          ${!stage1Locked ? `<button type="button" class="pill-btn ${courtViewFilter === '5' ? 'active' : ''}" onclick="setCourtViewFilter('5')">Court 5</button>` : ''}
           <button type="button" class="pill-btn ${courtViewFilter === '8' ? 'active' : ''}" onclick="setCourtViewFilter('8')">Court 8</button>
         </div>
       </div>
@@ -3630,31 +3883,41 @@ const ROSTER = [
     }
   }
 
-  
+  // ---------- PHASE 7: FINALS ENGINE & VALIDATION ----------
 
-  // ---------- FINALS POOLS GENERATOR ----------
+  function isFinalsMatchConcluded(m) {
+    if (!m || m.s1 == null || m.s2 == null || m.s1 === "" || m.s2 === "") return false;
+    const s1 = Number(m.s1);
+    const s2 = Number(m.s2);
+    return (s1 === FINALS_TARGET_SCORE || s2 === FINALS_TARGET_SCORE) && s1 !== s2;
+  }
+  window.isFinalsMatchConcluded = isFinalsMatchConcluded;
+
+  // Stable Finals match generator with referee rotation
   function genPoolMatches(team1, team2, team3, idPrefix, poolKey) {
+    const court = poolKey === 'gold' ? 1 : (poolKey === 'silver' ? 2 : (poolKey === 'bronze' ? 3 : 8));
     const defs = [
-      { id: idPrefix + "-M1", t1: team1, t2: team2, refs: team3 },
-      { id: idPrefix + "-M2", t1: team1, t2: team3, refs: team2 },
-      { id: idPrefix + "-M3", t1: team2, t2: team3, refs: team1 }
+      { id: idPrefix + "1", matchCode: idPrefix + "1", t1: team1, t2: team2, refs: team3, t1Id: 'A', t2Id: 'B', refId: 'C' },
+      { id: idPrefix + "2", matchCode: idPrefix + "2", t1: team1, t2: team3, refs: team2, t1Id: 'A', t2Id: 'C', refId: 'B' },
+      { id: idPrefix + "3", matchCode: idPrefix + "3", t1: team2, t2: team3, refs: team1, t1Id: 'B', t2Id: 'C', refId: 'A' }
     ];
     return defs.map((d, i) => ({
       ...d,
-      s1: finalsScores[poolKey][i]?.s1 ?? null,
-      s2: finalsScores[poolKey][i]?.s2 ?? null
+      poolKey,
+      court,
+      s1: finalsScores[poolKey]?.[i]?.s1 ?? null,
+      s2: finalsScores[poolKey]?.[i]?.s2 ?? null
     }));
   }
 
-
   // ---------- BUILD FINALS POOLS (SNAKE SEEDING) ----------
   function buildFinalsPools(leaderboard) {
-    const tierSlice = (start) => leaderboard.slice(start, start + 6).map(s => s.name);
+    const tierSlice = (start) => (leaderboard || []).slice(start, start + 6).map(s => s.name);
     
     // Balanced Snake Pairing:
-    // Team 1: #1 & #6 (or #7 & #12, #13 & #18, #19 & #24)
-    // Team 2: #2 & #5 (or #8 & #11, #14 & #17, #20 & #23)
-    // Team 3: #3 & #4 (or #9 & #10, #15 & #16, #21 & #22)
+    // Team A: #1 & #6 (or #7 & #12, #13 & #18, #19 & #24)
+    // Team B: #2 & #5 (or #8 & #11, #14 & #17, #20 & #23)
+    // Team C: #3 & #4 (or #9 & #10, #15 & #16, #21 & #22)
     const makeTeams = (arr) => [
       [arr[0] || "Rank 1", arr[5] || "Rank 6"],
       [arr[1] || "Rank 2", arr[4] || "Rank 5"],
@@ -3678,7 +3941,7 @@ const ROSTER = [
         courtNum: 1,
         cls: "tier-gold",
         teams: goldTeams,
-        matches: genPoolMatches(goldTeams[0], goldTeams[1], goldTeams[2], "GOLD", "gold")
+        matches: genPoolMatches(goldTeams[0], goldTeams[1], goldTeams[2], "G", "gold")
       },
       {
         key: "silver",
@@ -3686,7 +3949,7 @@ const ROSTER = [
         courtNum: 2,
         cls: "tier-silver",
         teams: silverTeams,
-        matches: genPoolMatches(silverTeams[0], silverTeams[1], silverTeams[2], "SILVER", "silver")
+        matches: genPoolMatches(silverTeams[0], silverTeams[1], silverTeams[2], "S", "silver")
       },
       {
         key: "bronze",
@@ -3694,7 +3957,7 @@ const ROSTER = [
         courtNum: 3,
         cls: "tier-bronze",
         teams: bronzeTeams,
-        matches: genPoolMatches(bronzeTeams[0], bronzeTeams[1], bronzeTeams[2], "BRONZE", "bronze")
+        matches: genPoolMatches(bronzeTeams[0], bronzeTeams[1], bronzeTeams[2], "B", "bronze")
       },
       {
         key: "copper",
@@ -3702,69 +3965,318 @@ const ROSTER = [
         courtNum: 8,
         cls: "tier-copper",
         teams: copperTeams,
-        matches: genPoolMatches(copperTeams[0], copperTeams[1], copperTeams[2], "COPPER", "copper")
+        matches: genPoolMatches(copperTeams[0], copperTeams[1], copperTeams[2], "C", "copper")
       }
     ];
   }
   window.buildFinalsPools = buildFinalsPools;
 
+  function getEffectiveFinalsPools() {
+    if (stage1Locked && officialFinalsPools) {
+      return officialFinalsPools;
+    }
+    if (stage1Locked && officialStage1Rankings) {
+      return buildFinalsPools(officialStage1Rankings);
+    }
+    return buildFinalsPools(computeLeaderboard());
+  }
+  window.getEffectiveFinalsPools = getEffectiveFinalsPools;
+
+  function getFinalsMatches(poolKey) {
+    const pools = getEffectiveFinalsPools();
+    const pool = pools.find(p => p.key === poolKey);
+    if (!pool) return [];
+    return pool.matches.map((m, idx) => ({
+      ...m,
+      s1: finalsScores[poolKey]?.[idx]?.s1 ?? null,
+      s2: finalsScores[poolKey]?.[idx]?.s2 ?? null
+    }));
+  }
+  window.getFinalsMatches = getFinalsMatches;
+
   // ---------- COMPUTE POOL STANDINGS ----------
-  function computePoolStandings(pool) {
-    const names = [...new Set(pool.matches.flatMap(m => [...m.t1, ...m.t2]))];
-    const stats = {};
-    names.forEach(n => {
-      stats[n] = { name: n, gp: 0, wins: 0, losses: 0, pts: 0, pa: 0, ga: 0 };
-    });
+  function computePoolStandings(poolKey) {
+    const pools = getEffectiveFinalsPools();
+    const pool = typeof poolKey === 'object' ? poolKey : pools.find(p => p.key === poolKey);
+    if (!pool) return [];
+    const pKey = pool.key;
 
-    pool.matches.forEach(m => {
-      if (m.s1 == null || m.s2 == null || m.s1 === "" || m.s2 === "") return;
-      const s1 = Number(m.s1);
-      const s2 = Number(m.s2);
-      const isConcluded = (s1 === 21 || s2 === 21) && s1 !== s2;
-      if (!isConcluded) return;
+    const seedLabels = {
+      gold:   ['#1 & #6', '#2 & #5', '#3 & #4'],
+      silver: ['#7 & #12', '#8 & #11', '#9 & #10'],
+      bronze: ['#13 & #18', '#14 & #17', '#15 & #16'],
+      copper: ['#19 & #24', '#20 & #23', '#21 & #22']
+    };
 
-      const t1win = s1 === 21;
-      m.t1.forEach(p => {
-        if (!stats[p]) return;
-        stats[p].gp++;
-        stats[p].pts += s1;
-        stats[p].pa += s2;
-        stats[p].ga += s2;
-        if (t1win) stats[p].wins++;
-        else stats[p].losses++;
-      });
-      m.t2.forEach(p => {
-        if (!stats[p]) return;
-        stats[p].gp++;
-        stats[p].pts += s2;
-        stats[p].pa += s1;
-        stats[p].ga += s1;
-        if (!t1win) stats[p].wins++;
-        else stats[p].losses++;
-      });
-    });
+    const teams = [
+      { id: 'A', name: pool.teams[0].join(' & '), players: pool.teams[0], seed: seedLabels[pKey]?.[0] || 'Team A' },
+      { id: 'B', name: pool.teams[1].join(' & '), players: pool.teams[1], seed: seedLabels[pKey]?.[1] || 'Team B' },
+      { id: 'C', name: pool.teams[2].join(' & '), players: pool.teams[2], seed: seedLabels[pKey]?.[2] || 'Team C' }
+    ];
 
-    const list = Object.values(stats).map(s => ({
-      ...s,
-      diff: s.pts - s.pa
+    const stats = teams.map(t => ({
+      id: t.id,
+      name: t.name,
+      players: t.players,
+      seed: t.seed,
+      gp: 0,
+      wins: 0,
+      losses: 0,
+      pts: 0,
+      pa: 0,
+      diff: 0
     }));
 
-    list.sort((a, b) => (b.wins - a.wins) || (b.diff - a.diff) || (b.pts - a.pts));
-    return list;
-  }
+    const matches = getFinalsMatches(pKey);
+    const headToHead = {}; // key: 'A-B' -> winnerId
 
-  // ---------- RENDERING: FINALS TAB (Phase 6: lock-aware) ----------
+    matches.forEach(m => {
+      if (!isFinalsMatchConcluded(m)) return;
+      const s1 = Number(m.s1);
+      const s2 = Number(m.s2);
+      const st1 = stats.find(s => s.id === m.t1Id);
+      const st2 = stats.find(s => s.id === m.t2Id);
+      if (!st1 || !st2) return;
+
+      st1.gp++;
+      st1.pts += s1;
+      st1.pa += s2;
+      st1.diff = st1.pts - st1.pa;
+
+      st2.gp++;
+      st2.pts += s2;
+      st2.pa += s1;
+      st2.diff = st2.pts - st2.pa;
+
+      if (s1 > s2) {
+        st1.wins++;
+        st2.losses++;
+        headToHead[`${m.t1Id}-${m.t2Id}`] = m.t1Id;
+        headToHead[`${m.t2Id}-${m.t1Id}`] = m.t1Id;
+      } else {
+        st2.wins++;
+        st1.losses++;
+        headToHead[`${m.t1Id}-${m.t2Id}`] = m.t2Id;
+        headToHead[`${m.t2Id}-${m.t1Id}`] = m.t2Id;
+      }
+    });
+
+    // Check playoff results
+    const playoffs = finalsPlayoffs[pKey] || [];
+    const playoffWinners = {};
+    playoffs.forEach(p => {
+      if (p && p.winner) {
+        playoffWinners[`${p.t1Id}-${p.t2Id}`] = p.winner;
+        playoffWinners[`${p.t2Id}-${p.t1Id}`] = p.winner;
+      }
+    });
+
+    // Sort order:
+    // 1. Wins
+    // 2. Diff
+    // 3. PTS (PF)
+    // 4. Two-team Head-to-Head (only if exactly 2 teams are tied on criteria 1-3)
+    // 5. Playoff result if exists
+    stats.sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.diff !== a.diff) return b.diff - a.diff;
+      if (b.pts !== a.pts) return b.pts - a.pts;
+
+      // Playoff winner takes precedence if recorded
+      const pWin = playoffWinners[`${a.id}-${b.id}`];
+      if (pWin === a.id) return -1;
+      if (pWin === b.id) return 1;
+
+      // Check if this is part of a 3-way tie across all teams
+      const all3Tied = stats.every(s => s.wins === a.wins && s.diff === a.diff && s.pts === a.pts);
+      if (!all3Tied) {
+        // Exactly 2 teams tied on 1-3 -> evaluate direct head-to-head
+        const h2h = headToHead[`${a.id}-${b.id}`];
+        if (h2h === a.id) return -1;
+        if (h2h === b.id) return 1;
+      }
+
+      return 0;
+    });
+
+    return stats;
+  }
+  window.computePoolStandings = computePoolStandings;
+
+  function getPoolChampion(poolKey) {
+    const matches = getFinalsMatches(poolKey);
+    const allConcluded = matches.length === 3 && matches.every(isFinalsMatchConcluded);
+    const standings = computePoolStandings(poolKey);
+
+    if (!allConcluded) {
+      const hasAny = matches.some(m => m.s1 != null || m.s2 != null);
+      return {
+        isComplete: false,
+        championTeam: null,
+        runnerUpTeam: null,
+        thirdTeam: null,
+        status: hasAny ? 'IN PROGRESS' : 'READY',
+        playoffRequired: false,
+        standings
+      };
+    }
+
+    const t0 = standings[0];
+    const t1 = standings[1];
+    const t2 = standings[2];
+
+    const is3WayTie = (t0.wins === t1.wins && t1.wins === t2.wins) &&
+                      (t0.diff === t1.diff && t1.diff === t2.diff) &&
+                      (t0.pts === t1.pts && t1.pts === t2.pts);
+
+    const playoffs = finalsPlayoffs[poolKey] || [];
+    const hasPlayoffWinner = playoffs.some(p => p.winner);
+
+    if (is3WayTie && !hasPlayoffWinner) {
+      return {
+        isComplete: false,
+        championTeam: null,
+        runnerUpTeam: null,
+        thirdTeam: null,
+        status: 'THREE-WAY TIE — ORGANIZER DECISION REQUIRED',
+        playoffRequired: true,
+        tiedTeams: [t0, t1, t2],
+        standings
+      };
+    }
+
+    return {
+      isComplete: true,
+      championTeam: standings[0],
+      runnerUpTeam: standings[1],
+      thirdTeam: standings[2],
+      status: 'POOL COMPLETE',
+      playoffRequired: false,
+      standings
+    };
+  }
+  window.getPoolChampion = getPoolChampion;
+
+  function isPoolComplete(poolKey) {
+    const champ = getPoolChampion(poolKey);
+    return champ.isComplete && champ.championTeam != null;
+  }
+  window.isPoolComplete = isPoolComplete;
+
+  function isTournamentComplete() {
+    if (!stage1Locked) return false;
+    return ['gold', 'silver', 'bronze', 'copper'].every(k => isPoolComplete(k));
+  }
+  window.isTournamentComplete = isTournamentComplete;
+
+  // Shared Finals assignment helpers
+  function getPlayerFinalsAssignments(playerName) {
+    if (!playerName) return [];
+    const pools = getEffectiveFinalsPools();
+    for (const pool of pools) {
+      const isPlayerInPool = pool.teams.some(t => t.includes(playerName));
+      if (isPlayerInPool) {
+        const matches = getFinalsMatches(pool.key);
+        const teamIdx = pool.teams.findIndex(t => t.includes(playerName));
+        const teamLetter = teamIdx === 0 ? 'A' : (teamIdx === 1 ? 'B' : 'C');
+        const partner = pool.teams[teamIdx].find(p => p !== playerName) || playerName;
+
+        return matches.map((m, idx) => {
+          const isT1 = m.t1.includes(playerName);
+          const isT2 = m.t2.includes(playerName);
+          const isPlaying = isT1 || isT2;
+          const duty = isPlaying ? 'PLAY' : 'REFEREE';
+          const opponents = isT1 ? m.t2 : (isT2 ? m.t1 : null);
+          const concluded = isFinalsMatchConcluded(m);
+          const s1 = (m.s1 != null && m.s1 !== "") ? Number(m.s1) : null;
+          const s2 = (m.s2 != null && m.s2 !== "") ? Number(m.s2) : null;
+          const hasScores = s1 != null && s2 != null;
+
+          let status = 'UPCOMING';
+          if (concluded) {
+            status = 'COMPLETED';
+          } else if (hasScores && (s1 > 0 || s2 > 0)) {
+            status = 'IN PROGRESS';
+          }
+
+          return {
+            id: m.id,
+            matchIndex: idx,
+            poolKey: pool.key,
+            poolLabel: pool.label,
+            court: pool.courtNum,
+            duty,
+            teamLetter,
+            partner,
+            opponents,
+            t1: m.t1,
+            t2: m.t2,
+            refs: m.refs,
+            s1: m.s1,
+            s2: m.s2,
+            status,
+            concluded,
+            won: concluded && isPlaying ? ((isT1 && s1 === FINALS_TARGET_SCORE) || (isT2 && s2 === FINALS_TARGET_SCORE)) : null
+          };
+        });
+      }
+    }
+    return [];
+  }
+  window.getPlayerFinalsAssignments = getPlayerFinalsAssignments;
+
+  function getNextPlayerFinalsAssignment(playerName) {
+    const assignments = getPlayerFinalsAssignments(playerName);
+    if (!assignments || assignments.length === 0) return null;
+    return assignments.find(a => !a.concluded) || null;
+  }
+  window.getNextPlayerFinalsAssignment = getNextPlayerFinalsAssignment;
+
+  function getFinalsCourtQueue(courtNum) {
+    const courtMap = { 1: 'gold', 2: 'silver', 3: 'bronze', 8: 'copper' };
+    const poolKey = courtMap[courtNum];
+    if (!poolKey) return null;
+    const matches = getFinalsMatches(poolKey);
+    const concluded = matches.filter(isFinalsMatchConcluded);
+    const remaining = matches.filter(m => !isFinalsMatchConcluded(m));
+    const champ = getPoolChampion(poolKey);
+
+    return {
+      poolKey,
+      courtNum,
+      totalCount: matches.length,
+      completedCount: concluded.length,
+      isPoolComplete: champ.isComplete,
+      championTeam: champ.championTeam,
+      currentMatch: remaining[0] || null,
+      upNextMatch: remaining[1] || null,
+      afterThatMatch: remaining[2] || null
+    };
+  }
+  window.getFinalsCourtQueue = getFinalsCourtQueue;
+
+  // ---------- RENDERING: FINALS TAB (Phase 7: Full Operations & Winners) ----------
   function renderFinals() {
     const container = document.getElementById("finalsContainer");
     if (!container) return;
     container.innerHTML = "";
 
-    // Phase 6: If locked, use OFFICIAL snapshot only — never regenerate from live data
-    let pools;
-    if (stage1Locked && officialStage1Rankings) {
-      pools = buildFinalsPools(officialStage1Rankings);
-    } else {
-      pools = buildFinalsPools(computeLeaderboard());
+    const pools = getEffectiveFinalsPools();
+
+    // Grand Tournament Complete Banner (Phase 7)
+    if (isTournamentComplete()) {
+      const tourneyCompleteDiv = document.createElement('div');
+      tourneyCompleteDiv.className = 'tournament-complete-banner';
+      tourneyCompleteDiv.innerHTML = `
+        <div>
+          <h2>🏆 TOURNAMENT COMPLETE!</h2>
+          <p>All 4 Stage 2 Finals Divisions have concluded and champions are declared.</p>
+        </div>
+        <button type="button" class="btn-primary" onclick="openWinnersModal()" style="background:#fff; color:#1e3a8a; font-weight:900; padding:10px 18px; border-radius:var(--radius-full); box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+          🏆 View Grand Winners Podium &rarr;
+        </button>
+      `;
+      container.appendChild(tourneyCompleteDiv);
     }
 
     // Status banner at top of Finals tab
@@ -3774,26 +4286,71 @@ const ROSTER = [
     if (stage1Locked) {
       const lockedTime = stage1LockedAt ? new Date(stage1LockedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
       bannerDiv.className = 'finals-status-banner finals-locked';
-      bannerDiv.innerHTML = `\ud83d\udd12 <strong>OFFICIAL FINALS TEAMS</strong> — Stage 1 Locked${lockedTime ? ' at ' + lockedTime : ''}. Teams below are confirmed and immutable.`;
+      bannerDiv.innerHTML = `🔒 <strong>OFFICIAL FINALS QUALIFICATION</strong> — Stage 1 Locked${lockedTime ? ' at ' + lockedTime : ''}. Official team pairings and division courts are active.`;
     } else if (allStage1Done) {
       bannerDiv.className = 'finals-status-banner finals-pending';
-      bannerDiv.innerHTML = `\u23f3 Stage 1 COMPLETE — Awaiting organizer lock to confirm Finals qualification.`;
+      bannerDiv.innerHTML = `⏳ Stage 1 COMPLETE — Awaiting organizer lock to confirm Finals qualification.`;
     } else {
       bannerDiv.className = 'finals-status-banner finals-projected';
-      bannerDiv.innerHTML = `\ud83d\udcca <strong>PROJECTED FINALS</strong> — Subject to change until Stage 1 is locked by the organizer.`;
+      bannerDiv.innerHTML = `📊 <strong>PROJECTED FINALS</strong> — Subject to change until Stage 1 is locked by the organizer.`;
     }
     container.appendChild(bannerDiv);
 
     pools.forEach(pool => {
-      const standings = computePoolStandings(pool);
-      const isConcluded = pool.matches.every(m => m.s1 != null && m.s2 != null && (Number(m.s1) === 21 || Number(m.s2) === 21) && Number(m.s1) !== Number(m.s2));
-      let champName = null;
-      if (isConcluded && standings.length >= 2) {
-        champName = `${standings[0].name} & ${standings[1].name}`;
-      }
+      const champ = getPoolChampion(pool.key);
+      const standings = champ.standings;
+      const isAdmin = isAdminUnlocked();
+      const playoffs = finalsPlayoffs[pool.key] || [];
 
       const sec = document.createElement("div");
       sec.className = "finals-pool-section";
+
+      // Pool Division Banner
+      let champBannerHtml = "";
+      if (champ.isComplete && champ.championTeam) {
+        champBannerHtml = `
+          <div class="finals-champ-card">
+            <div class="finals-champ-title">
+              <span>🏆</span> <span>${pool.label.split('(')[0].trim().toUpperCase()} WINNERS</span>
+            </div>
+            <div class="finals-champ-names">🏸 ${champ.championTeam.name}</div>
+          </div>
+        `;
+      } else if (champ.playoffRequired) {
+        champBannerHtml = `
+          <div class="playoff-alert-box">
+            <div>
+              <div class="playoff-alert-title">⚡ ${champ.status}</div>
+              <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">All 3 teams finished 1-1 with identical differential. Organizer playoff or decision required to declare champion.</div>
+            </div>
+            ${isAdmin ? `<button type="button" class="btn-primary" onclick="openPlayoffModal('${pool.key}')" style="font-size:0.8rem; padding:6px 12px;">⚡ Enter Playoff Result</button>` : ''}
+          </div>
+        `;
+      }
+
+      // Playoff Matches List (if any)
+      let playoffMatchesHtml = "";
+      if (playoffs.length > 0) {
+        playoffMatchesHtml = `
+          <div style="margin-top:8px; margin-bottom:12px;">
+            <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Recorded Playoff Matches:</div>
+            ${playoffs.map((p, pIdx) => {
+              const team1Name = pool.teams[p.t1Id === 'A' ? 0 : (p.t1Id === 'B' ? 1 : 2)].join(' & ');
+              const team2Name = pool.teams[p.t2Id === 'A' ? 0 : (p.t2Id === 'B' ? 1 : 2)].join(' & ');
+              const winnerTeam = p.winner === p.t1Id ? team1Name : team2Name;
+              return `
+                <div class="playoff-match-card">
+                  <div>
+                    <strong>Team ${p.t1Id}</strong> (${team1Name}) <strong>${p.s1} : ${p.s2}</strong> <strong>Team ${p.t2Id}</strong> (${team2Name})
+                    <span class="badge" style="background:rgba(16,185,129,0.15); color:#059669; font-weight:800; margin-left:8px;">Winner: ${winnerTeam}</span>
+                  </div>
+                  ${isAdmin ? `<button type="button" class="btn-danger-sm" onclick="deleteFinalsPlayoff('${pool.key}', ${pIdx})" style="font-size:0.72rem; padding:2px 6px;">Delete</button>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
 
       sec.innerHTML = `
         <div class="pool-banner ${pool.cls}">
@@ -3804,9 +4361,15 @@ const ROSTER = [
               <div style="font-size:0.75rem; opacity:0.9; font-weight:500;">Dedicated Court ${pool.courtNum} • 3 Round-Robin Matches • 21 Pts Sudden Death</div>
             </div>
           </div>
-          ${champName ? `<span class="badge" style="background:#fff; color:#0f172a; font-weight:800; padding:4px 10px; border-radius:var(--radius-full); box-shadow:0 2px 4px rgba(0,0,0,0.15);">🥇 Champions: ${champName}</span>` : ""}
+          <span class="badge" style="background:#fff; color:#0f172a; font-weight:800; padding:4px 10px; border-radius:var(--radius-full); box-shadow:0 2px 4px rgba(0,0,0,0.15);">
+            ${champ.status}
+          </span>
         </div>
 
+        ${champBannerHtml}
+        ${playoffMatchesHtml}
+
+        <!-- Match Schedule Table -->
         <div class="sched-table-card" style="margin-top:10px; margin-bottom:12px;">
           <div class="sched-table-wrap">
             <table class="sched-table">
@@ -3829,10 +4392,9 @@ const ROSTER = [
                   const s1 = (m.s1 != null && m.s1 !== "") ? Number(m.s1) : null;
                   const s2 = (m.s2 != null && m.s2 !== "") ? Number(m.s2) : null;
                   const hasScores = s1 != null && s2 != null;
-                  // Stage 2 Finals: match is concluded ONLY when one team reaches 21 points (max 21)
-                  const isConcluded = hasScores && (s1 === 21 || s2 === 21) && s1 !== s2;
-                  const t1Won = isConcluded && s1 === 21;
-                  const t2Won = isConcluded && s2 === 21;
+                  const isConcluded = isFinalsMatchConcluded(m);
+                  const t1Won = isConcluded && s1 === FINALS_TARGET_SCORE;
+                  const t2Won = isConcluded && s2 === FINALS_TARGET_SCORE;
                   const diff = hasScores ? Math.abs(s1 - s2) : null;
                   let diffHtml = '<span class="diff-pill even">-</span>';
                   if (hasScores) {
@@ -3846,11 +4408,10 @@ const ROSTER = [
                     wl1Html = '<span class="wl-pill ' + (t1Won ? 'wl-win' : 'wl-loss') + '">' + (t1Won ? 'WIN' : 'LOSS') + '</span>';
                     wl2Html = '<span class="wl-pill ' + (t2Won ? 'wl-win' : 'wl-loss') + '">' + (t2Won ? 'WIN' : 'LOSS') + '</span>';
                   } else if (hasScores && (s1 > 0 || s2 > 0)) {
-                    wl1Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 21">CURRENT</span>';
-                    wl2Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 21">CURRENT</span>';
+                    wl1Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 21">IN PROGRESS</span>';
+                    wl2Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 21">IN PROGRESS</span>';
                   }
 
-                  const isAdmin = isAdminUnlocked();
                   const fScore1Html = isAdmin
                     ? `<div class="tbl-score-box">
                         <button type="button" class="tbl-score-btn" onclick="adjustFinalsScore('${pool.key}', ${mIdx}, 1, -1)" title="Score Down">-</button>
@@ -3875,14 +4436,14 @@ const ROSTER = [
                     <tr>
                       <td class="td-round"><span class="round-pill">${m.id}</span></td>
                       <td><span class="court-badge c${pool.courtNum}">Court ${pool.courtNum}</span></td>
-                      <td class="team-pair-cell">🏸 <strong>${m.t1.join(" & ")}</strong></td>
+                      <td class="team-pair-cell">🏸 <strong>Team ${m.t1Id}: ${m.t1.join(" & ")}</strong></td>
                       <td>${fScore1Html}</td>
                       <td>${wl1Html}</td>
-                      <td class="team-pair-cell team-2">🏸 <strong>${m.t2.join(" & ")}</strong></td>
+                      <td class="team-pair-cell team-2">🏸 <strong>Team ${m.t2Id}: ${m.t2.join(" & ")}</strong></td>
                       <td>${fScore2Html}</td>
                       <td>${wl2Html}</td>
                       <td>${diffHtml}</td>
-                      <td class="ref-cell"><span class="ref-icon-badge">👀</span><strong>${m.refs.join(" & ")}</strong></td>
+                      <td class="ref-cell"><span class="ref-icon-badge">👀</span><strong>Team ${m.refId}: ${m.refs.join(" & ")}</strong></td>
                     </tr>
                   `;
                 }).join("")}
@@ -3891,37 +4452,45 @@ const ROSTER = [
           </div>
         </div>
 
-        <div style="background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-card); overflow:hidden; margin-top:10px;">
-          <div style="padding: 8px 14px; background:var(--bg-main); font-size:0.82rem; font-weight:700; color:var(--text-secondary); border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center;">
+        <!-- Pool Standings Table (Phase 7 Team Standings) -->
+        <div class="finals-standings-card">
+          <div class="finals-standings-header">
             <span>📊 ${pool.label.split('(')[0].trim()} Standings</span>
-            <span style="font-size:0.75rem; color:var(--text-muted);">Points to 21 • Ranked by Wins &rarr; Diff &rarr; PTS</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Points to 21 • Wins &rarr; Diff &rarr; PTS &rarr; H2H &rarr; Playoff</span>
           </div>
-          <table class="lb-table" style="font-size:0.8rem;">
+          <table class="finals-standings-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th style="text-align:left;">Player</th>
+                <th style="width:80px;">Place</th>
+                <th>Team Pair</th>
                 <th>GP</th>
                 <th>W</th>
                 <th>L</th>
-                <th>PTS</th>
+                <th>PF</th>
                 <th>PA</th>
                 <th>Diff</th>
               </tr>
             </thead>
             <tbody>
-              ${standings.map((s, idx) => `
-                <tr>
-                  <td>${idx + 1}</td>
-                  <td class="player-cell">🏸 ${s.name}</td>
-                  <td>${s.gp}</td>
-                  <td><strong style="color:var(--win-color);">${s.wins}</strong></td>
-                  <td>${s.losses}</td>
-                  <td>${s.pts}</td>
-                  <td>${s.pa}</td>
-                  <td class="${s.diff > 0 ? 'diff-pos' : (s.diff < 0 ? 'diff-neg' : '')}">${s.diff > 0 ? '+' : ''}${s.diff}</td>
-                </tr>
-              `).join("")}
+              ${standings.map((s, idx) => {
+                const placeCls = idx === 0 ? 'p1' : (idx === 1 ? 'p2' : 'p3');
+                const placeLabel = idx === 0 ? '1st' : (idx === 1 ? '2nd' : '3rd');
+                return `
+                  <tr class="${idx === 0 && champ.isComplete ? 'place-1st' : ''}">
+                    <td><span class="place-pill ${placeCls}">${placeLabel}</span></td>
+                    <td class="player-cell">
+                      <strong>Team ${s.id}</strong> (${s.name})
+                      <span class="badge" style="font-size:0.7rem; margin-left:6px; opacity:0.8;">${s.seed}</span>
+                    </td>
+                    <td>${s.gp}</td>
+                    <td><strong style="color:var(--win-color);">${s.wins}</strong></td>
+                    <td>${s.losses}</td>
+                    <td>${s.pts}</td>
+                    <td>${s.pa}</td>
+                    <td class="${s.diff > 0 ? 'diff-pos' : (s.diff < 0 ? 'diff-neg' : '')}">${s.diff > 0 ? '+' : ''}${s.diff}</td>
+                  </tr>
+                `;
+              }).join("")}
             </tbody>
           </table>
         </div>
@@ -3931,8 +4500,10 @@ const ROSTER = [
     });
   }
 
+  // Interactive Finals Score Updating (with instant reactive recalculation)
   window.adjustFinalsScore = function (poolKey, matchIdx, teamNum, delta) {
-    const match = finalsScores[poolKey][matchIdx];
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    const match = finalsScores[poolKey]?.[matchIdx];
     if (!match) return;
     const current = teamNum === 1 ? (match.s1 ?? 0) : (match.s2 ?? 0);
     const next = Math.min(21, Math.max(0, Number(current) + delta));
@@ -3946,10 +4517,14 @@ const ROSTER = [
 
     saveState();
     renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
   };
 
   window.updateFinalsScore = function (poolKey, matchIdx, teamNum, val) {
-    const match = finalsScores[poolKey][matchIdx];
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    const match = finalsScores[poolKey]?.[matchIdx];
     if (!match) return;
     const num = val === "" ? null : Math.min(21, Math.max(0, parseInt(val, 10)));
     if (teamNum === 1) {
@@ -3962,6 +4537,207 @@ const ROSTER = [
 
     saveState();
     renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+  };
+
+  // Playoff Modal & Grand Winners Actions
+  window.openPlayoffModal = function (poolKey, t1Id = 'A', t2Id = 'B') {
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    const pools = getEffectiveFinalsPools();
+    const pool = pools.find(p => p.key === poolKey);
+    if (!pool) return;
+    const teamMap = {
+      A: pool.teams[0].join(' & '),
+      B: pool.teams[1].join(' & '),
+      C: pool.teams[2].join(' & ')
+    };
+    const title = document.getElementById('playoffModalTitle');
+    const sub = document.getElementById('playoffModalSub');
+    const body = document.getElementById('playoffModalBody');
+    if (title) title.textContent = `⚡ ${pool.label.split('(')[0].trim()} Playoff (First-to-7)`;
+    if (sub) sub.textContent = `Enter the sudden-death first-to-7 playoff result between tied teams to resolve division placement.`;
+    if (body) {
+      body.innerHTML = `
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-md); padding:14px; margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;">
+              <label style="font-size:0.75rem; font-weight:800; color:var(--text-muted);">TEAM 1</label>
+              <select id="playoffT1Select" class="select-styled" style="width:100%; margin-top:4px;">
+                <option value="A" ${t1Id === 'A' ? 'selected' : ''}>Team A: ${teamMap.A}</option>
+                <option value="B" ${t1Id === 'B' ? 'selected' : ''}>Team B: ${teamMap.B}</option>
+                <option value="C" ${t1Id === 'C' ? 'selected' : ''}>Team C: ${teamMap.C}</option>
+              </select>
+            </div>
+            <div style="font-weight:900; color:var(--text-muted); padding-top:16px;">VS</div>
+            <div style="flex:1;">
+              <label style="font-size:0.75rem; font-weight:800; color:var(--text-muted);">TEAM 2</label>
+              <select id="playoffT2Select" class="select-styled" style="width:100%; margin-top:4px;">
+                <option value="A" ${t2Id === 'A' ? 'selected' : ''}>Team A: ${teamMap.A}</option>
+                <option value="B" ${t2Id === 'B' ? 'selected' : ''}>Team B: ${teamMap.B}</option>
+                <option value="C" ${t2Id === 'C' ? 'selected' : ''}>Team C: ${teamMap.C}</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:center; align-items:center; gap:16px;">
+            <div style="text-align:center;">
+              <label style="font-size:0.75rem; font-weight:800; color:var(--text-muted); display:block; margin-bottom:4px;">T1 Score</label>
+              <input type="number" id="playoffS1Input" class="tbl-score-input" min="0" max="7" placeholder="0" style="font-size:1.2rem; width:65px; height:45px;">
+            </div>
+            <span style="font-size:1.4rem; font-weight:900; color:var(--text-muted); padding-top:16px;">:</span>
+            <div style="text-align:center;">
+              <label style="font-size:0.75rem; font-weight:800; color:var(--text-muted); display:block; margin-bottom:4px;">T2 Score</label>
+              <input type="number" id="playoffS2Input" class="tbl-score-input" min="0" max="7" placeholder="0" style="font-size:1.2rem; width:65px; height:45px;">
+            </div>
+          </div>
+        </div>
+        <input type="hidden" id="playoffPoolKey" value="${poolKey}">
+      `;
+    }
+    document.getElementById('finalsPlayoffModal')?.classList.add('open');
+  };
+
+  window.closePlayoffModal = function () {
+    document.getElementById('finalsPlayoffModal')?.classList.remove('open');
+  };
+
+  window.submitPlayoffScore = function () {
+    const poolKey = document.getElementById('playoffPoolKey')?.value;
+    const t1Id = document.getElementById('playoffT1Select')?.value;
+    const t2Id = document.getElementById('playoffT2Select')?.value;
+    const s1Val = document.getElementById('playoffS1Input')?.value;
+    const s2Val = document.getElementById('playoffS2Input')?.value;
+
+    if (!poolKey || !t1Id || !t2Id || t1Id === t2Id) {
+      alert("Please select two different teams for the playoff.");
+      return;
+    }
+    const s1 = parseInt(s1Val, 10);
+    const s2 = parseInt(s2Val, 10);
+    if (isNaN(s1) || isNaN(s2) || (s1 !== 7 && s2 !== 7) || s1 === s2) {
+      alert("Playoff match must conclude with one team reaching exactly 7 points (sudden death).");
+      return;
+    }
+
+    const winnerId = s1 === 7 ? t1Id : t2Id;
+    if (!finalsPlayoffs[poolKey]) finalsPlayoffs[poolKey] = [];
+    finalsPlayoffs[poolKey].push({
+      id: `${poolKey}-playoff-${Date.now()}`,
+      pool: poolKey,
+      t1Id,
+      t2Id,
+      s1,
+      s2,
+      winner: winnerId,
+      status: 'COMPLETED'
+    });
+
+    saveState();
+    closePlayoffModal();
+    renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+    showToast(`⚡ Playoff recorded for ${poolKey.toUpperCase()}!`);
+  };
+
+  window.deleteFinalsPlayoff = function (poolKey, idx) {
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    if (!confirm("Delete this playoff match result?")) return;
+    if (finalsPlayoffs[poolKey] && finalsPlayoffs[poolKey][idx]) {
+      finalsPlayoffs[poolKey].splice(idx, 1);
+      saveState();
+      renderFinals();
+      renderHomeDashboard();
+      renderMyMatches();
+      renderCourtView();
+      showToast("Playoff result deleted.");
+    }
+  };
+
+  window.openWinnersModal = function () {
+    renderGrandWinners();
+    document.getElementById('grandWinnersModal')?.classList.add('open');
+  };
+
+  window.closeWinnersModal = function () {
+    document.getElementById('grandWinnersModal')?.classList.remove('open');
+  };
+
+  function renderGrandWinners() {
+    const container = document.getElementById('grandWinnersContainer');
+    if (!container) return;
+
+    const divisionMeta = [
+      { key: 'gold', name: 'Gold Championship', court: 1, trophy: '🏆', cls: 'tier-gold', label: 'GOLD CHAMPIONSHIP WINNERS' },
+      { key: 'silver', name: 'Silver Plate', court: 2, trophy: '🏆', cls: 'tier-silver', label: 'SILVER PLATE WINNERS' },
+      { key: 'bronze', name: 'Bronze Shield', court: 3, trophy: '🏆', cls: 'tier-bronze', label: 'BRONZE SHIELD WINNERS' },
+      { key: 'copper', name: 'Copper Cup', court: 8, trophy: '🏆', cls: 'tier-copper', label: 'COPPER CUP WINNERS' }
+    ];
+
+    container.innerHTML = divisionMeta.map(div => {
+      const champ = getPoolChampion(div.key);
+      const st = champ.standings;
+      const champName = champ.championTeam ? champ.championTeam.name : (st[0] ? st[0].name : 'TBD');
+      const p1Name = st[0] ? `Team ${st[0].id}: ${st[0].name}` : 'TBD';
+      const p2Name = st[1] ? `Team ${st[1].id}: ${st[1].name}` : 'TBD';
+      const p3Name = st[2] ? `Team ${st[2].id}: ${st[2].name}` : 'TBD';
+
+      return `
+        <div class="grand-winner-card ${div.cls}">
+          <div class="grand-winner-card-title">
+            <span>${div.trophy}</span>
+            <span>${div.name} (Court ${div.court})</span>
+          </div>
+          <div class="grand-winner-champ">
+            <div class="grand-winner-champ-label">${div.label}</div>
+            <div class="grand-winner-champ-names">🏸 ${champName}</div>
+          </div>
+          <div class="grand-winner-placements">
+            <div class="podium-row">
+              <span>🥇 1st Place</span>
+              <strong>${p1Name}</strong>
+            </div>
+            <div class="podium-row">
+              <span>🥈 2nd Place</span>
+              <span>${p2Name}</span>
+            </div>
+            <div class="podium-row">
+              <span>🥉 3rd Place</span>
+              <span>${p3Name}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Reset Finals only (preserves Stage 1 lock & scores)
+  window.resetFinals = function (skipConfirm = false) {
+    if (!isAdminUnlocked()) { openPinModal(); return; }
+    if (!skipConfirm && !confirm("🔄 Are you sure you want to reset all Stage 2 Finals scores and playoffs?\n\nThis preserves the Stage 1 lock and official qualification rankings.")) return;
+
+    finalsScores = {
+      gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+      silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+      bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
+      copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+    };
+    finalsPlayoffs = {
+      gold: [],
+      silver: [],
+      bronze: [],
+      copper: []
+    };
+
+    saveState();
+    renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+    closeOrganizerModal();
+    showToast("🔄 All Finals scores and playoffs have been reset.");
   };
 
   // ---------- POPULATE PLAYER DROPDOWN ----------
@@ -4008,10 +4784,11 @@ const ROSTER = [
 
   window.exportDataJSON = function () {
     const data = {
-      version: "v8",
+      version: "v9",
       exportDate: new Date().toISOString(),
       fixtures,
       finalsScores,
+      finalsPlayoffs,
       // Phase 6 lock state
       stage1Locked,
       stage1LockedAt,
@@ -4058,6 +4835,14 @@ const ROSTER = [
             copper: parsed.finalsScores.copper || [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
           };
         }
+        if (parsed.finalsPlayoffs) {
+          finalsPlayoffs = {
+            gold:   parsed.finalsPlayoffs.gold   || [],
+            silver: parsed.finalsPlayoffs.silver || [],
+            bronze: parsed.finalsPlayoffs.bronze || [],
+            copper: parsed.finalsPlayoffs.copper || []
+          };
+        }
         // Restore Phase 6 state from backup
         if (parsed.stage1Locked === true) {
           stage1Locked = true;
@@ -4089,10 +4874,32 @@ const ROSTER = [
   };
 
   window.loadDemoData = function (skipConfirm = false) {
-    if (!checkStage1LockBeforeEdit()) return;
-    if (!skipConfirm && !confirm("Load realistic demo scores for all Stage 1 blocks and Finals?\n\nNote: This does NOT automatically lock Stage 1.")) return;
+    if (stage1Locked) {
+      // Stage 1 is locked. Load demo scores for Finals only (Requirement 22)
+      if (!skipConfirm && !confirm("Stage 1 is locked.\n\nLoad realistic demo scores for all Stage 2 Finals matches?\n\n(Stage 1 scores, rankings, and official Finals teams will NOT be modified)")) return;
+      const finalsCombos = [
+        [21, 18], [19, 21], [21, 16]
+      ];
+      Object.keys(finalsScores).forEach((tier) => {
+        finalsScores[tier] = [
+          { s1: finalsCombos[0][0], s2: finalsCombos[0][1] },
+          { s1: finalsCombos[1][0], s2: finalsCombos[1][1] },
+          { s1: finalsCombos[2][0], s2: finalsCombos[2][1] }
+        ];
+      });
+      saveState();
+      renderFinals();
+      renderHomeDashboard();
+      renderMyMatches();
+      renderCourtView();
+      closeOrganizerModal();
+      showToast("🎲 Stage 2 Finals demo scores loaded!");
+      return;
+    }
 
-    // Do NOT touch the lock state — organizer must manually lock after reviewing
+    if (!checkStage1LockBeforeEdit()) return;
+    if (!skipConfirm && !confirm("Load realistic demo scores for all Stage 1 blocks?\n\nNote: This does NOT automatically lock Stage 1.")) return;
+
     fixtures.forEach((f, idx) => {
       // Realistic 15-point sudden death scores
       const scoreCombos = [
@@ -4104,24 +4911,15 @@ const ROSTER = [
       f.s2 = combo[1];
     });
 
-    // Finals demo scores (21-point sets) — also NOT locked automatically
-    const finalsCombos = [
-      [21, 18], [19, 21], [21, 16]
-    ];
-    Object.keys(finalsScores).forEach((tier) => {
-      finalsScores[tier] = [
-        { s1: finalsCombos[0][0], s2: finalsCombos[0][1] },
-        { s1: finalsCombos[1][0], s2: finalsCombos[1][1] },
-        { s1: finalsCombos[2][0], s2: finalsCombos[2][1] }
-      ];
-    });
-
     saveState();
     renderSchedule();
     renderLeaderboard();
     renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
     closeOrganizerModal();
-    showToast("🎲 Demo scores loaded. Review provisional standings, then LOCK Stage 1 to generate official Finals.");
+    showToast("🎲 Demo Stage 1 scores loaded. Review provisional standings, then LOCK Stage 1 to generate official Finals.");
   };
 
   window.resetTournament = function (skipConfirm = false) {
@@ -4135,6 +4933,12 @@ const ROSTER = [
       silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
       bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
       copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+    };
+    finalsPlayoffs = {
+      gold: [],
+      silver: [],
+      bronze: [],
+      copper: []
     };
     // Phase 6: Clear all lock state on reset
     stage1Locked = false;

@@ -5,52 +5,68 @@
 // Scenario 3: High-Variance Blowouts + Stage 2 Three-Way (1-1) Division Tiebreaker
 
 const fs = require('fs');
+const path = require('path');
+
+// Browser DOM / Storage Shims for full execution
+const domElements = {};
+function createMockElement(id = '') {
+  return {
+    id,
+    classList: {
+      _classes: new Set(),
+      add: function(c) { this._classes.add(c); },
+      remove: function(c) { this._classes.delete(c); },
+      contains: function(c) { return this._classes.has(c); }
+    },
+    textContent: '',
+    innerHTML: '',
+    value: '',
+    style: {},
+    appendChild: function() {},
+    setAttribute: function() {},
+    getAttribute: function() { return ''; },
+    querySelector: function(sel) { return createMockElement(sel); },
+    querySelectorAll: function() { return []; },
+    remove: function() {}
+  };
+}
+
+global.window = {
+  location: { search: '' },
+  innerWidth: 1024,
+  print: () => {}
+};
+global.document = {
+  getElementById: (id) => {
+    if (!domElements[id]) domElements[id] = createMockElement(id);
+    return domElements[id];
+  },
+  querySelector: (sel) => createMockElement(sel),
+  querySelectorAll: () => [],
+  documentElement: { getAttribute: () => 'light', setAttribute: () => {} },
+  addEventListener: () => {},
+  createElement: (tag) => createMockElement(tag)
+};
+global.localStorage = {
+  _store: {},
+  getItem: function(k) { return this._store[k] || null; },
+  setItem: function(k, v) { this._store[k] = String(v); },
+  removeItem: function(k) { delete this._store[k]; },
+  clear: function() { this._store = {}; }
+};
+global.sessionStorage = {
+  _store: {},
+  getItem: function(k) { return this._store[k] || null; },
+  setItem: function(k, v) { this._store[k] = String(v); },
+  removeItem: function(k) { delete this._store[k]; }
+};
+global.navigator = {};
+global.alert = () => {};
+global.confirm = () => true;
 
 // Load and evaluate app logic in isolated context
-const appJsCode = fs.readFileSync('c:/projects/community-badminton-cup/js/app.js', 'utf-8');
-
-// Extract functions and data structures
-const sandbox = {};
-const extractRegex = (pattern) => {
-  const m = appJsCode.match(pattern);
-  return m ? m[0] : null;
-};
-
-// Evaluate necessary definitions
-const scriptToRun = `
-${appJsCode.match(/const ROSTER = \[[\s\S]*?\];/)[0]}
-const PLAYERS = ROSTER.map(p => p.name).sort();
-${appJsCode.match(/const BASE_FIXTURES = \[[\s\S]*?\n\];/)[0]}
-let fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
-let finalsScores = {
-  gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-  silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-  bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-  copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
-};
-
-${appJsCode.match(/function isMatchConcluded\([\s\S]*?\n  \}/)[0]}
-${appJsCode.match(/function computeLeaderboard\(\) \{[\s\S]*?\n  \}/)[0]}
-${appJsCode.match(/function genPoolMatches\([\s\S]*?\n  \}/)[0]}
-${appJsCode.match(/function buildFinalsPools\([\s\S]*?\n  \}/)[0]}
-${appJsCode.match(/function computePoolStandings\([\s\S]*?\n  \}/)[0]}
-
-module.exports = {
-  ROSTER,
-  PLAYERS,
-  BASE_FIXTURES,
-  getFixtures: () => fixtures,
-  setFixtures: (newF) => { fixtures = newF; },
-  getFinalsScores: () => finalsScores,
-  setFinalsScores: (fs) => { finalsScores = fs; },
-  computeLeaderboard,
-  buildFinalsPools,
-  computePoolStandings
-};
-`;
-
-fs.writeFileSync('c:/projects/community-badminton-cup/temp_test_engine.js', scriptToRun);
-const engine = require('./temp_test_engine.js');
+const appJsCode = fs.readFileSync(path.join(__dirname, 'js', 'app.js'), 'utf-8');
+eval(appJsCode);
 
 function runScenario(scenarioNum, scenarioName, generatorConfig) {
   console.log(`\n================================================================================`);
@@ -58,20 +74,20 @@ function runScenario(scenarioNum, scenarioName, generatorConfig) {
   console.log(`================================================================================`);
 
   // 1. Reset and Populate Stage 1 Fixtures with valid 15-pt scores
-  const fixtures = JSON.parse(JSON.stringify(engine.BASE_FIXTURES));
+  window.resetTournament(true);
+  const fixtures = window.getFixtures();
   fixtures.forEach((f, idx) => {
     const pairScore = generatorConfig.getStage1Score(f, idx);
     f.s1 = pairScore[0];
     f.s2 = pairScore[1];
   });
-  engine.setFixtures(fixtures);
 
   // Verification 1: Stage 1 Scores Validity
   const invalidScores = fixtures.filter(f => (f.s1 !== 15 && f.s2 !== 15) || f.s1 === f.s2 || f.s1 > 15 || f.s2 > 15);
   const s1ValidityPass = invalidScores.length === 0;
 
   // 2. Compute Official Stage 1 Leaderboard
-  const leaderboard = engine.computeLeaderboard();
+  const leaderboard = window.computeLeaderboard();
 
   // Verification 2: Exactly 24 players ranked
   const countPass = leaderboard.length === 24;
@@ -103,36 +119,34 @@ function runScenario(scenarioNum, scenarioName, generatorConfig) {
                        copper.every(p => p.tier === 'Copper');
 
   // 3. Build Finals Pools (Snake Pairing)
-  const pools = engine.buildFinalsPools(leaderboard);
+  const pools = window.buildFinalsPools(leaderboard);
 
   // Verification 6: Snake Pairing Integrity
-  // In Gold: Team 1 = #1 & #6, Team 2 = #2 & #5, Team 3 = #3 & #4
+  // In Gold: Team A = #1 & #6, Team B = #2 & #5, Team C = #3 & #4
   const goldTeams = pools.find(p => p.key === 'gold').teams;
   const snakePass = goldTeams[0][0] === leaderboard[0].name && goldTeams[0][1] === leaderboard[5].name &&
                     goldTeams[1][0] === leaderboard[1].name && goldTeams[1][1] === leaderboard[4].name &&
                     goldTeams[2][0] === leaderboard[2].name && goldTeams[2][1] === leaderboard[3].name;
 
   // 4. Simulate and Score Stage 2 Finals (21-point matches)
-  const finalsScores = {
-    gold: generatorConfig.getStage2Scores('gold'),
-    silver: generatorConfig.getStage2Scores('silver'),
-    bronze: generatorConfig.getStage2Scores('bronze'),
-    copper: generatorConfig.getStage2Scores('copper')
-  };
-  engine.setFinalsScores(finalsScores);
+  const finalsScores = window.getFinalsScores();
+  finalsScores.gold = generatorConfig.getStage2Scores('gold');
+  finalsScores.silver = generatorConfig.getStage2Scores('silver');
+  finalsScores.bronze = generatorConfig.getStage2Scores('bronze');
+  finalsScores.copper = generatorConfig.getStage2Scores('copper');
 
   // Re-build pools with scores
-  const activePools = engine.buildFinalsPools(leaderboard);
+  const activePools = window.buildFinalsPools(leaderboard);
 
   // 5. Determine Division Champions
   const champions = {};
   let finalsEvaluationPass = true;
 
   activePools.forEach(pool => {
-    const standings = engine.computePoolStandings(pool);
+    const standings = window.computePoolStandings(pool.key);
     if (standings.length < 2) finalsEvaluationPass = false;
     else {
-      champions[pool.key] = `${standings[0].name} & ${standings[1].name}`;
+      champions[pool.key] = standings[0].name;
     }
   });
 
@@ -156,10 +170,10 @@ function runScenario(scenarioNum, scenarioName, generatorConfig) {
   });
 
   console.log(`\n🥇 DECLARED DIVISION CHAMPIONS:`);
-  console.log(`  🥇 Gold Champions:   ${champions.gold}`);
-  console.log(`  🥈 Silver Winners:   ${champions.silver}`);
-  console.log(`  🥉 Bronze Winners:   ${champions.bronze}`);
-  console.log(`  🛡️ Copper Winners:   ${champions.copper}`);
+  console.log(`  🏆 Gold Champions:   ${champions.gold}`);
+  console.log(`  🏆 Silver Winners:   ${champions.silver}`);
+  console.log(`  🏆 Bronze Winners:   ${champions.bronze}`);
+  console.log(`  🏆 Copper Winners:   ${champions.copper}`);
 
   // Test Expectations Table
   const expectations = [
@@ -205,7 +219,6 @@ const scenario1 = {
 // Scenario 2: Close Games / Win Ties Stress Test (Heavy tiebreaker reliance on Diff)
 const scenario2 = {
   getStage1Score: (f, idx) => {
-    // Ultra close games: 15-14 or 14-15
     return idx % 2 === 0 ? [15, 14] : [14, 15];
   },
   getStage2Scores: (tier) => [
@@ -249,5 +262,4 @@ console.table([
   { "Iteration": 3, "Scenario": r3.scenarioName, "Overall Status": r3.allPassed ? "✅ ALL PASS" : "❌ FAIL" }
 ]);
 
-// Cleanup temporary file
-fs.unlinkSync('c:/projects/community-badminton-cup/temp_test_engine.js');
+process.exit(0);

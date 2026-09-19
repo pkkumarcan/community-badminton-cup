@@ -3524,5 +3524,271 @@ body {
   color: #fcd34d;
 }
 
+/* ============================================================
+   PHASE 7: FINALS STANDINGS, PLAYOFFS & GRAND WINNERS
+   ============================================================ */
+
+/* Finals Standings Card */
+.finals-standings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  margin-top: 10px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.finals-standings-header {
+  padding: 8px 14px;
+  background: var(--bg-subtle, rgba(0,0,0,0.02));
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.finals-standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.finals-standings-table th,
+.finals-standings-table td {
+  padding: 8px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.finals-standings-table th:first-child,
+.finals-standings-table td:first-child,
+.finals-standings-table th:nth-child(2),
+.finals-standings-table td:nth-child(2) {
+  text-align: left;
+}
+
+.finals-standings-table thead th {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.finals-standings-table tr.place-1st {
+  background: rgba(245, 158, 11, 0.08);
+  font-weight: 600;
+}
+
+.finals-standings-table tr.place-1st td:first-child {
+  border-left: 3px solid var(--gold, #f59e0b);
+}
+
+.place-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.place-pill.p1 { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+.place-pill.p2 { background: rgba(148, 163, 184, 0.2); color: #475569; }
+.place-pill.p3 { background: rgba(180, 83, 9, 0.12); color: #9a3412; }
+[data-theme="dark"] .place-pill.p1 { color: #fcd34d; }
+[data-theme="dark"] .place-pill.p2 { color: #cbd5e1; }
+[data-theme="dark"] .place-pill.p3 { color: #fdba74; }
+
+/* Division Champions Banner */
+.finals-champ-card {
+  margin-top: 10px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.08));
+  border: 1px solid rgba(245,158,11,0.35);
+}
+
+.finals-champ-title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-theme="dark"] .finals-champ-title { color: #fcd34d; }
+
+.finals-champ-names {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+/* Playoff Required Alert Box */
+.playoff-alert-box {
+  margin-top: 10px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.playoff-alert-title {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #b91c1c;
+}
+[data-theme="dark"] .playoff-alert-title { color: #fca5a5; }
+
+.playoff-match-card {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+/* Tournament Complete Banner */
+.tournament-complete-banner {
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 18px 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-lg);
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.tournament-complete-banner h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.tournament-complete-banner p {
+  font-size: 0.88rem;
+  opacity: 0.9;
+}
+
+/* Grand Winners Modal */
+.grand-winners-box {
+  max-width: 780px !important;
+  width: 95% !important;
+  padding: 24px !important;
+}
+
+.grand-winners-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.grand-winners-header h2 {
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  margin-top: 4px;
+}
+
+.grand-winners-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.grand-winners-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.grand-winner-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.grand-winner-card.tier-gold { border-top: 4px solid #f59e0b; }
+.grand-winner-card.tier-silver { border-top: 4px solid #94a3b8; }
+.grand-winner-card.tier-bronze { border-top: 4px solid #b45309; }
+.grand-winner-card.tier-copper { border-top: 4px solid #ea580c; }
+
+.grand-winner-card-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.grand-winner-champ {
+  background: var(--bg-subtle, rgba(0,0,0,0.02));
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+
+.grand-winner-champ-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--gold, #f59e0b);
+  letter-spacing: 0.05em;
+}
+
+.grand-winner-champ-names {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.grand-winner-placements {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.podium-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--border-subtle);
+}
+.podium-row:last-child { border-bottom: none; }
+
+
 
 

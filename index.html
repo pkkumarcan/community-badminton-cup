@@ -410,9 +410,14 @@
             <div style="font-size:0.75rem; color:var(--text-muted);">Populate test scores across all Stage 1 blocks &amp; Finals</div>
           </button>
 
+          <button type="button" class="btn-secondary" onclick="resetFinals()" style="text-align:left; margin-top:4px; border-color:rgba(245, 158, 11, 0.4);">
+            🔄 <strong>Reset Finals Scores Only</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Clears Finals scores &amp; playoffs while preserving Stage 1 lock &amp; official rankings</div>
+          </button>
+
           <button type="button" class="btn-danger" onclick="resetTournament()" style="text-align:left; margin-top:8px;">
-            ⚠️ <strong>Reset All Scores to Blank</strong>
-            <div style="font-size:0.75rem; opacity:0.85;">Clears all entered scores for a fresh tournament</div>
+            ⚠️ <strong>Reset Entire Tournament (All Scores &amp; Lock)</strong>
+            <div style="font-size:0.75rem; opacity:0.85;">Clears all entered scores and resets tournament to clean state</div>
           </button>
         </div>
       </div>
@@ -643,6 +648,36 @@
       <div class="modal-actions" style="margin-top:16px;">
         <button type="button" class="btn-secondary" onclick="closeScoreLockBlockModal()">Cancel</button>
         <button type="button" class="btn-secondary" onclick="closeScoreLockBlockModal(); switchTab('leaderboard')">Review Unlock Options</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 7: FINALS PLAYOFF MODAL -->
+  <div id="finalsPlayoffModal" class="modal-overlay" onclick="if(event.target===this) closePlayoffModal()">
+    <div class="modal-box" style="max-width:500px;">
+      <div class="modal-icon modal-icon-warn">⚡</div>
+      <h3 id="playoffModalTitle">First-to-7 Playoff Entry</h3>
+      <p id="playoffModalSub" style="margin:6px 0 16px; font-size:0.85rem; color:var(--text-muted);"></p>
+      <div id="playoffModalBody"></div>
+      <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="btn-secondary" onclick="closePlayoffModal()">Cancel</button>
+        <button type="button" class="btn-primary" onclick="submitPlayoffScore()">💾 Save Playoff Result</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 7: GRAND WINNERS MODAL -->
+  <div id="grandWinnersModal" class="modal-overlay" onclick="if(event.target===this) closeWinnersModal()">
+    <div class="modal-box grand-winners-box">
+      <div class="grand-winners-header">
+        <span style="font-size:2.2rem;">🏆</span>
+        <h2>SINDHI BOYS BADMINTON CUP 2026</h2>
+        <p class="grand-winners-sub">STAGE 2 DIVISION CHAMPIONS &amp; FINAL PODIUM</p>
+      </div>
+      <div id="grandWinnersContainer" class="grand-winners-grid"></div>
+      <div class="modal-actions" style="margin-top:24px; justify-content:center; gap:12px;">
+        <button type="button" class="btn-secondary" onclick="closeWinnersModal()">Close</button>
+        <button type="button" class="btn-primary" onclick="printTournament()">🖨️ Print / Save Awards</button>
       </div>
     </div>
   </div>
