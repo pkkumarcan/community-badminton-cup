@@ -145,51 +145,8 @@
           </div>
         </div>
 
-        <!-- Schedule Mode Header with View Toggle -->
-        <div class="schedule-view-controls">
-          <div>
-            <span id="matchCounterText" style="font-weight:700; color:var(--text-primary); font-size:0.88rem;">Showing 48 of 48 Matches</span>
-          </div>
-          <div class="view-mode-toggle" role="group" aria-label="Schedule View Mode">
-            <button type="button" class="view-toggle-btn active" id="viewModeBtn-table" onclick="setScheduleViewMode('table')" title="Tabular Matrix View (Compact & Single-Row)">
-              <span>📄</span> Tabular View
-            </button>
-            <button type="button" class="view-toggle-btn" id="viewModeBtn-cards" onclick="setScheduleViewMode('cards')" title="Card View (Block Dividers & Badges)">
-              <span>🗂️</span> Card View
-            </button>
-          </div>
-        </div>
-
-        <!-- Single-Row Tabular View (Default) -->
-        <div class="sched-table-card" id="schedTableCard">
-          <div class="sched-table-wrap">
-            <table class="sched-table">
-              <thead>
-                <tr>
-                  <th>Round</th>
-                  <th>Approx Time</th>
-                  <th>Court</th>
-                  <th style="text-align:left;">One Pair (Team 1)</th>
-                  <th>Score 1</th>
-                  <th>W / L</th>
-                  <th style="text-align:left;">Opponent Pair (Team 2)</th>
-                  <th>Score 2</th>
-                  <th>W / L</th>
-                  <th>Point Diff</th>
-                  <th style="text-align:left;">Referee Pair</th>
-                </tr>
-              </thead>
-              <tbody id="schedTableBody">
-                <!-- Dynamically populated by renderSchedule() -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Fixtures Card Stream Container (Card View) -->
-        <div id="scheduleContainer" class="schedule-grid" style="display:none;">
-          <!-- Dynamically populated by renderSchedule() -->
-        </div>
+        <!-- Fixtures & Scoring Sheet Container (Dynamically rendered by renderSchedule) -->
+        <div id="scheduleContainer" class="schedule-grid"></div>
       </section>
 
       <!-- TAB 2: LEADERBOARD -->
