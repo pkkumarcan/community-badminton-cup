@@ -1955,5 +1955,388 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* ==========================================================================
+   Home / My Tournament Personalized Dashboard (Phase 2)
+   ========================================================================== */
+.home-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 4px 4px 40px;
+}
+
+.home-welcome-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.home-welcome-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.home-welcome-name {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.3px;
+}
+
+.home-welcome-stage {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.change-player-btn {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+.change-player-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* Status Banner */
+.home-status-banner {
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.home-status-banner.status-ready {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+[data-theme="dark"] .home-status-banner.status-ready {
+  color: #fde047;
+  border-color: rgba(253, 224, 71, 0.4);
+}
+.home-status-banner.status-next {
+  background: rgba(234, 88, 12, 0.15);
+  color: #c2410c;
+  border: 1px solid rgba(234, 88, 12, 0.4);
+}
+[data-theme="dark"] .home-status-banner.status-next {
+  color: #fdba74;
+}
+.home-status-banner.status-ref {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+}
+.home-status-banner.status-waiting {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--win-color);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.home-status-banner.status-complete {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(37, 99, 235, 0.15));
+  color: var(--text-primary);
+  border: 1px solid var(--primary-border);
+}
+
+/* Hero Next Match Card */
+.hero-match-card {
+  background: var(--bg-card);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+.hero-match-badge-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.hero-match-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--primary);
+}
+.hero-match-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hero-pairing-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+}
+.hero-team-box {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  text-align: center;
+}
+.hero-team-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.hero-team-names {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+.hero-team-box.is-you {
+  border: 2px solid var(--primary);
+  background: var(--primary-light);
+}
+.hero-team-box.is-you .hero-team-names {
+  color: var(--primary);
+}
+.hero-vs-badge {
+  font-weight: 900;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 9999px;
+  padding: 4px 10px;
+}
+.hero-queue-hint {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--bg-main);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Secondary Assignment (After that) Card */
+.home-sub-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Compact Stats Grid */
+.home-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+.home-stat-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.home-stat-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.home-stat-val {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+/* Timeline Card */
+.home-timeline-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.timeline-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.timeline-item:last-child {
+  border-bottom: none;
+}
+.timeline-tag {
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.timeline-tag.play {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+}
+.timeline-tag.ref {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+[data-theme="dark"] .timeline-tag.ref {
+  color: #fde047;
+}
+
+/* Onboarding Modal Styling */
+.onboarding-card {
+  text-align: center;
+  max-width: 440px;
+}
+.onboarding-icon {
+  font-size: 2.8rem;
+  margin-bottom: 8px;
+}
+.onboarding-title {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+  letter-spacing: 0.5px;
+}
+.onboarding-sub {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0 0 20px;
+}
+.onboarding-form {
+  margin-bottom: 18px;
+  text-align: left;
+}
+.onboarding-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.onboarding-select {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.onboarding-submit-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 900;
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+.onboarding-skip-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px;
+  text-decoration: underline;
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .home-dashboard-container {
+    padding: 2px 2px 30px;
+    gap: 12px;
+  }
+  .hero-match-card {
+    padding: 14px 12px;
+  }
+  .hero-pairing-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .hero-team-box {
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+  }
+  .hero-vs-badge {
+    align-self: center;
+  }
+  .home-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .home-stat-box {
+    padding: 8px 6px;
+  }
+  .home-stat-val {
+    font-size: 1rem;
+  }
+  .home-welcome-card {
+    padding: 12px 14px;
+  }
+  .home-welcome-name {
+    font-size: 1.25rem;
+  }
+}
+
+
 
 

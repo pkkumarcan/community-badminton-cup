@@ -58,7 +58,10 @@
 
     <!-- Navigation Tabs -->
     <nav class="tabs-container" aria-label="Tournament Views">
-      <button type="button" class="tab-btn active" id="tabBtn-fixtures" onclick="switchTab('fixtures')">
+      <button type="button" class="tab-btn active" id="tabBtn-home" onclick="switchTab('home')">
+        <span>🏠</span> My Tournament
+      </button>
+      <button type="button" class="tab-btn" id="tabBtn-fixtures" onclick="switchTab('fixtures')">
         <span>📝</span> Scoring Sheet
       </button>
       <button type="button" class="tab-btn" id="tabBtn-leaderboard" onclick="switchTab('leaderboard')">
@@ -131,8 +134,15 @@
     <!-- Main Content Area with View Modes -->
     <main class="main-content">
       
+      <!-- TAB 0: PERSONALIZED MY TOURNAMENT DASHBOARD -->
+      <section id="tab-home" class="tab-pane">
+        <div id="homeDashboardContainer" class="home-dashboard-container">
+          <!-- Rendered dynamically by renderHomeDashboard() -->
+        </div>
+      </section>
+
       <!-- TAB 1: SCORING SHEET / FIXTURES -->
-      <section id="tab-fixtures" class="tab-pane">
+      <section id="tab-fixtures" class="tab-pane hidden" style="display:none;">
         
         <!-- Live Dashboard Bar -->
         <div class="dashboard-bar">
@@ -372,6 +382,29 @@
       <div class="modal-btn-row">
         <button type="button" class="btn-secondary" onclick="closeOrganizerModal()">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- FIRST-VISIT ONBOARDING MODAL -->
+  <div id="playerOnboardingModal" class="modal-overlay">
+    <div class="modal-card onboarding-card">
+      <div class="onboarding-icon">🏸</div>
+      <h2 class="onboarding-title">WHO ARE YOU?</h2>
+      <p class="onboarding-sub">
+        Select your name to see your personalized match schedule, court assignments, and live status.
+      </p>
+      <div class="onboarding-form">
+        <label for="onboardingSelect" class="onboarding-label">SELECT YOUR NAME</label>
+        <select id="onboardingSelect" class="select-styled onboarding-select">
+          <option value="" disabled selected>-- Choose your name --</option>
+        </select>
+      </div>
+      <button type="button" class="btn-primary onboarding-submit-btn" onclick="confirmPlayerOnboarding()">
+        Continue to My Tournament &rarr;
+      </button>
+      <button type="button" class="onboarding-skip-btn" onclick="skipPlayerOnboarding()">
+        View full tournament without selecting
+      </button>
     </div>
   </div>
 

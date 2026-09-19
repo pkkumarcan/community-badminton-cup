@@ -1080,13 +1080,48 @@ const ROSTER = [
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
   const STORAGE_KEY = 'badminton_cup_portal_data_v8';
   const LEGACY_STORAGE_KEY = 'badminton_cup_portal_data_v7';
+  const PLAYER_IDENTITY_KEY = 'badminton_player_identity';
+
+  function getStoredPlayerIdentity() {
+    try {
+      const stored = localStorage.getItem(PLAYER_IDENTITY_KEY);
+      if (stored && PLAYERS.includes(stored)) return stored;
+    } catch (e) {
+      console.warn("Could not read player identity:", e);
+    }
+    return null;
+  }
+  window.getStoredPlayerIdentity = getStoredPlayerIdentity;
+
+  function setPlayerIdentity(playerName) {
+    try {
+      if (playerName && PLAYERS.includes(playerName)) {
+        localStorage.setItem(PLAYER_IDENTITY_KEY, playerName);
+        const sel = document.getElementById("playerSelect");
+        if (sel) sel.value = playerName;
+        const onb = document.getElementById("onboardingSelect");
+        if (onb) onb.value = playerName;
+      } else {
+        localStorage.removeItem(PLAYER_IDENTITY_KEY);
+        const sel = document.getElementById("playerSelect");
+        if (sel) sel.value = "";
+      }
+    } catch (e) {
+      console.warn("Could not store player identity:", e);
+    }
+    renderHomeDashboard();
+    renderSchedule();
+    renderLeaderboard();
+  }
+  window.setPlayerIdentity = setPlayerIdentity;
 
   function saveState() {
     try {
+      const identity = getStoredPlayerIdentity();
       const payload = {
         fixtures,
         finalsScores,
-        selectedPlayer: document.getElementById("playerSelect")?.value || "",
+        selectedPlayer: identity || document.getElementById("playerSelect")?.value || "",
         currentCourtFilter,
         scheduleViewMode,
         theme: document.documentElement.getAttribute('data-theme') || 'light'
@@ -1140,6 +1175,16 @@ const ROSTER = [
       }
       if (data.theme) {
         applyTheme(data.theme);
+      }
+      // Restore player identity preference
+      const storedIdentity = localStorage.getItem(PLAYER_IDENTITY_KEY);
+      if (storedIdentity && PLAYERS.includes(storedIdentity)) {
+        const select = document.getElementById("playerSelect");
+        if (select) select.value = storedIdentity;
+      } else if (data && data.selectedPlayer && PLAYERS.includes(data.selectedPlayer)) {
+        localStorage.setItem(PLAYER_IDENTITY_KEY, data.selectedPlayer);
+        const select = document.getElementById("playerSelect");
+        if (select) select.value = data.selectedPlayer;
       }
     } catch (e) {
       console.warn("Error loading state from localStorage:", e);
@@ -1286,7 +1331,7 @@ const ROSTER = [
 
   // ---------- TAB NAVIGATION ----------
   window.switchTab = function (tab) {
-    const tabs = ['fixtures', 'leaderboard', 'finals', 'rules'];
+    const tabs = ['home', 'fixtures', 'leaderboard', 'finals', 'rules'];
     tabs.forEach((t) => {
       const panel = document.getElementById('tab-' + t);
       const btn = document.getElementById('tabBtn-' + t);
@@ -1318,6 +1363,7 @@ const ROSTER = [
       }
     }
 
+    if (tab === 'home') renderHomeDashboard();
     if (tab === 'leaderboard') renderLeaderboard();
     if (tab === 'finals') renderFinals();
     if (tab === 'fixtures') renderSchedule();
@@ -1335,6 +1381,15 @@ const ROSTER = [
     saveState();
   };
 
+  // ---------- MATCH CONCLUSION & REUSABLE HELPERS (Phase 2) ----------
+  function isMatchConcluded(f) {
+    if (!f || f.s1 == null || f.s2 == null || f.s1 === "" || f.s2 === "") return false;
+    const s1 = Number(f.s1);
+    const s2 = Number(f.s2);
+    return (s1 === 15 || s2 === 15) && s1 !== s2;
+  }
+  window.isMatchConcluded = isMatchConcluded;
+
   // ---------- COMPUTATIONS: STAGE 1 LEADERBOARD ----------
   function computeLeaderboard() {
     const stats = {};
@@ -1343,13 +1398,9 @@ const ROSTER = [
     });
 
     fixtures.forEach(f => {
-      if (f.s1 == null || f.s2 == null || f.s1 === "" || f.s2 === "") return;
+      if (!isMatchConcluded(f)) return;
       const s1 = Number(f.s1);
       const s2 = Number(f.s2);
-      // Stage 1 sudden death: match is concluded ONLY when one team reaches 15 points (max 15)
-      const isConcluded = (s1 === 15 || s2 === 15) && s1 !== s2;
-      if (!isConcluded) return;
-
       const t1win = s1 === 15;
 
       f.t1.forEach(p => {
@@ -1389,6 +1440,492 @@ const ROSTER = [
 
     return list;
   }
+  window.computeLeaderboard = computeLeaderboard;
+
+  // ---------- REUSABLE PLAYER QUERY HELPERS (Requirement 18) ----------
+  function getPlayerPlayingMatches(player) {
+    if (!player) return [];
+    return fixtures.filter(f => f.t1.includes(player) || f.t2.includes(player));
+  }
+  window.getPlayerPlayingMatches = getPlayerPlayingMatches;
+
+  function getPlayerRefereeDuties(player) {
+    if (!player) return [];
+    return fixtures.filter(f => f.refs.includes(player));
+  }
+  window.getPlayerRefereeDuties = getPlayerRefereeDuties;
+
+  function getNextPlayerAssignment(player) {
+    if (!player) return null;
+    const allAssignments = [];
+    fixtures.forEach((f, idx) => {
+      const isPlaying = f.t1.includes(player) || f.t2.includes(player);
+      const isRef = f.refs.includes(player);
+      if (!isPlaying && !isRef) return;
+      allAssignments.push({
+        type: isPlaying ? 'play' : 'ref',
+        fixture: f,
+        index: idx,
+        isConcluded: isMatchConcluded(f)
+      });
+    });
+
+    const nextAssignment = allAssignments.find(a => !a.isConcluded) || null;
+    const playingAssignments = allAssignments.filter(a => a.type === 'play');
+    const nextPlaying = playingAssignments.find(a => !a.isConcluded) || null;
+    const refAssignments = allAssignments.filter(a => a.type === 'ref');
+    const nextReferee = refAssignments.find(a => !a.isConcluded) || null;
+
+    return {
+      nextAssignment,
+      nextPlaying,
+      nextReferee,
+      allPlayerAssignments: allAssignments
+    };
+  }
+  window.getNextPlayerAssignment = getNextPlayerAssignment;
+
+  function getPlayerTournamentSummary(player) {
+    if (!player) return null;
+    const totalCompleted = fixtures.filter(isMatchConcluded).length;
+    const leaderboard = computeLeaderboard();
+    const stats = leaderboard.find(s => s.name === player) || { gp: 0, wins: 0, pts: 0, pa: 0, diff: 0, rank: 24, tier: 'Copper' };
+    const isStage1Complete = stats.gp === 8;
+    const isStage1Locked = totalCompleted === fixtures.length;
+
+    return {
+      player,
+      played: stats.gp,
+      wins: stats.wins,
+      losses: stats.gp - stats.wins,
+      pts: stats.pts,
+      pa: stats.pa,
+      diff: stats.diff,
+      rank: stats.rank,
+      tier: stats.tier,
+      isStage1Complete,
+      isStage1Locked,
+      totalTournamentCompleted: totalCompleted
+    };
+  }
+  window.getPlayerTournamentSummary = getPlayerTournamentSummary;
+
+  // ---------- ONBOARDING MODAL CONTROLS ----------
+  function populateOnboardingSelect() {
+    const select = document.getElementById("onboardingSelect");
+    if (!select) return;
+    const current = getStoredPlayerIdentity();
+    select.innerHTML = '<option value="" disabled selected>-- Choose your name --</option>';
+    ROSTER.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item.name;
+      opt.textContent = item.name;
+      if (current === item.name) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+  window.populateOnboardingSelect = populateOnboardingSelect;
+
+  window.openPlayerSelector = function () {
+    populateOnboardingSelect();
+    const modal = document.getElementById("playerOnboardingModal");
+    if (!modal) return;
+    const title = modal.querySelector(".onboarding-title");
+    if (title) title.textContent = "CHANGE PLAYER";
+    const sub = modal.querySelector(".onboarding-sub");
+    if (sub) sub.textContent = "Select your name from the 24-player roster to update your personalized tournament dashboard immediately.";
+    const current = getStoredPlayerIdentity();
+    const select = document.getElementById("onboardingSelect");
+    if (select && current) select.value = current;
+    modal.classList.add("open");
+  };
+
+  window.confirmPlayerOnboarding = function () {
+    const select = document.getElementById("onboardingSelect");
+    const chosen = select ? select.value : "";
+    if (!chosen || !PLAYERS.includes(chosen)) {
+      alert("Please select a valid player name from the list.");
+      return;
+    }
+    setPlayerIdentity(chosen);
+    document.getElementById("playerOnboardingModal")?.classList.remove("open");
+    switchTab("home");
+  };
+
+  window.skipPlayerOnboarding = function () {
+    document.getElementById("playerOnboardingModal")?.classList.remove("open");
+    switchTab("fixtures");
+  };
+
+  // ---------- RENDERING: MY TOURNAMENT DASHBOARD (Phase 2) ----------
+  function renderHomeDashboard() {
+    const container = document.getElementById("homeDashboardContainer");
+    if (!container) return;
+
+    const player = getStoredPlayerIdentity();
+    if (!player) {
+      container.innerHTML = `
+        <div class="home-welcome-card" style="text-align: center; justify-content: center; flex-direction: column; padding: 36px 20px;">
+          <div style="font-size: 2.5rem; margin-bottom: 8px;">🏸</div>
+          <h2 style="margin: 0 0 8px; font-weight: 900; color: var(--text-primary);">Who Are You?</h2>
+          <p style="color: var(--text-secondary); max-width: 440px; margin: 0 auto 18px; font-size: 0.95rem; line-height: 1.5;">
+            Select your name to see your personalized match schedule, court assignments, queue status, and live standings.
+          </p>
+          <button type="button" class="btn-primary" style="padding: 12px 28px; font-size: 1rem; font-weight: 800; border-radius: var(--radius-full); cursor: pointer;" onclick="openPlayerSelector()">
+            Select Your Name &rarr;
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const summary = getPlayerTournamentSummary(player);
+    const assignments = getNextPlayerAssignment(player);
+    if (!summary || !assignments) return;
+
+    // Active tournament Block calculation
+    const activeFixture = fixtures.find(f => !isMatchConcluded(f));
+    const currentTournamentBlock = activeFixture ? Math.ceil(activeFixture.r / 3) : 4;
+
+    // Determine current tournament status
+    let statusBannerHtml = "";
+    let nextDutyAlertHtml = "";
+
+    if (summary.isStage1Complete) {
+      statusBannerHtml = `
+        <div class="home-status-banner status-complete">
+          <span>🎉</span> STAGE 1 PLAY COMPLETE &bull; 8 of 8 Matches Finished &bull; Waiting for Finals Confirmation
+        </div>
+      `;
+    } else if (summary.totalTournamentCompleted === 0) {
+      statusBannerHtml = `
+        <div class="home-status-banner status-waiting">
+          <span>⏳</span> TOURNAMENT READY &bull; Stage 1 Matches Start at 12:00 PM
+        </div>
+      `;
+    } else if (assignments.nextAssignment && assignments.nextAssignment.type === 'ref') {
+      const rf = assignments.nextAssignment.fixture;
+      statusBannerHtml = `
+        <div class="home-status-banner status-ref">
+          <span>👀</span> REFEREE DUTY &bull; Match ${rf.m} on Court ${rf.c} (Stage 1 &bull; Block ${Math.ceil(rf.r / 3)})
+        </div>
+      `;
+    } else if (assignments.nextPlaying) {
+      const pf = assignments.nextPlaying.fixture;
+      const court = pf.c;
+      const matchesAhead = fixtures.filter(m => m.c === court && fixtures.indexOf(m) < assignments.nextPlaying.index && !isMatchConcluded(m)).length;
+      if (matchesAhead === 0) {
+        statusBannerHtml = `
+          <div class="home-status-banner status-ready">
+            <span>🔥</span> READY / CURRENT &bull; Court ${court} is Up For Your Match!
+          </div>
+        `;
+      } else if (matchesAhead === 1) {
+        statusBannerHtml = `
+          <div class="home-status-banner status-next">
+            <span>⚡</span> UP NEXT &bull; 1 match away on Court ${court}
+          </div>
+        `;
+      } else if (matchesAhead === 2) {
+        statusBannerHtml = `
+          <div class="home-status-banner status-waiting">
+            <span>🕒</span> 2 MATCHES AWAY &bull; Court ${court}
+          </div>
+        `;
+      } else {
+        statusBannerHtml = `
+          <div class="home-status-banner status-waiting">
+            <span>🕒</span> UPCOMING &bull; ${matchesAhead} matches away on Court ${court}
+          </div>
+        `;
+      }
+    } else {
+      statusBannerHtml = `
+        <div class="home-status-banner status-complete">
+          <span>✅</span> ALL ASSIGNMENTS COMPLETED
+        </div>
+      `;
+    }
+
+    // Immediate Referee Duty Card if officiating comes before playing
+    if (!summary.isStage1Complete && assignments.nextAssignment && assignments.nextAssignment.type === 'ref') {
+      const rf = assignments.nextAssignment.fixture;
+      const otherRef = rf.refs.find(r => r !== player) || 'Partner Referee';
+      nextDutyAlertHtml = `
+        <div class="home-sub-card" style="border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, 0.08);">
+          <div>
+            <div style="font-size:0.75rem; font-weight:800; color:#b45309; text-transform:uppercase; letter-spacing:0.5px;">
+              ⚠️ NEXT RESPONSIBILITY: REFEREE DUTY
+            </div>
+            <div style="font-weight:900; font-size:1.05rem; margin-top:3px; color:var(--text-primary);">
+              Match ${rf.m} &bull; Court ${rf.c} &bull; Stage 1 &bull; Block ${Math.ceil(rf.r / 3)}
+            </div>
+            <div style="font-size:0.84rem; color:var(--text-secondary); margin-top:3px;">
+              Officiating: <strong>${rf.t1.join(' & ')}</strong> vs <strong>${rf.t2.join(' & ')}</strong>
+              &bull; Partner Ref: <strong>${otherRef}</strong>
+            </div>
+          </div>
+          <span class="badge" style="background:#f59e0b; color:#fff; font-weight:900; padding:6px 12px; font-size:0.82rem;">REFEREE</span>
+        </div>
+      `;
+    }
+
+    // Hero Match Card
+    let heroCardHtml = "";
+    if (summary.isStage1Complete) {
+      heroCardHtml = `
+        <div class="hero-match-card" style="border-color: var(--win-color);">
+          <div class="hero-match-badge-bar">
+            <span class="hero-match-title" style="color: var(--win-color);">🎉 STAGE 1 PLAY COMPLETE</span>
+            <span class="badge badge-gold">8 OF 8 MATCHES PLAYED</span>
+          </div>
+          <h3 style="margin: 8px 0; font-size: 1.3rem; font-weight: 900; color: var(--text-primary);">Well Played, ${player}!</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin: 0 0 16px;">
+            You have completed all 8 Stage 1 matches. Rankings will finalize once all 48 matches in Stage 1 conclude.
+          </p>
+          <div style="background: var(--bg-main); border: 1px solid var(--border-card); border-radius: var(--radius-md); padding: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+            <div>
+              <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">Provisional Standing</div>
+              <div style="font-size:1.25rem; font-weight:900; color:var(--text-primary);">Rank #${summary.rank}</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">${summary.isStage1Locked ? 'Official Qualification' : 'Projected Finals Pool'}</div>
+              <div style="font-size:1.1rem; font-weight:900; color:var(--primary);">${summary.isStage1Locked ? 'QUALIFIED — ' : 'PROJECTED '}${summary.tier.toUpperCase()}</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">Final Stage 1 Record</div>
+              <div style="font-size:1.1rem; font-weight:900; color:var(--text-primary);">${summary.wins}W - ${summary.losses}L (${summary.diff > 0 ? '+' : ''}${summary.diff})</div>
+            </div>
+          </div>
+          <div class="hero-queue-hint" style="margin-top: 14px;">
+            <span>⏳</span> Waiting for Stage 1 completion and Finals confirmation.
+          </div>
+        </div>
+      `;
+    } else if (assignments.nextPlaying) {
+      const pf = assignments.nextPlaying.fixture;
+      const court = pf.c;
+      const block = Math.ceil(pf.r / 3);
+      const isT1 = pf.t1.includes(player);
+      const partner = isT1 ? pf.t1.find(p => p !== player) : pf.t2.find(p => p !== player);
+      const opponents = isT1 ? pf.t2 : pf.t1;
+      const matchesAhead = fixtures.filter(m => m.c === court && fixtures.indexOf(m) < assignments.nextPlaying.index && !isMatchConcluded(m)).length;
+
+      let queueHint = "";
+      let heroTitle = "UP NEXT";
+      if (summary.totalTournamentCompleted === 0) {
+        heroTitle = "YOUR FIRST MATCH";
+        queueHint = `Tournament begins at 12:00 PM &bull; First match on Court ${court}`;
+      } else if (matchesAhead === 0) {
+        heroTitle = "READY / CURRENT MATCH";
+        queueHint = `🔥 This match is currently on or next up on Court ${court}!`;
+      } else if (matchesAhead === 1) {
+        heroTitle = "UP NEXT";
+        queueHint = `⚡ 1 match before yours on Court ${court}`;
+      } else {
+        heroTitle = `${matchesAhead} MATCHES AWAY`;
+        queueHint = `⏳ ${matchesAhead} matches before yours on Court ${court}`;
+      }
+
+      heroCardHtml = `
+        <div class="hero-match-card">
+          <div class="hero-match-badge-bar">
+            <span class="hero-match-title">${heroTitle}</span>
+            <div class="hero-match-badges">
+              <span class="badge badge-court">COURT ${court}</span>
+              <span class="badge badge-blue">MATCH ${pf.m}</span>
+              <span class="badge badge-gray">STAGE 1 &bull; BLOCK ${block}</span>
+            </div>
+          </div>
+
+          <div class="hero-pairing-container">
+            <div class="hero-team-box is-you">
+              <div class="hero-team-label">Your Team</div>
+              <div class="hero-team-names">YOU (${player})<br>+ ${partner}</div>
+            </div>
+            <div class="hero-vs-badge">VS</div>
+            <div class="hero-team-box">
+              <div class="hero-team-label">Opponents</div>
+              <div class="hero-team-names">${opponents[0]}<br>+ ${opponents[1]}</div>
+            </div>
+          </div>
+
+          <div class="hero-queue-hint">
+            <span>📍</span> ${queueHint}
+          </div>
+        </div>
+      `;
+    }
+
+    // Secondary assignment: next referee duty if not already front-and-center
+    let secondaryRefHtml = "";
+    if (assignments.nextReferee && (!assignments.nextAssignment || assignments.nextAssignment.type === 'play')) {
+      const rf = assignments.nextReferee.fixture;
+      const otherRef = rf.refs.find(r => r !== player) || 'Partner Referee';
+      secondaryRefHtml = `
+        <div class="home-sub-card">
+          <div>
+            <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">
+              AFTER THIS: NEXT REFEREE DUTY
+            </div>
+            <div style="font-weight:900; font-size:1rem; margin-top:2px; color:var(--text-primary);">
+              Match ${rf.m} &bull; Court ${rf.c} &bull; Stage 1 &bull; Block ${Math.ceil(rf.r / 3)}
+            </div>
+            <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;">
+              Officiating with <strong>${otherRef}</strong> (${rf.t1.join(' & ')} vs ${rf.t2.join(' & ')})
+            </div>
+          </div>
+          <span class="badge" style="background:rgba(37,99,235,0.12); color:var(--primary); font-weight:900;">OFFICIATING</span>
+        </div>
+      `;
+    }
+
+    // Stats Grid
+    const rankDisplay = summary.totalTournamentCompleted === 0 ? "NOT STARTED" : `#${summary.rank}`;
+    const rankLabel = summary.totalTournamentCompleted === 0 ? "STANDINGS" : "PROVISIONAL RANK";
+    const poolLabel = summary.isStage1Locked ? "QUALIFIED POOL" : "PROJECTED POOL";
+    const poolVal = summary.totalTournamentCompleted === 0 ? "TBD" : (summary.isStage1Locked ? `QUALIFIED ${summary.tier.toUpperCase()}` : `PROJECTED ${summary.tier.toUpperCase()}`);
+
+    const statsGridHtml = `
+      <div class="home-stats-grid">
+        <div class="home-stat-box">
+          <div class="home-stat-label">Played</div>
+          <div class="home-stat-val">${summary.played} / 8</div>
+        </div>
+        <div class="home-stat-box">
+          <div class="home-stat-label">Record</div>
+          <div class="home-stat-val">${summary.wins}W - ${summary.losses}L</div>
+        </div>
+        <div class="home-stat-box">
+          <div class="home-stat-label">Point Diff</div>
+          <div class="home-stat-val" style="color: ${summary.diff > 0 ? 'var(--win-color)' : (summary.diff < 0 ? 'var(--loss-color)' : 'inherit')};">
+            ${summary.diff > 0 ? '+' : ''}${summary.diff}
+          </div>
+        </div>
+        <div class="home-stat-box">
+          <div class="home-stat-label">${rankLabel}</div>
+          <div class="home-stat-val" style="${summary.totalTournamentCompleted === 0 ? 'font-size:0.92rem;' : ''}">${rankDisplay}</div>
+        </div>
+        <div class="home-stat-box">
+          <div class="home-stat-label">${poolLabel}</div>
+          <div class="home-stat-val" style="font-size:0.92rem;">${poolVal}</div>
+        </div>
+      </div>
+    `;
+
+    // Personalized Timeline
+    const timelineHtml = `
+      <div class="home-timeline-card">
+        <div style="font-size: 0.85rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+          <span>📅 YOUR TOURNAMENT TIMELINE (${assignments.allPlayerAssignments.length} ASSIGNMENTS)</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">8 Matches + Officiating</span>
+        </div>
+        <div class="timeline-list">
+          ${assignments.allPlayerAssignments.map(a => {
+            const f = a.fixture;
+            const isPlay = a.type === 'play';
+            const block = Math.ceil(f.r / 3);
+            if (a.isConcluded) {
+              if (isPlay) {
+                const s1 = Number(f.s1);
+                const s2 = Number(f.s2);
+                const isT1 = f.t1.includes(player);
+                const won = (isT1 && s1 === 15) || (!isT1 && s2 === 15);
+                const yourScore = isT1 ? s1 : s2;
+                const oppScore = isT1 ? s2 : s1;
+                const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+                return `
+                  <div class="timeline-item" style="opacity: 0.75;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span class="timeline-tag play">PLAY</span>
+                      <strong>${f.m}</strong> &bull; Court ${f.c} &bull; Block ${block}
+                      <span style="font-size:0.8rem; color:var(--text-muted);">(w/ ${partner})</span>
+                    </div>
+                    <span class="badge ${won ? 'badge-gold' : 'badge-gray'}">${won ? 'WIN' : 'LOSS'} ${yourScore}–${oppScore}</span>
+                  </div>
+                `;
+              } else {
+                return `
+                  <div class="timeline-item" style="opacity: 0.75;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span class="timeline-tag ref">REFEREE</span>
+                      <strong>${f.m}</strong> &bull; Court ${f.c} &bull; Block ${block}
+                    </div>
+                    <span class="badge badge-gray">COMPLETED</span>
+                  </div>
+                `;
+              }
+            } else {
+              if (isPlay) {
+                const isT1 = f.t1.includes(player);
+                const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+                const opps = isT1 ? f.t2.join(' & ') : f.t1.join(' & ');
+                return `
+                  <div class="timeline-item">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span class="timeline-tag play">PLAY</span>
+                      <strong>${f.m}</strong> &bull; <strong>Court ${f.c}</strong> &bull; Block ${block}
+                      <span style="font-size:0.8rem; color:var(--text-secondary);">w/ <strong>${partner}</strong> vs ${opps}</span>
+                    </div>
+                    <span class="badge badge-blue">UPCOMING</span>
+                  </div>
+                `;
+              } else {
+                const otherRef = f.refs.find(r => r !== player) || 'Partner';
+                return `
+                  <div class="timeline-item">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span class="timeline-tag ref">REFEREE</span>
+                      <strong>${f.m}</strong> &bull; <strong>Court ${f.c}</strong> &bull; Block ${block}
+                      <span style="font-size:0.8rem; color:var(--text-secondary);">w/ <strong>${otherRef}</strong></span>
+                    </div>
+                    <span class="badge" style="background:rgba(245,158,11,0.18); color:#b45309; font-weight:800;">DUTY</span>
+                  </div>
+                `;
+              }
+            }
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <!-- A. PLAYER WELCOME & SWITCH -->
+      <div class="home-welcome-card">
+        <div class="home-welcome-info">
+          <div class="home-welcome-name">
+            <span>🏸</span> ${player}
+          </div>
+          <div class="home-welcome-stage">
+            Stage 1 &bull; Current: Block ${currentTournamentBlock} &bull; 8 Partner Guarantee
+          </div>
+        </div>
+        <button type="button" class="change-player-btn" onclick="openPlayerSelector()" title="Change selected player">
+          <span>🔄</span> Change Player
+        </button>
+      </div>
+
+      <!-- B. CURRENT TOURNAMENT STATUS -->
+      ${statusBannerHtml}
+
+      <!-- D1. NEXT REFEREE DUTY (If immediate) -->
+      ${nextDutyAlertHtml}
+
+      <!-- C. NEXT MATCH HERO CARD -->
+      ${heroCardHtml}
+
+      <!-- D2. NEXT REFEREE DUTY (If playing comes first) -->
+      ${secondaryRefHtml}
+
+      <!-- F. COMPACT PERSONAL STATISTICS -->
+      ${statsGridHtml}
+
+      <!-- E. UPCOMING PLAYING & REFEREE TIMELINE -->
+      ${timelineHtml}
+    `;
+  }
+  window.renderHomeDashboard = renderHomeDashboard;
+
 
   // ---------- TOGGLE SCHEDULE VIEW MODE ----------
   window.setScheduleViewMode = function (mode) {
@@ -1758,6 +2295,9 @@ const ROSTER = [
         container.appendChild(card);
       });
     }
+
+    // Keep My Tournament dashboard synchronized whenever schedule/scores change
+    renderHomeDashboard();
   }
 
   // ---------- INTERACTIVE SCORE UPDATING ----------
@@ -2141,10 +2681,11 @@ const ROSTER = [
   };
 
   // ---------- POPULATE PLAYER DROPDOWN ----------
+  // ---------- POPULATE PLAYER DROPDOWN ----------
   function populatePlayerSelect() {
     const select = document.getElementById("playerSelect");
     if (!select) return;
-    const currentVal = select.value;
+    const currentVal = getStoredPlayerIdentity() || select.value;
     select.innerHTML = '<option value="">-- All 24 Players (Full Tournament View) --</option>';
 
     PLAYERS.forEach(p => {
@@ -2159,6 +2700,7 @@ const ROSTER = [
     }
 
     select.onchange = function () {
+      setPlayerIdentity(select.value);
       saveState();
       renderSchedule();
       renderLeaderboard();
@@ -2661,6 +3203,7 @@ Try asking:<br>
     }
 
     updateAdminUI();
+    populateOnboardingSelect();
     populatePlayerSelect();
     renderSchedule();
     renderLeaderboard();
@@ -2670,6 +3213,15 @@ Try asking:<br>
     document.querySelectorAll('.court-filter-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.court === currentCourtFilter);
     });
+
+    // Check player identity and set initial view mode
+    const savedIdentity = getStoredPlayerIdentity();
+    if (savedIdentity) {
+      switchTab('home');
+    } else {
+      switchTab('home');
+      document.getElementById('playerOnboardingModal')?.classList.add('open');
+    }
   });
 
 })();

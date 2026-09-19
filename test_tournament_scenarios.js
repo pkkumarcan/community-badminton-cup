@@ -29,6 +29,7 @@ let finalsScores = {
   copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
 };
 
+${appJsCode.match(/function isMatchConcluded\([\s\S]*?\n  \}/)[0]}
 ${appJsCode.match(/function computeLeaderboard\(\) \{[\s\S]*?\n  \}/)[0]}
 ${appJsCode.match(/function genPoolMatches\([\s\S]*?\n  \}/)[0]}
 ${appJsCode.match(/function buildFinalsPools\([\s\S]*?\n  \}/)[0]}
