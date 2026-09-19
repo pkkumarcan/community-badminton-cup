@@ -2370,7 +2370,47 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
       targetPlayer = selPlayer;
     }
 
+    // Handle questions about "how many matches I played", "current score", "my rank", "reach gold"
+    const asksAboutRecordOrMatches = q.includes("how many match") || q.includes("matches i played") || q.includes("games i played") || q.includes("how many game") || q.includes("my score") || q.includes("current score") || q.includes("my rank") || q.includes("standing") || q.includes("my stat") || q.includes("record");
+    const asksAboutGoldChances = q.includes("in the gold") || q.includes("to be in gold") || q.includes("reach gold") || q.includes("qualify for gold") || q.includes("get to gold") || q.includes("make gold");
+
     if (targetPlayer) {
+      const leaderboard = computeLeaderboard();
+      const pStats = leaderboard.find(s => s.name === targetPlayer) || { gp: 0, wins: 0, losses: 0, pts: 0, pa: 0, diff: 0, rank: 24, tier: 'Copper' };
+      const rank6 = leaderboard[5] || { name: 'Rank 6', wins: 4, diff: 0, pts: 0 };
+      const remainingMatches = Math.max(0, 8 - pStats.gp);
+      const diffFormatted = pStats.diff > 0 ? `+${pStats.diff}` : `${pStats.diff}`;
+
+      // 1. Specific Query: How much to reach Gold / Can I reach Gold?
+      if (asksAboutGoldChances || (q.includes("gold") && (q.includes("how") || q.includes("can i") || q.includes("need")))) {
+        if (pStats.rank <= 6) {
+          return `🥇 <strong>Gold Status for ${targetPlayer}:</strong><br>
+🎉 <strong>You are currently in GOLD position (Rank #${pStats.rank})!</strong><br>
+• <strong>Current Record:</strong> ${pStats.wins}W - ${pStats.gp - pStats.wins}L (Diff: <strong>${diffFormatted}</strong>)<br>
+• <strong>Remaining Matches:</strong> <strong>${remainingMatches}</strong> match${remainingMatches === 1 ? '' : 'es'} left.<br><br>
+💡 <strong>Strategy:</strong> Winning ${remainingMatches > 0 ? (remainingMatches === 1 ? 'your final match' : '1–2 more matches') : 'all matches'} and maintaining a positive differential will lock in your Court 1 Gold Championship spot!`;
+        } else {
+          const winsBehind = Math.max(0, rank6.wins - pStats.wins);
+          return `🎯 <strong>Pathway to Gold for ${targetPlayer}:</strong><br>
+• <strong>Current Position:</strong> Rank <strong>#${pStats.rank}</strong> (${pStats.tier} Pool)<br>
+• <strong>Your Record:</strong> ${pStats.wins}W - ${pStats.gp - pStats.wins}L (Diff: <strong>${diffFormatted}</strong>, ${pStats.pts} pts)<br>
+• <strong>Current 6th Place Cutoff (${rank6.name}):</strong> ${rank6.wins}W, Diff ${rank6.diff > 0 ? '+' : ''}${rank6.diff}<br>
+• <strong>Matches Left to Play:</strong> <strong>${remainingMatches}</strong><br><br>
+💡 <strong>What you need:</strong> You have ${remainingMatches} matches left. Aim to win ${Math.min(remainingMatches, winsBehind + 1)} matches by high margins (e.g. 15–6, 15–8) to boost your differential into the Top 6! Every rally counts!`;
+        }
+      }
+
+      // 2. Specific Query: Matches played, current score, standings
+      if (asksAboutRecordOrMatches) {
+        return `📊 <strong>Live Tournament Stats for ${targetPlayer}:</strong><br>
+• <strong>Matches Played:</strong> <strong>${pStats.gp} of 8</strong> (${remainingMatches} remaining)<br>
+• <strong>Record:</strong> <strong>${pStats.wins} Wins - ${pStats.gp - pStats.wins} Losses</strong><br>
+• <strong>Points Scored:</strong> <strong>${pStats.pts}</strong> (Points Conceded: ${pStats.pa})<br>
+• <strong>Net Point Differential:</strong> <strong>${diffFormatted}</strong><br>
+• <strong>Official Standing:</strong> <strong>Rank #${pStats.rank}</strong> (${pStats.tier} Pool)<br><br>
+<em>Rankings update live after every completed match!</em>`;
+      }
+
       // Find all partners
       const partners = [];
       fixtures.forEach(f => {
@@ -2399,8 +2439,11 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
       } else {
         // All matches played or general schedule summary
         const pMatches = fixtures.filter(f => f.t1.includes(targetPlayer) || f.t2.includes(targetPlayer));
-        return `📋 <strong>${targetPlayer}</strong> plays in Rounds: <strong>${pMatches.map(m => 'R' + String(m.r).padStart(2, '0')).join(', ')}</strong>.<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Select <strong>${targetPlayer}</strong> from the top dropdown to highlight all matches!`;
+        return `📋 <strong>${targetPlayer}</strong> plays in Rounds: <strong>${pMatches.map(m => 'R' + String(m.r).padStart(2, '0')).join(', ')}</strong>.<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Current Record: <strong>${pStats.wins}W - ${pStats.gp - pStats.wins}L</strong> (Rank #${pStats.rank}).`;
       }
+    } else if (asksAboutRecordOrMatches || asksAboutGoldChances) {
+      return `👤 <strong>Personalized Live Stats:</strong><br>
+Please select your name from the <strong>"Filter By Player"</strong> dropdown at the top, or ask with your name (e.g. <em>"What is Ajeet's current score?"</em> or <em>"How can Amit reach Gold?"</em>), and I will calculate your exact live standing and cutoff requirements!`;
     }
 
     // Generic helpful fallback
