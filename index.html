@@ -281,22 +281,25 @@
         <span class="ai-badge-icon">🏸✨</span>
         <div>
           <div style="font-weight:800; font-size:0.92rem; color:#ffffff;">Tournament AI Assistant</div>
-          <div style="font-size:0.72rem; color:#94a3b8;">Instant answers for players &amp; spectators</div>
+          <div style="font-size:0.72rem; color:#94a3b8;">Instant voice &amp; text answers</div>
         </div>
       </div>
-      <button type="button" class="ai-close-btn" onclick="toggleAiChat()" aria-label="Close AI Chat">✕</button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" id="aiVoiceToggleBtn" class="ai-voice-toggle-pill active" onclick="toggleAiVoiceOutput()" title="Toggle voice read-aloud">🔊 Voice ON</button>
+        <button type="button" class="ai-close-btn" onclick="toggleAiChat()" aria-label="Close AI Chat">✕</button>
+      </div>
     </div>
 
     <div class="ai-chat-messages" id="aiChatMessages">
       <div class="ai-msg bot">
-        👋 Hi! I am your <strong>Sindh Boys Badminton Cup AI Assistant</strong>.
+        👋 Hi! I am your <strong>Sindh Boys Badminton Cup Voice &amp; Text AI Assistant</strong>.
         <br><br>
-        Ask me anything about:
+        Tap 🎙️ below to speak your question, or ask:
         <ul style="margin: 6px 0 0 16px; padding:0; font-size:0.8rem; line-height:1.45;">
           <li>Your next match, court, or referee assignment</li>
           <li>Your 8 unique doubles partners</li>
+          <li>Your current score, matches played, and rank</li>
           <li>How to qualify for the Gold Championship</li>
-          <li>Referee rules &amp; knocking guidelines</li>
         </ul>
       </div>
     </div>
@@ -312,7 +315,8 @@
     </div>
 
     <form class="ai-chat-input-bar" onsubmit="handleAiChatSubmit(event)">
-      <input type="text" id="aiChatInput" placeholder="Ask a question (e.g. When does Ajeet play?)..." autocomplete="off">
+      <button type="button" id="aiVoiceBtn" class="ai-mic-btn" onclick="toggleVoiceInput()" title="Speak your question">🎙️</button>
+      <input type="text" id="aiChatInput" placeholder="Speak or type (e.g. What is my score?)..." autocomplete="off">
       <button type="submit" id="aiChatSendBtn" aria-label="Send message">➤</button>
     </form>
   </div>

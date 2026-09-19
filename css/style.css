@@ -1879,4 +1879,53 @@ body {
   transform: scale(1.05);
 }
 
+.ai-mic-btn {
+  background: rgba(37, 99, 235, 0.12) !important;
+  color: var(--primary) !important;
+  border: 1px solid var(--primary-border) !important;
+}
+
+.ai-mic-btn:hover {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.ai-mic-btn.listening {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  animation: micPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes micPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+.ai-voice-toggle-pill {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.ai-voice-toggle-pill.active {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #34d399;
+  color: #6ee7b7;
+}
+
+.ai-voice-toggle-pill:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+
 

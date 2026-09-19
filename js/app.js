@@ -2250,7 +2250,106 @@ const ROSTER = [
     });
   };
 
-  // ---------- TOURNAMENT AI ASSISTANT CONCIERGE ----------
+  // ---------- TOURNAMENT AI ASSISTANT CONCIERGE & VOICE CHAT ----------
+  let aiVoiceOutputEnabled = true;
+  let speechRecognitionInstance = null;
+
+  window.toggleAiVoiceOutput = function () {
+    aiVoiceOutputEnabled = !aiVoiceOutputEnabled;
+    const btn = document.getElementById("aiVoiceToggleBtn");
+    if (btn) {
+      btn.classList.toggle("active", aiVoiceOutputEnabled);
+      btn.innerHTML = aiVoiceOutputEnabled ? "🔊 Voice ON" : "🔇 Voice OFF";
+      btn.title = aiVoiceOutputEnabled ? "Voice read-aloud is ON" : "Voice read-aloud is OFF";
+    }
+    if (!aiVoiceOutputEnabled && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  window.toggleVoiceInput = function () {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById("aiVoiceBtn");
+    const input = document.getElementById("aiChatInput");
+
+    if (!SpeechRecognition) {
+      showToast("🎙️ Speech recognition is not supported in this browser. Please type your message.");
+      return;
+    }
+
+    if (speechRecognitionInstance) {
+      speechRecognitionInstance.stop();
+      speechRecognitionInstance = null;
+      if (micBtn) micBtn.classList.remove("listening");
+      if (input) input.placeholder = "Speak or type your question...";
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = function () {
+        if (micBtn) micBtn.classList.add("listening");
+        if (input) input.placeholder = "Listening... Speak now 🎙️";
+        showToast("🎙️ Listening... Ask your question now!");
+      };
+
+      recognition.onresult = function (event) {
+        const transcript = event.results[0][0].transcript;
+        if (input) input.value = transcript;
+        if (micBtn) micBtn.classList.remove("listening");
+        if (input) input.placeholder = "Speak or type your question...";
+        speechRecognitionInstance = null;
+        window.handleAiChatSubmit();
+      };
+
+      recognition.onerror = function (event) {
+        console.warn("Speech recognition error:", event.error);
+        if (micBtn) micBtn.classList.remove("listening");
+        if (input) input.placeholder = "Speak or type your question...";
+        speechRecognitionInstance = null;
+        if (event.error === "not-allowed") {
+          showToast("⚠️ Microphone access was denied. Please allow microphone permissions.");
+        } else {
+          showToast("🎙️ Could not hear clearly. Please try again or type.");
+        }
+      };
+
+      recognition.onend = function () {
+        if (micBtn) micBtn.classList.remove("listening");
+        if (input) input.placeholder = "Speak or type your question...";
+        speechRecognitionInstance = null;
+      };
+
+      speechRecognitionInstance = recognition;
+      recognition.start();
+    } catch (err) {
+      console.warn("Speech recognition init error:", err);
+      if (micBtn) micBtn.classList.remove("listening");
+      showToast("🎙️ Voice input unavailable. Please type your question.");
+    }
+  };
+
+  function speakTextAloud(textToSpeak) {
+    if (!aiVoiceOutputEnabled || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel(); // Stop any previous utterance
+      // Strip HTML tags and formatting
+      const clean = textToSpeak.replace(/<[^>]*>?/gm, "").replace(/[•#*]/g, "").trim();
+      if (!clean) return;
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.lang = "en-US";
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("Text-to-speech error:", e);
+    }
+  }
+
   window.toggleAiChat = function () {
     const drawer = document.getElementById("aiChatDrawer");
     if (!drawer) return;
@@ -2258,6 +2357,8 @@ const ROSTER = [
     drawer.classList.toggle("hidden", !isHidden);
     if (isHidden) {
       setTimeout(() => document.getElementById("aiChatInput")?.focus(), 100);
+    } else {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
     }
   };
 
@@ -2290,6 +2391,9 @@ const ROSTER = [
       botMsg.innerHTML = response;
       container.appendChild(botMsg);
       container.scrollTop = container.scrollHeight;
+
+      // Speak response aloud if voice output is enabled
+      speakTextAloud(response);
     }, 180);
 
     container.scrollTop = container.scrollHeight;
