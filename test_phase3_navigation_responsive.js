@@ -85,7 +85,7 @@ assert(jsContent.includes('closeMoreMenu = function') || jsContent.includes('fun
 assert(jsContent.includes('renderMyMatches') && jsContent.includes('function renderMyMatches('), 'renderMyMatches must be defined');
 assert(jsContent.includes('filterByBlock = function') || jsContent.includes('function filterByBlock('), 'filterByBlock must be defined');
 assert(jsContent.includes('filterByMine = function') || jsContent.includes('function filterByMine('), 'filterByMine must be defined');
-assert(jsContent.includes('CURRENT / NEXT'), 'My Matches must have CURRENT / NEXT section');
+assert(jsContent.includes('CURRENT / NEXT') || jsContent.includes('NEXT ASSIGNMENT'), 'My Matches must have NEXT section');
 assert(jsContent.includes('UPCOMING PLAYING MATCHES'), 'My Matches must have UPCOMING PLAYING section');
 assert(jsContent.includes('COMPLETED MATCHES'), 'My Matches must have COMPLETED MATCHES section');
 assert(jsContent.includes('REFEREE DUTIES'), 'My Matches must have REFEREE DUTIES section');

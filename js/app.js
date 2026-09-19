@@ -1523,22 +1523,31 @@ const ROSTER = [
   }
   window.getPlayerRefereeDuties = getPlayerRefereeDuties;
 
-  function getNextPlayerAssignment(player) {
-    if (!player) return null;
-    const allAssignments = [];
+  function getPlayerAssignments(player) {
+    if (!player) return [];
+    const assignments = [];
     fixtures.forEach((f, idx) => {
       const isPlaying = f.t1.includes(player) || f.t2.includes(player);
       const isRef = f.refs.includes(player);
       if (!isPlaying && !isRef) return;
-      allAssignments.push({
+      assignments.push({
         type: isPlaying ? 'play' : 'ref',
         fixture: f,
         index: idx,
         isConcluded: isMatchConcluded(f)
       });
     });
+    return assignments;
+  }
+  window.getPlayerAssignments = getPlayerAssignments;
 
-    const nextAssignment = allAssignments.find(a => !a.isConcluded) || null;
+  function getNextPlayerAssignment(player) {
+    if (!player) return null;
+    const allAssignments = getPlayerAssignments(player);
+
+    const pendingAssignments = allAssignments.filter(a => !a.isConcluded);
+    const nextAssignment = pendingAssignments[0] || null;
+    const afterThatAssignment = pendingAssignments[1] || null;
     const playingAssignments = allAssignments.filter(a => a.type === 'play');
     const nextPlaying = playingAssignments.find(a => !a.isConcluded) || null;
     const refAssignments = allAssignments.filter(a => a.type === 'ref');
@@ -1546,6 +1555,7 @@ const ROSTER = [
 
     return {
       nextAssignment,
+      afterThatAssignment,
       nextPlaying,
       nextReferee,
       allPlayerAssignments: allAssignments
@@ -1994,7 +2004,21 @@ const ROSTER = [
   }
   window.renderHomeDashboard = renderHomeDashboard;
 
-  // ---------- RENDERING: MY MATCHES VIEW (Phase 3) ----------
+  // ---------- MY MATCHES STATE & CONTROLS (Phase 4) ----------
+  let myMatchesFilter = 'all';
+  let myMatchesViewMode = 'cards';
+
+  window.setMyMatchesFilter = function (filter) {
+    myMatchesFilter = filter;
+    renderMyMatches();
+  };
+
+  window.setMyMatchesViewMode = function (mode) {
+    myMatchesViewMode = mode;
+    renderMyMatches();
+  };
+
+  // ---------- RENDERING: MY MATCHES VIEW (Phase 4 Polish) ----------
   function renderMyMatches() {
     const container = document.getElementById("myMatchesContainer");
     if (!container) return;
@@ -2006,10 +2030,10 @@ const ROSTER = [
           <div style="font-size:2.5rem; margin-bottom:8px;">🏸</div>
           <h2 style="margin:0 0 8px; font-weight:900; color:var(--text-primary);">Who Are You?</h2>
           <p style="color:var(--text-secondary); max-width:440px; margin:0 auto 18px; font-size:0.95rem; line-height:1.5;">
-            Select your name to view your dedicated playing matches, referee duties, and court schedule.
+            Select your name to see your personal matches and referee duties.
           </p>
           <button type="button" class="btn-primary" style="padding:12px 28px; font-size:1rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer;" onclick="openPlayerSelector()">
-            Select Your Name &rarr;
+            SELECT PLAYER &rarr;
           </button>
         </div>
       `;
@@ -2028,7 +2052,7 @@ const ROSTER = [
     const completedRefs = refDuties.filter(isMatchConcluded);
     const upcomingRefs = refDuties.filter(f => !isMatchConcluded(f));
 
-    // 1. Current / Next Assignment Section
+    // A. NEXT ASSIGNMENT SECTION (With "AFTER THAT" Preview)
     let nextSectionHtml = "";
     if (assignments.nextAssignment) {
       const na = assignments.nextAssignment;
@@ -2042,11 +2066,56 @@ const ROSTER = [
       if (summary.totalTournamentCompleted === 0) {
         queueHint = `Tournament begins at 12:00 PM &bull; First match on Court ${court}`;
       } else if (matchesAhead === 0) {
-        queueHint = `🔥 This assignment is at the front of Court ${court} queue!`;
+        queueHint = `🔥 READY ON COURT &bull; Your assignment is next up on Court ${court}!`;
       } else if (matchesAhead === 1) {
-        queueHint = `⚡ 1 match before yours on Court ${court}`;
+        queueHint = `⚡ UP NEXT &bull; 1 match before yours on Court ${court}`;
       } else {
-        queueHint = `⏳ ${matchesAhead} matches before yours on Court ${court}`;
+        const slotsAway = assignments.allPlayerAssignments.findIndex(a => a.index === na.index) - assignments.allPlayerAssignments.filter(a => a.isConcluded).length;
+        queueHint = `⏳ ${matchesAhead} matches before yours on Court ${court}${slotsAway > 1 ? ` (${slotsAway} assignments away)` : ''}`;
+      }
+
+      // "AFTER THAT" Preview (Requirement 4)
+      let afterThatHtml = "";
+      if (assignments.afterThatAssignment) {
+        const at = assignments.afterThatAssignment;
+        const atF = at.fixture;
+        const atIsPlay = at.type === 'play';
+        const atCourt = atF.c;
+        const atBlock = Math.ceil(atF.r / 3);
+        if (atIsPlay) {
+          const isT1 = atF.t1.includes(player);
+          const partner = isT1 ? atF.t1.find(p => p !== player) : atF.t2.find(p => p !== player);
+          const opps = isT1 ? atF.t2 : atF.t1;
+          afterThatHtml = `
+            <div class="after-that-box">
+              <div class="after-that-label"><span>➡️</span> AFTER THAT: PLAY</div>
+              <div class="after-that-meta">
+                <span class="match-pill">${atF.m}</span>
+                <span class="block-label">Block ${atBlock}</span>
+                <span class="badge badge-court">Court ${atCourt}</span>
+              </div>
+              <div class="after-that-teams">
+                <span class="you-tag">YOU</span> ${player} + ${partner} vs ${opps.join(' & ')}
+              </div>
+            </div>
+          `;
+        } else {
+          const otherRef = atF.refs.find(r => r !== player) || 'Partner';
+          afterThatHtml = `
+            <div class="after-that-box">
+              <div class="after-that-label"><span>➡️</span> AFTER THAT: REFEREE DUTY</div>
+              <div class="after-that-meta">
+                <span class="match-pill">${atF.m}</span>
+                <span class="block-label">Block ${atBlock}</span>
+                <span class="badge badge-court">Court ${atCourt}</span>
+                <span class="badge badge-ref">DUTY</span>
+              </div>
+              <div class="after-that-teams">
+                Officiating with <strong>${otherRef}</strong>: ${atF.t1.join(' & ')} vs ${atF.t2.join(' & ')}
+              </div>
+            </div>
+          `;
+        }
       }
 
       if (isPlay) {
@@ -2056,7 +2125,7 @@ const ROSTER = [
         nextSectionHtml = `
           <div class="my-matches-section">
             <div class="section-title-row">
-              <h3 class="section-title">⚡ CURRENT / NEXT PLAYING MATCH</h3>
+              <h3 class="section-title">⚡ NEXT ASSIGNMENT &bull; PLAY</h3>
               <span class="badge badge-court">COURT ${court}</span>
             </div>
             <div class="match-card hero-style">
@@ -2065,7 +2134,7 @@ const ROSTER = [
                   <span class="match-pill">${f.m}</span>
                   <span class="block-label">Stage 1 &bull; Block ${block}</span>
                 </div>
-                <span class="badge badge-blue">NEXT MATCH</span>
+                <span class="badge badge-blue">UP NEXT</span>
               </div>
               <div class="card-pairing-box">
                 <div class="team-col is-you">
@@ -2082,16 +2151,18 @@ const ROSTER = [
                 <div><span>📍</span> ${queueHint}</div>
                 <div><span>👀 Referees:</span> ${f.refs.join(' & ')}</div>
               </div>
+              ${afterThatHtml}
             </div>
           </div>
         `;
       } else {
         const otherRef = f.refs.find(r => r !== player) || 'Partner Referee';
+        const dutyIndex = refDuties.findIndex(rf => rf.m === f.m) + 1;
         nextSectionHtml = `
           <div class="my-matches-section">
             <div class="section-title-row">
-              <h3 class="section-title">⚠️ CURRENT / NEXT REFEREE DUTY</h3>
-              <span class="badge badge-ref">REFEREE</span>
+              <h3 class="section-title">⚠️ NEXT ASSIGNMENT &bull; REFEREE DUTY</h3>
+              <span class="badge badge-ref">DUTY ${dutyIndex} OF 4</span>
             </div>
             <div class="match-card ref-style">
               <div class="card-header">
@@ -2109,6 +2180,7 @@ const ROSTER = [
                 <div><span>📍</span> ${queueHint}</div>
                 <div><span>Partner Ref:</span> <strong>${otherRef}</strong></div>
               </div>
+              ${afterThatHtml}
             </div>
           </div>
         `;
@@ -2125,7 +2197,7 @@ const ROSTER = [
       `;
     }
 
-    // 2. Upcoming Playing Matches Section
+    // B. UPCOMING PLAYING MATCHES SECTION
     const upcomingPlaysHtml = upcomingPlays.length === 0
       ? `<div style="font-size:0.85rem; color:var(--text-muted); padding:10px;">No upcoming playing matches remaining in Stage 1.</div>`
       : upcomingPlays.map(f => {
@@ -2162,7 +2234,41 @@ const ROSTER = [
           `;
         }).join('');
 
-    // 3. Completed Matches Section
+    // C. REFEREE DUTIES SECTION (With 4-pip Progress Bar)
+    const pipsHtml = [1, 2, 3, 4].map(num => {
+      const isFilled = num <= completedRefs.length;
+      return `<span class="ref-pip ${isFilled ? 'filled' : 'empty'}">${isFilled ? '■' : '□'}</span>`;
+    }).join('');
+
+    const refDutiesHtml = refDuties.map((f, idx) => {
+      const court = f.c;
+      const block = Math.ceil(f.r / 3);
+      const isDone = isMatchConcluded(f);
+      const otherRef = f.refs.find(r => r !== player) || 'Partner';
+      return `
+        <div class="match-card ref-style" style="opacity:${isDone ? '0.75' : '1'};">
+          <div class="card-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="match-pill">${f.m}</span>
+              <span class="block-label">Block ${block}</span>
+              <span class="badge badge-court">Court ${court}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="badge" style="font-size:0.75rem; background:rgba(245,158,11,0.15); color:#b45309; font-weight:800;">Duty ${idx + 1} of 4</span>
+              <span class="badge ${isDone ? 'badge-gray' : 'badge-ref'}">${isDone ? 'COMPLETED' : 'UPCOMING'}</span>
+            </div>
+          </div>
+          <div style="padding:8px 12px; font-size:0.86rem; color:var(--text-secondary);">
+            Match: <strong>${f.t1.join(' & ')}</strong> vs <strong>${f.t2.join(' & ')}</strong>
+          </div>
+          <div class="card-meta">
+            <div><span>Co-Referee:</span> <strong>${otherRef}</strong></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // D. COMPLETED MATCHES SECTION
     const completedPlaysHtml = completedPlays.length === 0
       ? `<div style="font-size:0.85rem; color:var(--text-muted); padding:10px;">No completed matches recorded yet.</div>`
       : completedPlays.map(f => {
@@ -2184,56 +2290,197 @@ const ROSTER = [
                   <span class="block-label">Block ${block}</span>
                   <span class="badge badge-court">Court ${court}</span>
                 </div>
-                <span class="badge ${won ? 'badge-gold' : 'badge-gray'}">${won ? 'WIN' : 'LOSS'} ${yourScore}–${oppScore}</span>
+                <span class="badge ${won ? 'badge-gold' : 'badge-gray'}">${won ? 'WIN ✓' : 'LOSS'}</span>
               </div>
-              <div class="card-pairing-box compact">
-                <div class="team-col ${won ? 'is-won' : ''}">
-                  <div class="team-players"><span class="you-tag">YOU</span> ${player} + ${partner}</div>
+              <div class="match-score-table">
+                <div class="score-team-row ${won ? 'is-winner' : ''}">
+                  <span><span class="you-tag">YOU</span> ${player} + ${partner}</span>
+                  <span class="score-num">${yourScore}</span>
                 </div>
-                <div class="vs-col">vs</div>
-                <div class="team-col">
-                  <div class="team-players">${opps.join(' & ')}</div>
+                <div class="score-team-row ${!won ? 'is-winner' : ''}">
+                  <span>${opps.join(' & ')}</span>
+                  <span class="score-num">${oppScore}</span>
                 </div>
               </div>
             </div>
           `;
         }).join('');
 
-    // 4. Referee Duties Section
-    const refDutiesHtml = refDuties.map(f => {
-      const court = f.c;
+    // E. CHRONOLOGICAL TIMELINE VIEW (Requirement 8)
+    const allAssignments = assignments.allPlayerAssignments;
+    const timelineRowsHtml = allAssignments.map(a => {
+      const f = a.fixture;
+      const isPlay = a.type === 'play';
       const block = Math.ceil(f.r / 3);
-      const isDone = isMatchConcluded(f);
-      const otherRef = f.refs.find(r => r !== player) || 'Partner';
+      const isConcluded = a.isConcluded;
+      const isNext = assignments.nextAssignment && assignments.nextAssignment.index === a.index;
+
+      let statusBadge = "";
+      let detailText = "";
+      if (isConcluded) {
+        if (isPlay) {
+          const s1 = Number(f.s1);
+          const s2 = Number(f.s2);
+          const isT1 = f.t1.includes(player);
+          const won = (isT1 && s1 === 15) || (!isT1 && s2 === 15);
+          const yourScore = isT1 ? s1 : s2;
+          const oppScore = isT1 ? s2 : s1;
+          statusBadge = `<span class="badge ${won ? 'badge-gold' : 'badge-gray'}">${won ? 'WIN ✓' : 'LOSS'} ${yourScore}–${oppScore}</span>`;
+          const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+          const opps = isT1 ? f.t2 : f.t1;
+          detailText = `w/ ${partner} vs ${opps.join(' & ')}`;
+        } else {
+          statusBadge = `<span class="badge badge-gray">COMPLETED ✓</span>`;
+          detailText = `Officiated: ${f.t1.join(' & ')} vs ${f.t2.join(' & ')}`;
+        }
+      } else if (isNext) {
+        statusBadge = `<span class="badge badge-blue">UP NEXT</span>`;
+        if (isPlay) {
+          const isT1 = f.t1.includes(player);
+          const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+          const opps = isT1 ? f.t2 : f.t1;
+          detailText = `w/ ${partner} vs ${opps.join(' & ')}`;
+        } else {
+          const otherRef = f.refs.find(r => r !== player) || 'Partner';
+          detailText = `Officiating with ${otherRef}`;
+        }
+      } else {
+        statusBadge = `<span class="badge badge-pending">UPCOMING</span>`;
+        if (isPlay) {
+          const isT1 = f.t1.includes(player);
+          const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+          const opps = isT1 ? f.t2 : f.t1;
+          detailText = `w/ ${partner} vs ${opps.join(' & ')}`;
+        } else {
+          const otherRef = f.refs.find(r => r !== player) || 'Partner';
+          detailText = `Officiating with ${otherRef}`;
+        }
+      }
+
       return `
-        <div class="match-card ref-style" style="opacity:${isDone ? '0.75' : '1'};">
-          <div class="card-header">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span class="match-pill">${f.m}</span>
-              <span class="block-label">Block ${block}</span>
-              <span class="badge badge-court">Court ${court}</span>
-            </div>
-            <span class="badge ${isDone ? 'badge-gray' : 'badge-ref'}">${isDone ? 'COMPLETED' : 'PENDING'}</span>
+        <div class="timeline-row ${isNext ? 'is-next' : ''} ${!isPlay ? 'is-ref' : ''}">
+          <div class="timeline-row-left">
+            <span class="match-pill">${f.m}</span>
+            <span class="badge badge-court">C${f.c}</span>
+            <span class="badge ${isPlay ? 'badge-blue' : 'badge-ref'}">${isPlay ? 'PLAY' : 'REF'}</span>
           </div>
-          <div style="padding:8px 12px; font-size:0.86rem; color:var(--text-secondary);">
-            Teams: <strong>${f.t1.join(' & ')}</strong> vs <strong>${f.t2.join(' & ')}</strong>
+          <div class="timeline-row-mid">
+            <div class="timeline-row-title">${detailText}</div>
+            <div class="timeline-row-sub">Block ${block}</div>
           </div>
-          <div class="card-meta">
-            <div><span>Co-Referee:</span> <strong>${otherRef}</strong></div>
+          <div class="timeline-row-right">
+            ${statusBadge}
           </div>
         </div>
       `;
     }).join('');
 
-    container.innerHTML = `
-      <!-- Top Player Header -->
-      <div class="home-welcome-card" style="margin-bottom:14px;">
-        <div class="home-welcome-info">
-          <div class="home-welcome-name">
-            <span>🏸</span> ${player}'s Matches
+    // BUILD FINAL CONTENT BASED ON VIEW MODE & FILTERS
+    let mainBodyHtml = "";
+    if (myMatchesViewMode === 'timeline') {
+      mainBodyHtml = `
+        <div class="my-matches-section">
+          <div class="section-title-row">
+            <h3 class="section-title">⚡ COMPLETE TIMELINE (12 ASSIGNMENTS)</h3>
+            <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">8 Playing + 4 Referee</span>
           </div>
-          <div class="home-welcome-stage">
-            ${summary.played} of 8 Matches Played &bull; Record: ${summary.wins}W - ${summary.losses}L
+          <div class="timeline-view-table">
+            ${timelineRowsHtml}
+          </div>
+        </div>
+      `;
+    } else {
+      // Cards view with filter support
+      if (myMatchesFilter === 'all') {
+        mainBodyHtml = `
+          <!-- Section A: Next Assignment -->
+          ${nextSectionHtml}
+
+          <!-- Section B: Upcoming Matches -->
+          <div class="my-matches-section">
+            <h3 class="section-title">📅 UPCOMING MATCHES (${upcomingPlays.length})</h3>
+            <div class="mobile-card-list">
+              ${upcomingPlaysHtml}
+            </div>
+          </div>
+
+          <!-- Section C: Referee Duties -->
+          <div class="my-matches-section">
+            <div class="ref-progress-header">
+              <h3 class="section-title">👀 REFEREE DUTIES</h3>
+              <div class="ref-progress-indicator">
+                <span>${completedRefs.length} of 4 completed</span>
+                <div class="ref-pips">${pipsHtml}</div>
+              </div>
+            </div>
+            <div class="mobile-card-list">
+              ${refDutiesHtml}
+            </div>
+          </div>
+
+          <!-- Section D: Completed Matches -->
+          <div class="my-matches-section">
+            <h3 class="section-title">✅ COMPLETED MATCHES (${completedPlays.length})</h3>
+            <div class="mobile-card-list">
+              ${completedPlaysHtml}
+            </div>
+          </div>
+        `;
+      } else if (myMatchesFilter === 'playing') {
+        mainBodyHtml = `
+          <div class="my-matches-section">
+            <h3 class="section-title">📅 ALL PLAYING MATCHES (${playingMatches.length})</h3>
+            <div class="mobile-card-list">
+              ${upcomingPlaysHtml}
+              ${completedPlaysHtml}
+            </div>
+          </div>
+        `;
+      } else if (myMatchesFilter === 'referee') {
+        mainBodyHtml = `
+          <div class="my-matches-section">
+            <div class="ref-progress-header">
+              <h3 class="section-title">👀 REFEREE DUTIES (${refDuties.length})</h3>
+              <div class="ref-progress-indicator">
+                <span>${completedRefs.length} of 4 completed</span>
+                <div class="ref-pips">${pipsHtml}</div>
+              </div>
+            </div>
+            <div class="mobile-card-list">
+              ${refDutiesHtml}
+            </div>
+          </div>
+        `;
+      } else if (myMatchesFilter === 'upcoming') {
+        mainBodyHtml = `
+          ${nextSectionHtml}
+          <div class="my-matches-section">
+            <h3 class="section-title">📅 UPCOMING PLAYING MATCHES (${upcomingPlays.length})</h3>
+            <div class="mobile-card-list">
+              ${upcomingPlaysHtml}
+            </div>
+          </div>
+        `;
+      } else if (myMatchesFilter === 'completed') {
+        mainBodyHtml = `
+          <div class="my-matches-section">
+            <h3 class="section-title">✅ COMPLETED MATCHES (${completedPlays.length})</h3>
+            <div class="mobile-card-list">
+              ${completedPlaysHtml}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    container.innerHTML = `
+      <!-- Compact Top Player Header (Requirement 13) -->
+      <div class="my-matches-top-bar">
+        <div class="my-matches-identity">
+          <h2 class="my-matches-player-title"><span>🏸</span> ${player}</h2>
+          <div class="my-matches-summary-chips">
+            <span class="summary-chip playing">8 Matches (${summary.played} played &bull; ${summary.wins}W-${summary.losses}L)</span>
+            <span class="summary-chip referee">4 Ref Duties (${completedRefs.length}/4 completed)</span>
           </div>
         </div>
         <button type="button" class="change-player-btn" onclick="openPlayerSelector()" title="Change Player">
@@ -2241,32 +2488,22 @@ const ROSTER = [
         </button>
       </div>
 
-      <!-- Section 1: Current / Next Assignment -->
-      ${nextSectionHtml}
-
-      <!-- Section 2: Upcoming Playing Matches -->
-      <div class="my-matches-section">
-        <h3 class="section-title">📅 UPCOMING PLAYING MATCHES (${upcomingPlays.length})</h3>
-        <div class="mobile-card-list">
-          ${upcomingPlaysHtml}
+      <!-- Filters & View Toggle (Requirement 8 & 14) -->
+      <div class="my-matches-filter-row">
+        <div class="my-matches-filter-pills">
+          <button type="button" class="pill-btn ${myMatchesFilter === 'all' ? 'active' : ''}" onclick="setMyMatchesFilter('all')">All</button>
+          <button type="button" class="pill-btn ${myMatchesFilter === 'playing' ? 'active' : ''}" onclick="setMyMatchesFilter('playing')">Playing (${playingMatches.length})</button>
+          <button type="button" class="pill-btn ${myMatchesFilter === 'referee' ? 'active' : ''}" onclick="setMyMatchesFilter('referee')">Referee (${refDuties.length})</button>
+          <button type="button" class="pill-btn ${myMatchesFilter === 'upcoming' ? 'active' : ''}" onclick="setMyMatchesFilter('upcoming')">Upcoming (${upcomingPlays.length})</button>
+          <button type="button" class="pill-btn ${myMatchesFilter === 'completed' ? 'active' : ''}" onclick="setMyMatchesFilter('completed')">Completed (${completedPlays.length})</button>
+        </div>
+        <div class="view-mode-toggle">
+          <button type="button" class="pill-btn ${myMatchesViewMode === 'cards' ? 'active' : ''}" onclick="setMyMatchesViewMode('cards')" title="Detailed Cards">📋 Cards</button>
+          <button type="button" class="pill-btn ${myMatchesViewMode === 'timeline' ? 'active' : ''}" onclick="setMyMatchesViewMode('timeline')" title="Timeline View">⚡ Timeline</button>
         </div>
       </div>
 
-      <!-- Section 3: Completed Matches -->
-      <div class="my-matches-section">
-        <h3 class="section-title">✅ COMPLETED MATCHES (${completedPlays.length})</h3>
-        <div class="mobile-card-list">
-          ${completedPlaysHtml}
-        </div>
-      </div>
-
-      <!-- Section 4: Referee Duties -->
-      <div class="my-matches-section">
-        <h3 class="section-title">👀 REFEREE DUTIES (${completedRefs.length}/4 COMPLETED)</h3>
-        <div class="mobile-card-list">
-          ${refDutiesHtml}
-        </div>
-      </div>
+      ${mainBodyHtml}
     `;
   }
   window.renderMyMatches = renderMyMatches;
@@ -2463,8 +2700,8 @@ const ROSTER = [
           wl1Html = `<span class="wl-pill ${t1Won ? 'wl-win' : 'wl-loss'}">${t1Won ? 'WIN' : 'LOSS'}</span>`;
           wl2Html = `<span class="wl-pill ${t2Won ? 'wl-win' : 'wl-loss'}">${t2Won ? 'WIN' : 'LOSS'}</span>`;
         } else if (hasScores && (s1 > 0 || s2 > 0)) {
-          wl1Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 15">Live</span>`;
-          wl2Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 15">Live</span>`;
+          wl1Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 15">CURRENT</span>`;
+          wl2Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 15">CURRENT</span>`;
         }
 
         const formatP = (p) => (p === activePlayer ? `<span class="player-highlight-text"><span class="you-tag">YOU</span> ${p}</span>` : p);
@@ -2935,8 +3172,8 @@ const ROSTER = [
                     wl1Html = '<span class="wl-pill ' + (t1Won ? 'wl-win' : 'wl-loss') + '">' + (t1Won ? 'WIN' : 'LOSS') + '</span>';
                     wl2Html = '<span class="wl-pill ' + (t2Won ? 'wl-win' : 'wl-loss') + '">' + (t2Won ? 'WIN' : 'LOSS') + '</span>';
                   } else if (hasScores && (s1 > 0 || s2 > 0)) {
-                    wl1Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 21">Live</span>';
-                    wl2Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 21">Live</span>';
+                    wl1Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 21">CURRENT</span>';
+                    wl2Html = '<span class="wl-pill wl-pending" style="opacity:0.75;" title="Current / In Progress to 21">CURRENT</span>';
                   }
 
                   const isAdmin = isAdminUnlocked();
@@ -3459,7 +3696,7 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
             const winner = Number(f.s1) === 15 ? f.t1.join(' & ') : f.t2.join(' & ');
             statusText = `Concluded (${winner} won ${f.s1}–${f.s2})`;
           } else if (hasScores && (Number(f.s1) > 0 || Number(f.s2) > 0)) {
-            statusText = `Live (${s1}–${s2})`;
+            statusText = `In Progress (${s1}–${s2})`;
           }
           return `🏸 <strong>Match ${matchCode} Official Details:</strong><br>
 • <strong>Block & Time:</strong> Block ${Math.ceil(f.r / 3)} (${ROUND_TIMES[f.r] || ''})<br>
