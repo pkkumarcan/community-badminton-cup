@@ -144,6 +144,7 @@ const ROSTER = [
   // Default Stage 1 Template (12 Rounds, 4 Courts, 48 Matches)
   const BASE_FIXTURES = [
   {
+    "m": "M01",
     "r": 1,
     "c": 1,
     "t1": [
@@ -162,6 +163,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M02",
     "r": 1,
     "c": 2,
     "t1": [
@@ -180,6 +182,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M03",
     "r": 1,
     "c": 5,
     "t1": [
@@ -198,6 +201,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M04",
     "r": 1,
     "c": 8,
     "t1": [
@@ -216,6 +220,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M05",
     "r": 2,
     "c": 1,
     "t1": [
@@ -234,6 +239,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M06",
     "r": 2,
     "c": 2,
     "t1": [
@@ -252,6 +258,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M07",
     "r": 2,
     "c": 5,
     "t1": [
@@ -270,6 +277,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M08",
     "r": 2,
     "c": 8,
     "t1": [
@@ -288,6 +296,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M09",
     "r": 3,
     "c": 1,
     "t1": [
@@ -306,6 +315,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M10",
     "r": 3,
     "c": 2,
     "t1": [
@@ -324,6 +334,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M11",
     "r": 3,
     "c": 5,
     "t1": [
@@ -342,6 +353,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M12",
     "r": 3,
     "c": 8,
     "t1": [
@@ -360,6 +372,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M13",
     "r": 4,
     "c": 1,
     "t1": [
@@ -378,6 +391,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M14",
     "r": 4,
     "c": 2,
     "t1": [
@@ -396,6 +410,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M15",
     "r": 4,
     "c": 3,
     "t1": [
@@ -414,6 +429,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M16",
     "r": 4,
     "c": 8,
     "t1": [
@@ -432,6 +448,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M17",
     "r": 5,
     "c": 1,
     "t1": [
@@ -450,6 +467,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M18",
     "r": 5,
     "c": 2,
     "t1": [
@@ -468,6 +486,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M19",
     "r": 5,
     "c": 3,
     "t1": [
@@ -486,6 +505,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M20",
     "r": 5,
     "c": 8,
     "t1": [
@@ -504,6 +524,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M21",
     "r": 6,
     "c": 1,
     "t1": [
@@ -522,6 +543,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M22",
     "r": 6,
     "c": 2,
     "t1": [
@@ -540,6 +562,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M23",
     "r": 6,
     "c": 3,
     "t1": [
@@ -558,6 +581,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M24",
     "r": 6,
     "c": 8,
     "t1": [
@@ -576,6 +600,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M25",
     "r": 7,
     "c": 1,
     "t1": [
@@ -594,6 +619,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M26",
     "r": 7,
     "c": 2,
     "t1": [
@@ -612,6 +638,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M27",
     "r": 7,
     "c": 3,
     "t1": [
@@ -630,6 +657,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M28",
     "r": 7,
     "c": 8,
     "t1": [
@@ -648,6 +676,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M29",
     "r": 8,
     "c": 1,
     "t1": [
@@ -666,6 +695,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M30",
     "r": 8,
     "c": 2,
     "t1": [
@@ -684,6 +714,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M31",
     "r": 8,
     "c": 3,
     "t1": [
@@ -702,6 +733,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M32",
     "r": 8,
     "c": 8,
     "t1": [
@@ -720,6 +752,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M33",
     "r": 9,
     "c": 1,
     "t1": [
@@ -738,6 +771,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M34",
     "r": 9,
     "c": 2,
     "t1": [
@@ -756,6 +790,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M35",
     "r": 9,
     "c": 3,
     "t1": [
@@ -774,6 +809,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M36",
     "r": 9,
     "c": 8,
     "t1": [
@@ -792,6 +828,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M37",
     "r": 10,
     "c": 1,
     "t1": [
@@ -810,6 +847,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M38",
     "r": 10,
     "c": 2,
     "t1": [
@@ -828,6 +866,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M39",
     "r": 10,
     "c": 3,
     "t1": [
@@ -846,6 +885,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M40",
     "r": 10,
     "c": 8,
     "t1": [
@@ -864,6 +904,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M41",
     "r": 11,
     "c": 1,
     "t1": [
@@ -882,6 +923,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M42",
     "r": 11,
     "c": 2,
     "t1": [
@@ -900,6 +942,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M43",
     "r": 11,
     "c": 3,
     "t1": [
@@ -918,6 +961,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M44",
     "r": 11,
     "c": 8,
     "t1": [
@@ -936,6 +980,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M45",
     "r": 12,
     "c": 1,
     "t1": [
@@ -954,6 +999,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M46",
     "r": 12,
     "c": 2,
     "t1": [
@@ -972,6 +1018,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M47",
     "r": 12,
     "c": 3,
     "t1": [
@@ -990,6 +1037,7 @@ const ROSTER = [
     "s2": null
   },
   {
+    "m": "M48",
     "r": 12,
     "c": 8,
     "t1": [
@@ -1071,6 +1119,10 @@ const ROSTER = [
       const data = JSON.parse(raw);
       if (Array.isArray(data.fixtures) && data.fixtures.length === BASE_FIXTURES.length) {
         fixtures = data.fixtures;
+        // Ensure every fixture has its match code even if restored from an older saved session
+        fixtures.forEach((f, idx) => {
+          if (!f.m) f.m = BASE_FIXTURES[idx]?.m || ('M' + String(idx + 1).padStart(2, '0'));
+        });
       }
       if (data.finalsScores) {
         finalsScores = {
@@ -1372,14 +1424,15 @@ const ROSTER = [
 
       // Find next upcoming match or duty
       const nextMatch = fixtures.find(f => (f.s1 == null || f.s2 == null) && (f.t1.includes(selected) || f.t2.includes(selected) || f.refs.includes(selected)));
-      const nextDetail = document.getElementById("hubNextStatus");
+      const nextDetail = document.getElementById("hubNextMatchText") || document.getElementById("hubNextStatus");
       if (nextMatch) {
         const isRef = nextMatch.refs.includes(selected);
         const cInfo = COURT_INFO[nextMatch.c] || { name: `Court ${nextMatch.c}` };
+        const matchCode = nextMatch.m || ('M' + String(fixtures.indexOf(nextMatch) + 1).padStart(2, '0'));
         if (nextDetail) {
           nextDetail.innerHTML = isRef 
-            ? `👀 <strong>Referee Duty</strong>: Round ${nextMatch.r} on ${cInfo.name}` 
-            : `🏸 <strong>Next Match</strong>: Round ${nextMatch.r} on ${cInfo.name}`;
+            ? `👀 <strong>Referee Duty: Match ${matchCode}</strong> • Round ${nextMatch.r} on ${cInfo.name}` 
+            : `🏸 <strong>Next Match: Match ${matchCode}</strong> • Round ${nextMatch.r} on ${cInfo.name}`;
         }
       } else {
         if (nextDetail) nextDetail.textContent = "All 8 Stage 1 matches completed! Ready for Finals.";
@@ -1428,10 +1481,10 @@ const ROSTER = [
         <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600; margin-right:4px;">
           Showing <strong>${visibleFixtures.length}</strong> of 48 matches
         </span>
-        <button type="button" class="pill-btn" onclick="captureSchedulePhoto('schedTableCard')" style="font-size:0.75rem; padding:5px 10px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border-card); cursor:pointer;" title="Save all 11 columns as high-resolution PNG image">
+        <button type="button" class="pill-btn" onclick="captureSchedulePhoto('schedTableCard')" style="font-size:0.75rem; padding:5px 10px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border-card); cursor:pointer;" title="Save all 12 columns as high-resolution PNG image">
           <span>📸</span> Save Photo
         </button>
-        <button type="button" class="pill-btn" onclick="window.print()" style="font-size:0.75rem; padding:5px 10px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border-card); cursor:pointer;" title="Print / Save PDF (Landscape, all 11 columns fit in 1 row)">
+        <button type="button" class="pill-btn" onclick="window.print()" style="font-size:0.75rem; padding:5px 10px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border-card); cursor:pointer;" title="Print / Save PDF (Landscape, all 12 columns fit in 1 row)">
           <span>🖨️</span> Print PDF
         </button>
         <a href="poster.html" class="pill-btn" style="text-decoration:none; font-size:0.75rem; padding:5px 10px; background:var(--primary-light); color:var(--primary); border:1px solid var(--primary-border);" title="View Wallchart Poster">
@@ -1463,6 +1516,7 @@ const ROSTER = [
       table.innerHTML = `
         <thead>
           <tr>
+            <th>Match</th>
             <th>Round</th>
             <th>Time</th>
             <th>Court</th>
@@ -1494,7 +1548,7 @@ const ROSTER = [
           const bRow = document.createElement("tr");
           bRow.className = "block-header-row";
           bRow.innerHTML = `
-            <td colspan="11">
+            <td colspan="12">
               <span class="block-header-title">${bInfo.icon} ${bInfo.label}</span>
               <span class="block-header-sub">${bInfo.desc}</span>
             </td>
@@ -1572,9 +1626,11 @@ const ROSTER = [
               ? `<span class="view-score-box ${isConcluded ? (t2Won ? 'win' : 'loss') : 'live'}">${s2}</span>` 
               : `<span class="view-score-box pending">-</span>`);
 
+        const matchCode = f.m || ('M' + String(idx + 1).padStart(2, '0'));
         const tr = document.createElement("tr");
         tr.className = rowClass;
         tr.innerHTML = `
+          <td class="td-match"><span class="match-pill">${matchCode}</span></td>
           <td class="td-round"><span class="round-pill">R${String(f.r).padStart(2, '0')}</span></td>
           <td><span class="time-pill">${ROUND_TIMES[f.r] || ''}</span></td>
           <td>${courtBadge}</td>
@@ -1667,9 +1723,11 @@ const ROSTER = [
               <span class="view-score-box ${isConcluded ? (t2Won ? 'win' : 'loss') : (hasScores ? 'live' : 'pending')}">${s2 ?? '-'}</span>
             </div>`;
 
+        const matchCode = f.m || ('M' + String(idx + 1).padStart(2, '0'));
         card.innerHTML = `
           <div class="card-top">
             <div class="round-badge">
+              <span class="match-pill">${matchCode}</span>
               <span>Round ${f.r} (${ROUND_TIMES[f.r] || ''})</span>
               ${courtBadge}
             </div>
@@ -2468,6 +2526,36 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
 • <strong>3:00 PM:</strong> Awards Ceremony &amp; Mug Presentations 🏆`;
     }
 
+    // Match Number Specific Query (e.g., "M01", "M15", "Match 8", "who is playing in match 3")
+    const matchMatch = q.match(/\b(?:match\s*#?|m)(\d{1,2})\b/i);
+    if (matchMatch) {
+      const matchNum = parseInt(matchMatch[1], 10);
+      if (matchNum >= 1 && matchNum <= 48) {
+        const f = fixtures[matchNum - 1];
+        if (f) {
+          const matchCode = f.m || ('M' + String(matchNum).padStart(2, '0'));
+          const cInfo = COURT_INFO[f.c] || { name: `Court ${f.c}` };
+          const s1 = (f.s1 != null && f.s1 !== '') ? f.s1 : '-';
+          const s2 = (f.s2 != null && f.s2 !== '') ? f.s2 : '-';
+          const hasScores = f.s1 != null && f.s2 != null && f.s1 !== '' && f.s2 !== '';
+          let statusText = 'Pending';
+          if (hasScores && (Number(f.s1) === 15 || Number(f.s2) === 15)) {
+            const winner = Number(f.s1) === 15 ? f.t1.join(' & ') : f.t2.join(' & ');
+            statusText = `Concluded (${winner} won ${f.s1}–${f.s2})`;
+          } else if (hasScores && (Number(f.s1) > 0 || Number(f.s2) > 0)) {
+            statusText = `Live (${s1}–${s2})`;
+          }
+          return `🏸 <strong>Match ${matchCode} Official Details:</strong><br>
+• <strong>Round & Time:</strong> Round ${f.r} (${ROUND_TIMES[f.r] || ''})<br>
+• <strong>Court:</strong> ${cInfo.name} ${cInfo.sub ? '(' + cInfo.sub + ')' : ''}<br>
+• <strong>Team 1:</strong> <strong>${f.t1.join(' & ')}</strong><br>
+• <strong>Team 2:</strong> <strong>${f.t2.join(' & ')}</strong><br>
+• <strong>Referees:</strong> ${f.refs.join(' & ')}<br>
+• <strong>Status:</strong> ${statusText}`;
+        }
+      }
+    }
+
     // Check if query mentions a specific player or if user has a player selected
     let targetPlayer = PLAYERS.find(p => q.includes(p.toLowerCase()));
     if (!targetPlayer && selPlayer) {
@@ -2531,19 +2619,20 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
       if (nextMatch) {
         const isRef = nextMatch.refs.includes(targetPlayer);
         const cInfo = COURT_INFO[nextMatch.c] || { name: `Court ${nextMatch.c}` };
+        const matchCode = nextMatch.m || ('M' + String(fixtures.indexOf(nextMatch) + 1).padStart(2, '0'));
         if (isRef) {
-          return `👀 <strong>Next Duty for ${targetPlayer}:</strong><br>Refereeing in <strong>Round ${nextMatch.r} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong> with partner referee.`;
+          return `👀 <strong>Next Duty for ${targetPlayer}:</strong><br>Refereeing <strong>Match ${matchCode}</strong> in <strong>Round ${nextMatch.r} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong> with partner referee.`;
         } else {
           const partner = nextMatch.t1.includes(targetPlayer) 
             ? nextMatch.t1.find(p => p !== targetPlayer) 
             : nextMatch.t2.find(p => p !== targetPlayer);
           const opponents = nextMatch.t1.includes(targetPlayer) ? nextMatch.t2.join(" & ") : nextMatch.t1.join(" & ");
-          return `🏸 <strong>Next Match for ${targetPlayer}:</strong><br>• <strong>Round ${nextMatch.r} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong><br>• Partner: <strong>${partner}</strong><br>• Opponents: <strong>${opponents}</strong>`;
+          return `🏸 <strong>Next Match for ${targetPlayer}:</strong><br>• <strong>Match ${matchCode} (Round ${nextMatch.r}, ${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong><br>• Partner: <strong>${partner}</strong><br>• Opponents: <strong>${opponents}</strong>`;
         }
       } else {
         // All matches played or general schedule summary
         const pMatches = fixtures.filter(f => f.t1.includes(targetPlayer) || f.t2.includes(targetPlayer));
-        return `📋 <strong>${targetPlayer}</strong> plays in Rounds: <strong>${pMatches.map(m => 'R' + String(m.r).padStart(2, '0')).join(', ')}</strong>.<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Current Record: <strong>${pStats.wins}W - ${pStats.gp - pStats.wins}L</strong> (Rank #${pStats.rank}).`;
+        return `📋 <strong>${targetPlayer}</strong> plays in Matches: <strong>${pMatches.map(m => m.m || ('M' + String(fixtures.indexOf(m) + 1).padStart(2, '0'))).join(', ')}</strong> (Rounds ${pMatches.map(m => 'R' + String(m.r).padStart(2, '0')).join(', ')}).<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Current Record: <strong>${pStats.wins}W - ${pStats.gp - pStats.wins}L</strong> (Rank #${pStats.rank}).`;
       }
     } else if (asksAboutRecordOrMatches || asksAboutGoldChances) {
       return `👤 <strong>Personalized Live Stats:</strong><br>

@@ -365,9 +365,25 @@
 
     .court-num-lbl {
       font-weight: 800;
-      min-width: 75px;
+      min-width: 125px;
       color: #1e293b;
       font-size: 0.78rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .match-code-tag {
+      background: linear-gradient(135deg, #0b2559, #1e3a8a);
+      color: #fde047;
+      border: 1px solid rgba(253, 224, 71, 0.45);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 900;
+      font-size: 0.72rem;
+      letter-spacing: 0.5px;
+      display: inline-block;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
 
     .team-one-box {
@@ -972,9 +988,11 @@
 
         let matchesHtml = '';
         roundFixtures.forEach(f => {
+          const mIdx = FIXTURES.indexOf(f);
+          const mCode = f.m || ('M' + String(mIdx + 1).padStart(2, '0'));
           matchesHtml += `
             <div class="court-match-line">
-              <span class="court-num-lbl">Court ${f.c}</span>
+              <span class="court-num-lbl"><span class="match-code-tag">${mCode}</span> Court ${f.c}</span>
               <span class="team-one-box"><strong>${f.t1[0]}</strong> &amp; <strong>${f.t1[1]}</strong></span>
               <span class="vs-separator">vs</span>
               <span class="team-two-box"><strong>${f.t2[0]}</strong> &amp; <strong>${f.t2[1]}</strong></span>
@@ -1017,9 +1035,12 @@
 
         let rowsHtml = '';
         cFixtures.forEach(f => {
+          const mIdx = FIXTURES.indexOf(f);
+          const mCode = f.m || ('M' + String(mIdx + 1).padStart(2, '0'));
           const courtNote = f.c === 5 ? ' <span style="color:#059669; font-weight:800; font-size:0.72rem;">[C5]</span>' : '';
           rowsHtml += `
             <tr>
+              <td style="text-align:center; width:50px;"><span class="match-code-tag">${mCode}</span></td>
               <td class="time-col">${ROUND_TIMES[f.r]}${courtNote}</td>
               <td class="match-col">${f.t1[0]} &amp; ${f.t1[1]} <span style="color:#64748b; font-weight:600;">vs</span> ${f.t2[0]} &amp; ${f.t2[1]}</td>
               <td class="ref-col">${f.refs[0]} &amp; ${f.refs[1]}</td>
@@ -1037,8 +1058,9 @@
           <table class="court-table">
             <thead>
               <tr>
+                <th style="width:50px;">MATCH</th>
                 <th style="width:75px;">TIME</th>
-                <th style="text-align:left;">MATCH</th>
+                <th style="text-align:left;">PAIRING</th>
                 <th style="text-align:left;">REFS</th>
               </tr>
             </thead>

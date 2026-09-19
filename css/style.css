@@ -1246,6 +1246,33 @@ body {
 }
 
 /* Cell Specifics */
+.td-match {
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.match-pill {
+  display: inline-block;
+  background: linear-gradient(135deg, #0b2559, #1e3a8a);
+  color: #fde047;
+  border: 1px solid rgba(253, 224, 71, 0.45);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+  font-family: 'Outfit', monospace, sans-serif;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .match-pill {
+  background: linear-gradient(135deg, #1e3a8a, #0b2559);
+  border-color: rgba(253, 224, 71, 0.6);
+  color: #fde047;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 .td-round {
   font-weight: 800;
   color: var(--text-primary);
@@ -1578,18 +1605,19 @@ body {
     position: static !important;
   }
 
-  /* Specific column width percentages summing to 100% */
-  .sched-table th:nth-child(1), .sched-table td:nth-child(1) { width: 5.5% !important; } /* Round */
-  .sched-table th:nth-child(2), .sched-table td:nth-child(2) { width: 9% !important; }   /* Approx Time */
-  .sched-table th:nth-child(3), .sched-table td:nth-child(3) { width: 7.5% !important; } /* Court */
-  .sched-table th:nth-child(4), .sched-table td:nth-child(4) { width: 19% !important; }  /* Team 1 */
-  .sched-table th:nth-child(5), .sched-table td:nth-child(5) { width: 6.5% !important; } /* Score 1 */
-  .sched-table th:nth-child(6), .sched-table td:nth-child(6) { width: 5% !important; }   /* W/L 1 */
-  .sched-table th:nth-child(7), .sched-table td:nth-child(7) { width: 19% !important; }  /* Team 2 */
-  .sched-table th:nth-child(8), .sched-table td:nth-child(8) { width: 6.5% !important; } /* Score 2 */
-  .sched-table th:nth-child(9), .sched-table td:nth-child(9) { width: 5% !important; }   /* W/L 2 */
-  .sched-table th:nth-child(10), .sched-table td:nth-child(10) { width: 5% !important; } /* Point Diff */
-  .sched-table th:nth-child(11), .sched-table td:nth-child(11) { width: 12% !important; } /* Referees */
+  /* Specific column width percentages summing to 100% (12 columns) */
+  .sched-table th:nth-child(1), .sched-table td:nth-child(1) { width: 5% !important; }   /* Match */
+  .sched-table th:nth-child(2), .sched-table td:nth-child(2) { width: 5% !important; }   /* Round */
+  .sched-table th:nth-child(3), .sched-table td:nth-child(3) { width: 8.5% !important; } /* Approx Time */
+  .sched-table th:nth-child(4), .sched-table td:nth-child(4) { width: 7% !important; }   /* Court */
+  .sched-table th:nth-child(5), .sched-table td:nth-child(5) { width: 18% !important; }  /* Team 1 */
+  .sched-table th:nth-child(6), .sched-table td:nth-child(6) { width: 6% !important; }   /* Score 1 */
+  .sched-table th:nth-child(7), .sched-table td:nth-child(7) { width: 5% !important; }   /* W/L 1 */
+  .sched-table th:nth-child(8), .sched-table td:nth-child(8) { width: 18% !important; }  /* Team 2 */
+  .sched-table th:nth-child(9), .sched-table td:nth-child(9) { width: 6% !important; }   /* Score 2 */
+  .sched-table th:nth-child(10), .sched-table td:nth-child(10) { width: 5% !important; } /* W/L 2 */
+  .sched-table th:nth-child(11), .sched-table td:nth-child(11) { width: 5% !important; } /* Point Diff */
+  .sched-table th:nth-child(12), .sched-table td:nth-child(12) { width: 11.5% !important; } /* Referees */
 
   .tbl-score-box {
     border: none !important;
@@ -1607,7 +1635,7 @@ body {
     padding: 0 !important;
   }
 
-  .round-pill, .time-pill, .court-badge {
+  .match-pill, .round-pill, .time-pill, .court-badge {
     border: 1px solid #64748b !important;
     background: #ffffff !important;
     color: #000000 !important;
