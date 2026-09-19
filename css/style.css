@@ -475,6 +475,8 @@ body {
 .c2 { background: var(--court-2); }
 .c3 { background: var(--court-3); }
 .c4 { background: var(--court-4); }
+.c5 { background: #0891b2; }
+.c8 { background: #9333ea; }
 .ref-badge {
   background: var(--ref-border);
   color: #78350f;

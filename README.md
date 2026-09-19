@@ -26,10 +26,10 @@ Designed to be hosted directly on **GitHub Pages** with **zero build steps** and
 | 14 | Rajesh N. | **Rajesh N.** | 8 | 4 |
 | 15 | Rakesh | **Rakesh** | 8 | 4 |
 | 16 | Ranjeet | **Ranjeet** | 8 | 4 |
-| 17 | Ravi | **Ravi** | 8 | 4 |
-| 18 | Rohit | **Rohit** | 8 | 4 |
-| 19 | Sanjay | **Sanjay** | 8 | 4 |
-| 20 | Sarwan | **Sarwan** | 8 | 4 |
+| 17 | Rohit | **Rohit** | 8 | 4 |
+| 18 | Sanjay | **Sanjay** | 8 | 4 |
+| 19 | Sarwan | **Sarwan** | 8 | 4 |
+| 20 | Shashi | **Shashi** | 8 | 4 |
 | 21 | Sunny | **Sunny** | 8 | 4 |
 | 22 | Vijay | **Vijay** | 8 | 4 |
 | 23 | Vinod | **Vinod** | 8 | 4 |
@@ -61,11 +61,11 @@ The tournament fixture matrix was synthesized and mathematically audited using c
   - **🥇 Gold Championship (Court 1):** Ranks 1–6 (Snake-seeded: #1&#6, #2&#5, #3&#4)
   - **🥈 Silver Plate (Court 2):** Ranks 7–12 (Snake-seeded: #7&#12, #8&#11, #9&#10)
   - **🥉 Bronze Shield (Court 3):** Ranks 13–18 (Snake-seeded: #13&#18, #14&#17, #15&#16)
-  - **🛡️ Copper Bowl (Court 4):** Ranks 19–24 (Snake-seeded: #19&#24, #20&#23, #21&#22)
+  - **🛡️ Copper Cup (Court 8):** Ranks 19–24 (Snake-seeded: #19&#24, #20&#23, #21&#22)
   - *Finals Officiating:* 3-match round robin per court where the resting team referees, ensuring 2 plays + 1 ref per player.
 - **👤 Player Personal Hub:** Select your name from the dropdown to highlight your games, see your win/loss record, current rank, and immediate next match or referee duty.
-- **🏸 Court Filtering:** View matches across All Courts or filter directly to Court 1, Court 2, Court 3, or Court 4.
-- **💾 Automatic LocalStorage Persistence:** Scores and preferences are saved automatically in the browser (`v7` schema) with a non-destructive timestamped archival backup for legacy data.
+- **🏸 Court Filtering:** View matches across All Courts or filter directly to Court 1, Court 2, Court 3, Court 5, or Court 8.
+- **💾 Automatic LocalStorage Persistence:** Scores and preferences are saved automatically in the browser (`v8` schema) with a non-destructive timestamped archival backup for legacy data.
 - **⚙️ Organizer Desk Tools:**
   - 💾 Export Tournament Backup (JSON)
   - 📥 Import Tournament State (JSON)

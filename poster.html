@@ -453,6 +453,8 @@
     .court-card-header.c2 { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
     .court-card-header.c3 { background: linear-gradient(135deg, #059669, #047857); }
     .court-card-header.c4 { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+    .court-card-header.c5 { background: linear-gradient(135deg, #059669, #047857); }
+    .court-card-header.c8 { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
 
     .court-header-shuttles {
       font-size: 1.3rem;
@@ -786,7 +788,7 @@
       <div class="poster-bottom-row">
         <div class="yellow-sticky-card">
           ⏱️ <strong>10-Minute Match Slots</strong><br>
-          Courts run 12:05 PM – 1:55 PM simultaneously.
+          Courts run 12:00 PM – 1:50 PM simultaneously.
         </div>
         <div class="motto-banner-center">
           🏸 COMPETE • RESPECT • ELEVATE 🏸
@@ -822,18 +824,18 @@
           <thead>
             <tr>
               <th class="th-player">PLAYER</th>
-              <th>R01<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:05</span></th>
-              <th>R02<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:15</span></th>
-              <th>R03<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:25</span></th>
-              <th>R04<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:35</span></th>
-              <th>R05<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:45</span></th>
-              <th>R06<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:55</span></th>
-              <th>R07<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:05</span></th>
-              <th>R08<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:15</span></th>
-              <th>R09<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:25</span></th>
-              <th>R10<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:35</span></th>
-              <th>R11<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:45</span></th>
-              <th>R12<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:55</span></th>
+              <th>R01<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:00</span></th>
+              <th>R02<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:10</span></th>
+              <th>R03<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:20</span></th>
+              <th>R04<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:30</span></th>
+              <th>R05<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:40</span></th>
+              <th>R06<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">12:50</span></th>
+              <th>R07<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:00</span></th>
+              <th>R08<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:10</span></th>
+              <th>R09<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:20</span></th>
+              <th>R10<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:30</span></th>
+              <th>R11<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:40</span></th>
+              <th>R12<br><span style="font-size:0.64rem; font-weight:600; opacity:0.85;">1:50</span></th>
             </tr>
           </thead>
           <tbody id="matrixTableBody">
@@ -845,7 +847,7 @@
       <div class="poster-bottom-row">
         <div class="yellow-sticky-card">
           🏸 <strong>Court Availability:</strong><br>
-          Courts 1, 2, 3 &amp; 4 run 12:00 PM – 2:00 PM Stage 1.
+          Courts 1, 2, 5, 8 (Block 1) &amp; Courts 1, 2, 3, 8 (Blocks 2–4).
         </div>
         <div class="motto-banner-center">
           🏸 COMPETE • RESPECT • ELEVATE 🏸
@@ -869,89 +871,66 @@
     const PLAYERS = [
       "Ajeet", "Amit", "Deepak", "Hira", "Honey", "Hrithik",
       "Manoj", "Naresh", "Om", "Pardeep", "Partab", "Raja",
-      "Rajesh M.", "Rajesh N.", "Rakesh", "Ranjeet", "Ravi", "Rohit",
-      "Sanjay", "Sarwan", "Sunny", "Vijay", "Vinod", "Wijai"
+      "Rajesh M.", "Rajesh N.", "Rakesh", "Ranjeet", "Rohit",
+      "Sanjay", "Sarwan", "Shashi", "Sunny", "Vijay", "Vinod", "Wijai"
     ];
 
     const ROUND_TIMES = {
-      1: "12:05 PM", 2: "12:15 PM", 3: "12:25 PM", 4: "12:35 PM",
-      5: "12:45 PM", 6: "12:55 PM", 7: "1:05 PM", 8: "1:15 PM",
-      9: "1:25 PM", 10: "1:35 PM", 11: "1:45 PM", 12: "1:55 PM"
+      1: "12:00 PM", 2: "12:10 PM", 3: "12:20 PM", 4: "12:30 PM",
+      5: "12:40 PM", 6: "12:50 PM", 7: "1:00 PM", 8: "1:10 PM",
+      9: "1:20 PM", 10: "1:30 PM", 11: "1:40 PM", 12: "1:50 PM"
     };
 
     // Official 48 Stage 1 Fixtures (Matching Picture 1, Picture 2, & Picture 3)
-    const FIXTURES = [
-      // Round 1
-      { r: 1, c: 1, t1: ["Ajeet", "Om"], t2: ["Naresh", "Ranjeet"], refs: ["Ravi", "Wijai"] },
-      { r: 1, c: 2, t1: ["Amit", "Pardeep"], t2: ["Manoj", "Rakesh"], refs: ["Rohit", "Vinod"] },
-      { r: 1, c: 3, t1: ["Deepak", "Partab"], t2: ["Hrithik", "Rajesh N."], refs: ["Sanjay", "Vijay"] },
-      { r: 1, c: 4, t1: ["Hira", "Raja"], t2: ["Honey", "Rajesh M."], refs: ["Sarwan", "Sunny"] },
-
-      // Round 2
-      { r: 2, c: 1, t1: ["Ajeet", "Naresh"], t2: ["Ravi", "Wijai"], refs: ["Om", "Ranjeet"] },
-      { r: 2, c: 2, t1: ["Amit", "Manoj"], t2: ["Rohit", "Vinod"], refs: ["Pardeep", "Rakesh"] },
-      { r: 2, c: 3, t1: ["Deepak", "Hrithik"], t2: ["Sanjay", "Vijay"], refs: ["Partab", "Rajesh N."] },
-      { r: 2, c: 4, t1: ["Hira", "Honey"], t2: ["Sarwan", "Sunny"], refs: ["Raja", "Rajesh M."] },
-
-      // Round 3
-      { r: 3, c: 1, t1: ["Om", "Ravi"], t2: ["Ranjeet", "Wijai"], refs: ["Ajeet", "Naresh"] },
-      { r: 3, c: 2, t1: ["Pardeep", "Rohit"], t2: ["Rakesh", "Vinod"], refs: ["Amit", "Manoj"] },
-      { r: 3, c: 3, t1: ["Partab", "Sanjay"], t2: ["Rajesh N.", "Vijay"], refs: ["Deepak", "Hrithik"] },
-      { r: 3, c: 4, t1: ["Raja", "Sarwan"], t2: ["Rajesh M.", "Sunny"], refs: ["Hira", "Honey"] },
-
-      // Round 4
-      { r: 4, c: 1, t1: ["Ajeet", "Rakesh"], t2: ["Manoj", "Om"], refs: ["Sanjay", "Sarwan"] },
-      { r: 4, c: 2, t1: ["Naresh", "Rajesh N."], t2: ["Hrithik", "Ranjeet"], refs: ["Rohit", "Sunny"] },
-      { r: 4, c: 3, t1: ["Amit", "Rajesh M."], t2: ["Honey", "Pardeep"], refs: ["Wijai", "Vijay"] },
-      { r: 4, c: 4, t1: ["Deepak", "Raja"], t2: ["Hira", "Partab"], refs: ["Ravi", "Vinod"] },
-
-      // Round 5
-      { r: 5, c: 1, t1: ["Ajeet", "Manoj"], t2: ["Sanjay", "Sarwan"], refs: ["Rakesh", "Om"] },
-      { r: 5, c: 2, t1: ["Naresh", "Hrithik"], t2: ["Rohit", "Sunny"], refs: ["Rajesh N.", "Ranjeet"] },
-      { r: 5, c: 3, t1: ["Amit", "Honey"], t2: ["Wijai", "Vijay"], refs: ["Rajesh M.", "Pardeep"] },
-      { r: 5, c: 4, t1: ["Deepak", "Hira"], t2: ["Ravi", "Vinod"], refs: ["Raja", "Partab"] },
-
-      // Round 6
-      { r: 6, c: 1, t1: ["Rakesh", "Sanjay"], t2: ["Om", "Sarwan"], refs: ["Ajeet", "Manoj"] },
-      { r: 6, c: 2, t1: ["Rajesh N.", "Rohit"], t2: ["Ranjeet", "Sunny"], refs: ["Naresh", "Hrithik"] },
-      { r: 6, c: 3, t1: ["Rajesh M.", "Wijai"], t2: ["Pardeep", "Vijay"], refs: ["Amit", "Honey"] },
-      { r: 6, c: 4, t1: ["Raja", "Ravi"], t2: ["Partab", "Vinod"], refs: ["Deepak", "Hira"] },
-
-      // Round 7
-      { r: 7, c: 1, t1: ["Ajeet", "Rajesh M."], t2: ["Hrithik", "Rakesh"], refs: ["Vijay", "Ravi"] },
-      { r: 7, c: 2, t1: ["Manoj", "Rajesh N."], t2: ["Honey", "Om"], refs: ["Sunny", "Vinod"] },
-      { r: 7, c: 3, t1: ["Naresh", "Partab"], t2: ["Hira", "Pardeep"], refs: ["Sarwan", "Wijai"] },
-      { r: 7, c: 4, t1: ["Amit", "Raja"], t2: ["Deepak", "Ranjeet"], refs: ["Sanjay", "Rohit"] },
-
-      // Round 8
-      { r: 8, c: 1, t1: ["Ajeet", "Hrithik"], t2: ["Vijay", "Ravi"], refs: ["Rajesh M.", "Rakesh"] },
-      { r: 8, c: 2, t1: ["Manoj", "Honey"], t2: ["Sunny", "Vinod"], refs: ["Rajesh N.", "Om"] },
-      { r: 8, c: 3, t1: ["Naresh", "Hira"], t2: ["Sarwan", "Wijai"], refs: ["Partab", "Pardeep"] },
-      { r: 8, c: 4, t1: ["Amit", "Deepak"], t2: ["Sanjay", "Rohit"], refs: ["Raja", "Ranjeet"] },
-
-      // Round 9
-      { r: 9, c: 1, t1: ["Rajesh M.", "Vijay"], t2: ["Rakesh", "Ravi"], refs: ["Ajeet", "Hrithik"] },
-      { r: 9, c: 2, t1: ["Rajesh N.", "Sunny"], t2: ["Om", "Vinod"], refs: ["Manoj", "Honey"] },
-      { r: 9, c: 3, t1: ["Partab", "Sarwan"], t2: ["Pardeep", "Wijai"], refs: ["Naresh", "Hira"] },
-      { r: 9, c: 4, t1: ["Raja", "Sanjay"], t2: ["Ranjeet", "Rohit"], refs: ["Amit", "Deepak"] },
-
-      // Round 10
-      { r: 10, c: 1, t1: ["Ajeet", "Rajesh N."], t2: ["Honey", "Raja"], refs: ["Wijai", "Rohit"] },
-      { r: 10, c: 2, t1: ["Hrithik", "Om"], t2: ["Hira", "Rajesh M."], refs: ["Sanjay", "Vinod"] },
-      { r: 10, c: 3, t1: ["Manoj", "Ranjeet"], t2: ["Deepak", "Pardeep"], refs: ["Vijay", "Sarwan"] },
-      { r: 10, c: 4, t1: ["Naresh", "Rakesh"], t2: ["Amit", "Partab"], refs: ["Sunny", "Ravi"] },
-
-      // Round 11
-      { r: 11, c: 1, t1: ["Ajeet", "Honey"], t2: ["Wijai", "Rohit"], refs: ["Rajesh N.", "Raja"] },
-      { r: 11, c: 2, t1: ["Hrithik", "Hira"], t2: ["Sanjay", "Vinod"], refs: ["Om", "Rajesh M."] },
-      { r: 11, c: 3, t1: ["Manoj", "Deepak"], t2: ["Vijay", "Sarwan"], refs: ["Ranjeet", "Pardeep"] },
-      { r: 11, c: 4, t1: ["Naresh", "Amit"], t2: ["Sunny", "Ravi"], refs: ["Rakesh", "Partab"] },
-
-      // Round 12
-      { r: 12, c: 1, t1: ["Rajesh N.", "Wijai"], t2: ["Raja", "Rohit"], refs: ["Ajeet", "Honey"] },
-      { r: 12, c: 2, t1: ["Om", "Sanjay"], t2: ["Rajesh M.", "Vinod"], refs: ["Hrithik", "Hira"] },
-      { r: 12, c: 3, t1: ["Ranjeet", "Vijay"], t2: ["Pardeep", "Sarwan"], refs: ["Manoj", "Deepak"] },
-      { r: 12, c: 4, t1: ["Rakesh", "Sunny"], t2: ["Partab", "Ravi"], refs: ["Naresh", "Amit"] }
+        const FIXTURES = [
+      { r: 1, c: 1, t1: ["Ajeet", "Deepak"], t2: ["Hrithik", "Hira"], refs: ["Honey", "Manoj"] },
+      { r: 1, c: 2, t1: ["Partab", "Naresh"], t2: ["Rajesh N.", "Pardeep"], refs: ["Ranjeet", "Shashi"] },
+      { r: 1, c: 5, t1: ["Amit", "Rajesh M."], t2: ["Om", "Rakesh"], refs: ["Sunny", "Vijay"] },
+      { r: 1, c: 8, t1: ["Rohit", "Sanjay"], t2: ["Sarwan", "Vinod"], refs: ["Wijai", "Raja"] },
+      { r: 2, c: 1, t1: ["Ajeet", "Honey"], t2: ["Hrithik", "Manoj"], refs: ["Deepak", "Hira"] },
+      { r: 2, c: 2, t1: ["Partab", "Ranjeet"], t2: ["Rajesh N.", "Shashi"], refs: ["Naresh", "Pardeep"] },
+      { r: 2, c: 5, t1: ["Amit", "Sunny"], t2: ["Om", "Vijay"], refs: ["Rajesh M.", "Rakesh"] },
+      { r: 2, c: 8, t1: ["Rohit", "Wijai"], t2: ["Sarwan", "Raja"], refs: ["Sanjay", "Vinod"] },
+      { r: 3, c: 1, t1: ["Deepak", "Honey"], t2: ["Hira", "Manoj"], refs: ["Ajeet", "Hrithik"] },
+      { r: 3, c: 2, t1: ["Naresh", "Ranjeet"], t2: ["Pardeep", "Shashi"], refs: ["Partab", "Rajesh N."] },
+      { r: 3, c: 5, t1: ["Rajesh M.", "Sunny"], t2: ["Rakesh", "Vijay"], refs: ["Amit", "Om"] },
+      { r: 3, c: 8, t1: ["Sanjay", "Wijai"], t2: ["Vinod", "Raja"], refs: ["Rohit", "Sarwan"] },
+      { r: 4, c: 1, t1: ["Ajeet", "Sanjay"], t2: ["Amit", "Hira"], refs: ["Raja", "Honey"] },
+      { r: 4, c: 2, t1: ["Hrithik", "Pardeep"], t2: ["Sarwan", "Rajesh M."], refs: ["Sunny", "Shashi"] },
+      { r: 4, c: 3, t1: ["Partab", "Deepak"], t2: ["Om", "Naresh"], refs: ["Manoj", "Wijai"] },
+      { r: 4, c: 8, t1: ["Rajesh N.", "Vinod"], t2: ["Rohit", "Rakesh"], refs: ["Vijay", "Ranjeet"] },
+      { r: 5, c: 1, t1: ["Ajeet", "Raja"], t2: ["Amit", "Honey"], refs: ["Sanjay", "Hira"] },
+      { r: 5, c: 2, t1: ["Hrithik", "Sunny"], t2: ["Sarwan", "Shashi"], refs: ["Pardeep", "Rajesh M."] },
+      { r: 5, c: 3, t1: ["Partab", "Manoj"], t2: ["Om", "Wijai"], refs: ["Deepak", "Naresh"] },
+      { r: 5, c: 8, t1: ["Rajesh N.", "Vijay"], t2: ["Rohit", "Ranjeet"], refs: ["Vinod", "Rakesh"] },
+      { r: 6, c: 1, t1: ["Sanjay", "Raja"], t2: ["Hira", "Honey"], refs: ["Ajeet", "Amit"] },
+      { r: 6, c: 2, t1: ["Pardeep", "Sunny"], t2: ["Rajesh M.", "Shashi"], refs: ["Hrithik", "Sarwan"] },
+      { r: 6, c: 3, t1: ["Deepak", "Manoj"], t2: ["Naresh", "Wijai"], refs: ["Partab", "Om"] },
+      { r: 6, c: 8, t1: ["Vinod", "Vijay"], t2: ["Rakesh", "Ranjeet"], refs: ["Rajesh N.", "Rohit"] },
+      { r: 7, c: 1, t1: ["Hrithik", "Sanjay"], t2: ["Om", "Pardeep"], refs: ["Ranjeet", "Honey"] },
+      { r: 7, c: 2, t1: ["Amit", "Vinod"], t2: ["Sarwan", "Hira"], refs: ["Manoj", "Sunny"] },
+      { r: 7, c: 3, t1: ["Partab", "Rajesh M."], t2: ["Rohit", "Deepak"], refs: ["Wijai", "Vijay"] },
+      { r: 7, c: 8, t1: ["Ajeet", "Naresh"], t2: ["Rajesh N.", "Rakesh"], refs: ["Shashi", "Raja"] },
+      { r: 8, c: 1, t1: ["Hrithik", "Ranjeet"], t2: ["Om", "Honey"], refs: ["Sanjay", "Pardeep"] },
+      { r: 8, c: 2, t1: ["Amit", "Manoj"], t2: ["Sarwan", "Sunny"], refs: ["Vinod", "Hira"] },
+      { r: 8, c: 3, t1: ["Partab", "Wijai"], t2: ["Rohit", "Vijay"], refs: ["Rajesh M.", "Deepak"] },
+      { r: 8, c: 8, t1: ["Ajeet", "Shashi"], t2: ["Rajesh N.", "Raja"], refs: ["Naresh", "Rakesh"] },
+      { r: 9, c: 1, t1: ["Sanjay", "Ranjeet"], t2: ["Pardeep", "Honey"], refs: ["Hrithik", "Om"] },
+      { r: 9, c: 2, t1: ["Vinod", "Manoj"], t2: ["Hira", "Sunny"], refs: ["Amit", "Sarwan"] },
+      { r: 9, c: 3, t1: ["Rajesh M.", "Wijai"], t2: ["Deepak", "Vijay"], refs: ["Partab", "Rohit"] },
+      { r: 9, c: 8, t1: ["Naresh", "Shashi"], t2: ["Rakesh", "Raja"], refs: ["Ajeet", "Rajesh N."] },
+      { r: 10, c: 1, t1: ["Hrithik", "Rajesh M."], t2: ["Rajesh N.", "Sanjay"], refs: ["Raja", "Manoj"] },
+      { r: 10, c: 2, t1: ["Ajeet", "Hira"], t2: ["Sarwan", "Naresh"], refs: ["Wijai", "Honey"] },
+      { r: 10, c: 3, t1: ["Om", "Deepak"], t2: ["Rohit", "Vinod"], refs: ["Ranjeet", "Sunny"] },
+      { r: 10, c: 8, t1: ["Partab", "Rakesh"], t2: ["Amit", "Pardeep"], refs: ["Shashi", "Vijay"] },
+      { r: 11, c: 1, t1: ["Hrithik", "Raja"], t2: ["Rajesh N.", "Manoj"], refs: ["Rajesh M.", "Sanjay"] },
+      { r: 11, c: 2, t1: ["Ajeet", "Wijai"], t2: ["Sarwan", "Honey"], refs: ["Hira", "Naresh"] },
+      { r: 11, c: 3, t1: ["Om", "Ranjeet"], t2: ["Rohit", "Sunny"], refs: ["Deepak", "Vinod"] },
+      { r: 11, c: 8, t1: ["Partab", "Shashi"], t2: ["Amit", "Vijay"], refs: ["Rakesh", "Pardeep"] },
+      { r: 12, c: 1, t1: ["Rajesh M.", "Raja"], t2: ["Sanjay", "Manoj"], refs: ["Hrithik", "Rajesh N."] },
+      { r: 12, c: 2, t1: ["Hira", "Wijai"], t2: ["Naresh", "Honey"], refs: ["Ajeet", "Sarwan"] },
+      { r: 12, c: 3, t1: ["Deepak", "Ranjeet"], t2: ["Vinod", "Sunny"], refs: ["Om", "Rohit"] },
+      { r: 12, c: 8, t1: ["Rakesh", "Shashi"], t2: ["Pardeep", "Vijay"], refs: ["Partab", "Amit"] }
     ];
 
     let currentPosterView = 'rounds';
@@ -1021,14 +1000,14 @@
       container.innerHTML = '';
 
       const courtDefs = [
-        { c: 1, title: "COURT 1", cls: "c1", sub: "" },
-        { c: 2, title: "COURT 2", cls: "c2", sub: "" },
-        { c: 3, title: "COURT 3", cls: "c3", sub: "Court 5 for 12:05–12:25 • Court 3 from 12:35 onward" },
-        { c: 4, title: "COURT 4", cls: "c4", sub: "Venue Court 8 stream • 12:05 PM – 1:55 PM" }
+        { c: 1, title: "COURT 1", cls: "c1", sub: "Stage 1 Stream • 12:00 PM – 2:00 PM", matchFilter: f => f.c === 1 },
+        { c: 2, title: "COURT 2", cls: "c2", sub: "Stage 1 Stream • 12:00 PM – 2:00 PM", matchFilter: f => f.c === 2 },
+        { c: 3, title: "COURT 3 / 5", cls: "c3", sub: "Court 5 for 12:00–12:30 (R01–R03) • Court 3 from 12:30 onward (R04–R12)", matchFilter: f => f.c === 3 || f.c === 5 },
+        { c: 8, title: "COURT 8", cls: "c8", sub: "Stage 1 Stream • 12:00 PM – 2:00 PM", matchFilter: f => f.c === 8 }
       ];
 
       courtDefs.forEach(def => {
-        const cFixtures = FIXTURES.filter(f => f.c === def.c);
+        const cFixtures = FIXTURES.filter(def.matchFilter);
         cFixtures.sort((a, b) => a.r - b.r);
 
         const card = document.createElement('div');
@@ -1038,9 +1017,10 @@
 
         let rowsHtml = '';
         cFixtures.forEach(f => {
+          const courtNote = f.c === 5 ? ' <span style="color:#059669; font-weight:800; font-size:0.72rem;">[C5]</span>' : '';
           rowsHtml += `
             <tr>
-              <td class="time-col">${ROUND_TIMES[f.r].replace(':00', '').replace(' PM', '')} PM</td>
+              <td class="time-col">${ROUND_TIMES[f.r]}${courtNote}</td>
               <td class="match-col">${f.t1[0]} &amp; ${f.t1[1]} <span style="color:#64748b; font-weight:600;">vs</span> ${f.t2[0]} &amp; ${f.t2[1]}</td>
               <td class="ref-col">${f.refs[0]} &amp; ${f.refs[1]}</td>
             </tr>
