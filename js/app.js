@@ -110,10 +110,10 @@ const ROSTER = [
 
   // Mini-Pod Blocks Definition
   const BLOCKS = {
-    1: { num: 1, label: "Block 1: Rounds 1–3 (12:00 PM – 12:30 PM)", desc: "Courts 1, 2, 5, 8 • 6-Player Pods • Zero Inter-Court Movement", icon: "🏸" },
-    4: { num: 2, label: "Block 2: Rounds 4–6 (12:30 PM – 1:00 PM)", desc: "Courts 1, 2, 3, 8 • Reshuffle #1 Complete • 6-Player Pods Locked", icon: "🔄" },
-    7: { num: 3, label: "Block 3: Rounds 7–9 (1:00 PM – 1:30 PM)", desc: "Courts 1, 2, 3, 8 • Halfway Mark & Reshuffle #2 Complete • 6-Player Pods Locked", icon: "⚡" },
-    10: { num: 4, label: "Block 4: Rounds 10–12 (1:30 PM – 2:00 PM)", desc: "Courts 1, 2, 3, 8 • Final Reshuffle #3 Complete • Sprint to Finals", icon: "🔥" }
+    1: { num: 1, label: "Block 1 (12:00 PM – 12:30 PM)", desc: "Courts 1, 2, 5, 8 • 6-Player Pods • Zero Inter-Court Movement", icon: "🏸" },
+    4: { num: 2, label: "Block 2 (12:30 PM – 1:00 PM)", desc: "Courts 1, 2, 3, 8 • Reshuffle #1 Complete • 6-Player Pods Locked", icon: "🔄" },
+    7: { num: 3, label: "Block 3 (1:00 PM – 1:30 PM)", desc: "Courts 1, 2, 3, 8 • Halfway Mark & Reshuffle #2 Complete • 6-Player Pods Locked", icon: "⚡" },
+    10: { num: 4, label: "Block 4 (1:30 PM – 2:00 PM)", desc: "Courts 1, 2, 3, 8 • Final Reshuffle #3 Complete • Sprint to Finals", icon: "🔥" }
   };
 
   // Official 10-Minute Match Time Slots from Tournament Fixture Poster
@@ -1429,10 +1429,11 @@ const ROSTER = [
         const isRef = nextMatch.refs.includes(selected);
         const cInfo = COURT_INFO[nextMatch.c] || { name: `Court ${nextMatch.c}` };
         const matchCode = nextMatch.m || ('M' + String(fixtures.indexOf(nextMatch) + 1).padStart(2, '0'));
+        const blockNum = Math.ceil(nextMatch.r / 3);
         if (nextDetail) {
           nextDetail.innerHTML = isRef 
-            ? `👀 <strong>Referee Duty: Match ${matchCode}</strong> • Round ${nextMatch.r} on ${cInfo.name}` 
-            : `🏸 <strong>Next Match: Match ${matchCode}</strong> • Round ${nextMatch.r} on ${cInfo.name}`;
+            ? `👀 <strong>Referee Duty: Match ${matchCode}</strong> • Block ${blockNum} on ${cInfo.name}` 
+            : `🏸 <strong>Next Match: Match ${matchCode}</strong> • Block ${blockNum} on ${cInfo.name}`;
         }
       } else {
         if (nextDetail) nextDetail.textContent = "All 8 Stage 1 matches completed! Ready for Finals.";
@@ -1517,7 +1518,7 @@ const ROSTER = [
         <thead>
           <tr>
             <th>Match</th>
-            <th>Round</th>
+            <th>Block</th>
             <th>Time</th>
             <th>Court</th>
             <th style="text-align:left;">Team 1 Pair</th>
@@ -1631,7 +1632,7 @@ const ROSTER = [
         tr.className = rowClass;
         tr.innerHTML = `
           <td class="td-match"><span class="match-pill">${matchCode}</span></td>
-          <td class="td-round"><span class="round-pill">R${String(f.r).padStart(2, '0')}</span></td>
+          <td class="td-round"><span class="round-pill">Block ${Math.ceil(f.r / 3)}</span></td>
           <td><span class="time-pill">${ROUND_TIMES[f.r] || ''}</span></td>
           <td>${courtBadge}</td>
           <td class="team-pair-cell">🏸 <strong>${t1Html}</strong></td>
@@ -1669,7 +1670,7 @@ const ROSTER = [
           const div = document.createElement("div");
           div.className = "round-divider";
           div.innerHTML = `
-            <span class="round-divider-label">Round ${f.r} • ${ROUND_TIMES[f.r] || ''}</span>
+            <span class="round-divider-label">Block ${Math.ceil(f.r / 3)} • ${ROUND_TIMES[f.r] || ''}</span>
             <div class="round-divider-line"></div>
           `;
           container.appendChild(div);
@@ -1728,7 +1729,7 @@ const ROSTER = [
           <div class="card-top">
             <div class="round-badge">
               <span class="match-pill">${matchCode}</span>
-              <span>Round ${f.r} (${ROUND_TIMES[f.r] || ''})</span>
+              <span>Block ${Math.ceil(f.r / 3)} • ${ROUND_TIMES[f.r] || ''}</span>
               ${courtBadge}
             </div>
             ${isRef ? `<span class="badge ref-badge">👀 Referee Duty</span>` : ""}
@@ -2221,7 +2222,7 @@ const ROSTER = [
   };
 
   window.loadDemoData = function (skipConfirm = false) {
-    if (!skipConfirm && !confirm("Load realistic demo scores for all 12 rounds and finals?")) return;
+    if (!skipConfirm && !confirm("Load realistic demo scores for all Stage 1 blocks and Finals?")) return;
 
     fixtures.forEach((f, idx) => {
       // Realistic 15-point sudden death scores
@@ -2546,7 +2547,7 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
             statusText = `Live (${s1}–${s2})`;
           }
           return `🏸 <strong>Match ${matchCode} Official Details:</strong><br>
-• <strong>Round & Time:</strong> Round ${f.r} (${ROUND_TIMES[f.r] || ''})<br>
+• <strong>Block & Time:</strong> Block ${Math.ceil(f.r / 3)} (${ROUND_TIMES[f.r] || ''})<br>
 • <strong>Court:</strong> ${cInfo.name} ${cInfo.sub ? '(' + cInfo.sub + ')' : ''}<br>
 • <strong>Team 1:</strong> <strong>${f.t1.join(' & ')}</strong><br>
 • <strong>Team 2:</strong> <strong>${f.t2.join(' & ')}</strong><br>
@@ -2621,18 +2622,18 @@ Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderb
         const cInfo = COURT_INFO[nextMatch.c] || { name: `Court ${nextMatch.c}` };
         const matchCode = nextMatch.m || ('M' + String(fixtures.indexOf(nextMatch) + 1).padStart(2, '0'));
         if (isRef) {
-          return `👀 <strong>Next Duty for ${targetPlayer}:</strong><br>Refereeing <strong>Match ${matchCode}</strong> in <strong>Round ${nextMatch.r} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong> with partner referee.`;
+          return `👀 <strong>Next Duty for ${targetPlayer}:</strong><br>Refereeing <strong>Match ${matchCode}</strong> in <strong>Block ${Math.ceil(nextMatch.r / 3)} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong> with partner referee.`;
         } else {
           const partner = nextMatch.t1.includes(targetPlayer) 
             ? nextMatch.t1.find(p => p !== targetPlayer) 
             : nextMatch.t2.find(p => p !== targetPlayer);
           const opponents = nextMatch.t1.includes(targetPlayer) ? nextMatch.t2.join(" & ") : nextMatch.t1.join(" & ");
-          return `🏸 <strong>Next Match for ${targetPlayer}:</strong><br>• <strong>Match ${matchCode} (Round ${nextMatch.r}, ${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong><br>• Partner: <strong>${partner}</strong><br>• Opponents: <strong>${opponents}</strong>`;
+          return `🏸 <strong>Next Match for ${targetPlayer}:</strong><br>• <strong>Match ${matchCode} (Block ${Math.ceil(nextMatch.r / 3)}, ${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong><br>• Partner: <strong>${partner}</strong><br>• Opponents: <strong>${opponents}</strong>`;
         }
       } else {
         // All matches played or general schedule summary
         const pMatches = fixtures.filter(f => f.t1.includes(targetPlayer) || f.t2.includes(targetPlayer));
-        return `📋 <strong>${targetPlayer}</strong> plays in Matches: <strong>${pMatches.map(m => m.m || ('M' + String(fixtures.indexOf(m) + 1).padStart(2, '0'))).join(', ')}</strong> (Rounds ${pMatches.map(m => 'R' + String(m.r).padStart(2, '0')).join(', ')}).<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Current Record: <strong>${pStats.wins}W - ${pStats.gp - pStats.wins}L</strong> (Rank #${pStats.rank}).`;
+        return `📋 <strong>${targetPlayer}</strong> plays in Matches: <strong>${pMatches.map(m => m.m || ('M' + String(fixtures.indexOf(m) + 1).padStart(2, '0'))).join(', ')}</strong> (Blocks ${[...new Set(pMatches.map(m => Math.ceil(m.r / 3)))].join(', ')}).<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Current Record: <strong>${pStats.wins}W - ${pStats.gp - pStats.wins}L</strong> (Rank #${pStats.rank}).`;
       }
     } else if (asksAboutRecordOrMatches || asksAboutGoldChances) {
       return `👤 <strong>Personalized Live Stats:</strong><br>
