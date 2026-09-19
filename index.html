@@ -268,6 +268,54 @@
     </footer>
   </div>
 
+  <!-- FLOATING TOURNAMENT AI ASSISTANT BUTTON -->
+  <button type="button" id="aiChatToggleBtn" class="ai-chat-toggle-btn" onclick="toggleAiChat()" title="Ask Tournament AI" aria-label="Ask Tournament AI">
+    <span class="ai-sparkle">✨</span>
+    <span>Ask AI</span>
+  </button>
+
+  <!-- AI ASSISTANT CHAT DRAWER -->
+  <div id="aiChatDrawer" class="ai-chat-drawer hidden">
+    <div class="ai-chat-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="ai-badge-icon">🏸✨</span>
+        <div>
+          <div style="font-weight:800; font-size:0.92rem; color:#ffffff;">Tournament AI Assistant</div>
+          <div style="font-size:0.72rem; color:#94a3b8;">Instant answers for players &amp; spectators</div>
+        </div>
+      </div>
+      <button type="button" class="ai-close-btn" onclick="toggleAiChat()" aria-label="Close AI Chat">✕</button>
+    </div>
+
+    <div class="ai-chat-messages" id="aiChatMessages">
+      <div class="ai-msg bot">
+        👋 Hi! I am your <strong>Sindh Boys Badminton Cup AI Assistant</strong>.
+        <br><br>
+        Ask me anything about:
+        <ul style="margin: 6px 0 0 16px; padding:0; font-size:0.8rem; line-height:1.45;">
+          <li>Your next match, court, or referee assignment</li>
+          <li>Your 8 unique doubles partners</li>
+          <li>How to qualify for the Gold Championship</li>
+          <li>Referee rules &amp; knocking guidelines</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Quick question prompt chips -->
+    <div class="ai-quick-prompts">
+      <button type="button" class="ai-prompt-chip" onclick="askAiPrompt('When is my next match?')">⏱️ When is my next match?</button>
+      <button type="button" class="ai-prompt-chip" onclick="askAiPrompt('Who are all my 8 partners?')">👥 Who are my partners?</button>
+      <button type="button" class="ai-prompt-chip" onclick="askAiPrompt('How do I qualify for Gold?')">🥇 How to reach Gold?</button>
+      <button type="button" class="ai-prompt-chip" onclick="askAiPrompt('How much knocking time do we get?')">🏸 Knocking time?</button>
+      <button type="button" class="ai-prompt-chip" onclick="askAiPrompt('What are referee duties?')">👀 Referee duties</button>
+    </div>
+
+    <form class="ai-chat-input-bar" onsubmit="handleAiChatSubmit(event)">
+      <input type="text" id="aiChatInput" placeholder="Ask a question (e.g. When does Ajeet play?)..." autocomplete="off">
+      <button type="submit" id="aiChatSendBtn" aria-label="Send message">➤</button>
+    </form>
+  </div>
+
   <!-- PIN UNLOCK MODAL -->
   <div id="pinModal" class="modal-overlay" onclick="if(event.target===this) closePinModal()">
     <div class="modal-card" style="max-width:380px; text-align:center;">

@@ -2250,6 +2250,169 @@ const ROSTER = [
     });
   };
 
+  // ---------- TOURNAMENT AI ASSISTANT CONCIERGE ----------
+  window.toggleAiChat = function () {
+    const drawer = document.getElementById("aiChatDrawer");
+    if (!drawer) return;
+    const isHidden = drawer.classList.contains("hidden");
+    drawer.classList.toggle("hidden", !isHidden);
+    if (isHidden) {
+      setTimeout(() => document.getElementById("aiChatInput")?.focus(), 100);
+    }
+  };
+
+  window.askAiPrompt = function (text) {
+    const input = document.getElementById("aiChatInput");
+    if (input) input.value = text;
+    window.handleAiChatSubmit();
+  };
+
+  window.handleAiChatSubmit = function (e) {
+    if (e) e.preventDefault();
+    const input = document.getElementById("aiChatInput");
+    const container = document.getElementById("aiChatMessages");
+    if (!input || !container) return;
+    const query = input.value.trim();
+    if (!query) return;
+
+    // Append user message
+    const userMsg = document.createElement("div");
+    userMsg.className = "ai-msg user";
+    userMsg.textContent = query;
+    container.appendChild(userMsg);
+    input.value = "";
+
+    // Process AI response
+    setTimeout(() => {
+      const response = processAiQuery(query);
+      const botMsg = document.createElement("div");
+      botMsg.className = "ai-msg bot";
+      botMsg.innerHTML = response;
+      container.appendChild(botMsg);
+      container.scrollTop = container.scrollHeight;
+    }, 180);
+
+    container.scrollTop = container.scrollHeight;
+  };
+
+  function processAiQuery(rawQ) {
+    const q = rawQ.toLowerCase();
+    const selPlayer = document.getElementById("playerSelect")?.value || "";
+
+    // STRICT PRIVACY CHECK: Player levels / ratings / rankings before tournament
+    if (
+      q.includes("rating") || q.includes("rated") || q.includes("level") ||
+      q.includes("skill") || q.includes("strong") || q.includes("junior") ||
+      q.includes("intermediate") || q.includes("tier 3") || q.includes("tier 2") ||
+      q.includes("tier 1") || q.includes("handicap") || q.includes("seeding level") ||
+      q.includes("who is better") || q.includes("who is best") || q.includes("who is strong")
+    ) {
+      return `🏸 <strong>Player Privacy &amp; Fair Play Policy:</strong><br>
+All 24 players in the Sindh Boys Badminton Cup compete in balanced round-robin pods. Individual prior skill ratings or organizer levels are strictly private and not disclosed.<br><br>
+All players receive equal playing time (8 matches), and all rankings are determined purely by your performance, wins, and points earned on court today! 🌟`;
+    }
+
+    // Knocking / Warm-up
+    if (q.includes("knock") || q.includes("warm") || q.includes("warmup")) {
+      return `⏱️ <strong>Knocking &amp; Warm-up Rules:</strong><br>
+• <strong>Before 12:00 PM:</strong> 15 minutes of free knocking across all courts.<br>
+• <strong>Start of Each Block (R1, R4, R7, R10):</strong> Strict 60–90 seconds only.<br>
+• <strong>Inside the Block (Matches 2 &amp; 3):</strong> ZERO knocking! Referees step directly onto court as next players.<br>
+• <strong>Stage 2 Finals:</strong> 2 minutes warm-up before championship matches.`;
+    }
+
+    // Gold Qualification
+    if (q.includes("gold") || q.includes("reach gold") || q.includes("qualify")) {
+      return `🥇 <strong>How to Reach the Gold Championship:</strong><br>
+Finish in the <strong>Top 6 (Ranks 1 through 6)</strong> on the official leaderboard at 2:00 PM.<br><br>
+<strong>Ranking Formula:</strong><br>
+1. Total Wins (out of 8)<br>
+2. Net Point Differential (+/-)<br>
+3. Total Points Scored<br><br>
+• <strong>6–8 Wins:</strong> Almost guaranteed Gold.<br>
+• <strong>5 Wins:</strong> High probability if you win by large point margins! Every rally counts!`;
+    }
+
+    // Referee Duties
+    if (q.includes("ref") || q.includes("umpire") || q.includes("line judge") || q.includes("duty")) {
+      return `👀 <strong>Referee &amp; Line Judge Duties:</strong><br>
+• <strong>Ref 1 (Scorekeeper):</strong> Stands near diagonal corner, announces score before each serve, and submits match scores in this portal.<br>
+• <strong>Ref 2 (Line Judge):</strong> Positions at the opposite diagonal corner, judging baseline and sideline calls.<br>
+• Every player referees exactly <strong>4 matches</strong> during Stage 1.`;
+    }
+
+    // Court Availability
+    if (q.includes("court") && (q.includes("where") || q.includes("which") || q.includes("available") || q.includes("venue"))) {
+      return `🏸 <strong>Court Allocations:</strong><br>
+• <strong>Block 1 (12:00–12:30 PM):</strong> Courts 1, 2, 5, 8<br>
+• <strong>Blocks 2–4 (12:30–2:00 PM):</strong> Courts 1, 2, 3, 8<br>
+• <strong>Stage 2 Finals (2:00–3:00 PM):</strong><br>
+  - Gold: Court 1<br>
+  - Silver: Court 2<br>
+  - Bronze: Court 3<br>
+  - Copper: Court 8`;
+    }
+
+    // Schedule / Times
+    if (q.includes("time") || q.includes("schedule") || q.includes("block")) {
+      return `📅 <strong>Tournament Timeline:</strong><br>
+• <strong>12:00–12:30 PM:</strong> Stage 1 Block 1 (R01–R03)<br>
+• <strong>12:30–1:00 PM:</strong> Stage 1 Block 2 (R04–R06)<br>
+• <strong>1:00–1:30 PM:</strong> Stage 1 Block 3 (R07–R09)<br>
+• <strong>1:30–2:00 PM:</strong> Stage 1 Block 4 (R10–R12)<br>
+• <strong>2:00–3:00 PM:</strong> Stage 2 Championship Finals (Gold, Silver, Bronze, Copper)<br>
+• <strong>3:00 PM:</strong> Awards Ceremony &amp; Mug Presentations 🏆`;
+    }
+
+    // Check if query mentions a specific player or if user has a player selected
+    let targetPlayer = PLAYERS.find(p => q.includes(p.toLowerCase()));
+    if (!targetPlayer && selPlayer) {
+      targetPlayer = selPlayer;
+    }
+
+    if (targetPlayer) {
+      // Find all partners
+      const partners = [];
+      fixtures.forEach(f => {
+        if (f.t1.includes(targetPlayer)) partners.push(f.t1.find(p => p !== targetPlayer));
+        if (f.t2.includes(targetPlayer)) partners.push(f.t2.find(p => p !== targetPlayer));
+      });
+
+      if (q.includes("partner")) {
+        return `👥 <strong>${targetPlayer}'s 8 Unique Partners:</strong><br>${partners.map((p, i) => `• Match ${i+1}: <strong>${p}</strong>`).join("<br>")}<br><br><em>100% unique partners guaranteed across all 8 matches!</em>`;
+      }
+
+      // Next match or status
+      const nextMatch = fixtures.find(f => (f.s1 == null || f.s2 == null) && (f.t1.includes(targetPlayer) || f.t2.includes(targetPlayer) || f.refs.includes(targetPlayer)));
+      if (nextMatch) {
+        const isRef = nextMatch.refs.includes(targetPlayer);
+        const cInfo = COURT_INFO[nextMatch.c] || { name: `Court ${nextMatch.c}` };
+        if (isRef) {
+          return `👀 <strong>Next Duty for ${targetPlayer}:</strong><br>Refereeing in <strong>Round ${nextMatch.r} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong> with partner referee.`;
+        } else {
+          const partner = nextMatch.t1.includes(targetPlayer) 
+            ? nextMatch.t1.find(p => p !== targetPlayer) 
+            : nextMatch.t2.find(p => p !== targetPlayer);
+          const opponents = nextMatch.t1.includes(targetPlayer) ? nextMatch.t2.join(" & ") : nextMatch.t1.join(" & ");
+          return `🏸 <strong>Next Match for ${targetPlayer}:</strong><br>• <strong>Round ${nextMatch.r} (${ROUND_TIMES[nextMatch.r] || ''})</strong> on <strong>${cInfo.name}</strong><br>• Partner: <strong>${partner}</strong><br>• Opponents: <strong>${opponents}</strong>`;
+        }
+      } else {
+        // All matches played or general schedule summary
+        const pMatches = fixtures.filter(f => f.t1.includes(targetPlayer) || f.t2.includes(targetPlayer));
+        return `📋 <strong>${targetPlayer}</strong> plays in Rounds: <strong>${pMatches.map(m => 'R' + String(m.r).padStart(2, '0')).join(', ')}</strong>.<br>Partners: ${partners.slice(0, 4).join(', ')}, etc.<br>Select <strong>${targetPlayer}</strong> from the top dropdown to highlight all matches!`;
+      }
+    }
+
+    // Generic helpful fallback
+    return `🏸 <strong>Tournament Assistant:</strong><br>
+I can answer questions about match times, courts, partners, referee duties, or rules.<br><br>
+Try asking:<br>
+• <em>"When is Ajeet playing?"</em><br>
+• <em>"Who are my partners?"</em> (Select your name in the dropdown)<br>
+• <em>"How do I qualify for Gold?"</em><br>
+• <em>"How much knocking time do we get?"</em>`;
+  }
+
   // ---------- INITIALIZATION ----------
   document.addEventListener("DOMContentLoaded", () => {
     const params = new URLSearchParams(window.location.search);
