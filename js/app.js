@@ -1786,6 +1786,112 @@ const ROSTER = [
     }));
   }
 
+
+  // ---------- BUILD FINALS POOLS (SNAKE SEEDING) ----------
+  function buildFinalsPools(leaderboard) {
+    const tierSlice = (start) => leaderboard.slice(start, start + 6).map(s => s.name);
+    
+    // Balanced Snake Pairing:
+    // Team 1: #1 & #6 (or #7 & #12, #13 & #18, #19 & #24)
+    // Team 2: #2 & #5 (or #8 & #11, #14 & #17, #20 & #23)
+    // Team 3: #3 & #4 (or #9 & #10, #15 & #16, #21 & #22)
+    const makeTeams = (arr) => [
+      [arr[0] || "Rank 1", arr[5] || "Rank 6"],
+      [arr[1] || "Rank 2", arr[4] || "Rank 5"],
+      [arr[2] || "Rank 3", arr[3] || "Rank 4"]
+    ];
+
+    const goldNames = tierSlice(0);
+    const silverNames = tierSlice(6);
+    const bronzeNames = tierSlice(12);
+    const copperNames = tierSlice(18);
+
+    const goldTeams = makeTeams(goldNames);
+    const silverTeams = makeTeams(silverNames);
+    const bronzeTeams = makeTeams(bronzeNames);
+    const copperTeams = makeTeams(copperNames);
+
+    return [
+      {
+        key: "gold",
+        label: "Gold Championship (Court 1)",
+        courtNum: 1,
+        cls: "tier-gold",
+        teams: goldTeams,
+        matches: genPoolMatches(goldTeams[0], goldTeams[1], goldTeams[2], "GOLD", "gold")
+      },
+      {
+        key: "silver",
+        label: "Silver Plate (Court 2)",
+        courtNum: 2,
+        cls: "tier-silver",
+        teams: silverTeams,
+        matches: genPoolMatches(silverTeams[0], silverTeams[1], silverTeams[2], "SILVER", "silver")
+      },
+      {
+        key: "bronze",
+        label: "Bronze Shield (Court 3)",
+        courtNum: 3,
+        cls: "tier-bronze",
+        teams: bronzeTeams,
+        matches: genPoolMatches(bronzeTeams[0], bronzeTeams[1], bronzeTeams[2], "BRONZE", "bronze")
+      },
+      {
+        key: "copper",
+        label: "Copper Cup (Court 8)",
+        courtNum: 8,
+        cls: "tier-copper",
+        teams: copperTeams,
+        matches: genPoolMatches(copperTeams[0], copperTeams[1], copperTeams[2], "COPPER", "copper")
+      }
+    ];
+  }
+
+  // ---------- COMPUTE POOL STANDINGS ----------
+  function computePoolStandings(pool) {
+    const names = [...new Set(pool.matches.flatMap(m => [...m.t1, ...m.t2]))];
+    const stats = {};
+    names.forEach(n => {
+      stats[n] = { name: n, gp: 0, wins: 0, losses: 0, pts: 0, pa: 0, ga: 0 };
+    });
+
+    pool.matches.forEach(m => {
+      if (m.s1 == null || m.s2 == null || m.s1 === "" || m.s2 === "") return;
+      const s1 = Number(m.s1);
+      const s2 = Number(m.s2);
+      const isConcluded = (s1 === 21 || s2 === 21) && s1 !== s2;
+      if (!isConcluded) return;
+
+      const t1win = s1 === 21;
+      m.t1.forEach(p => {
+        if (!stats[p]) return;
+        stats[p].gp++;
+        stats[p].pts += s1;
+        stats[p].pa += s2;
+        stats[p].ga += s2;
+        if (t1win) stats[p].wins++;
+        else stats[p].losses++;
+      });
+      m.t2.forEach(p => {
+        if (!stats[p]) return;
+        stats[p].gp++;
+        stats[p].pts += s2;
+        stats[p].pa += s1;
+        stats[p].ga += s1;
+        if (!t1win) stats[p].wins++;
+        else stats[p].losses++;
+      });
+    });
+
+    const list = Object.values(stats).map(s => ({
+      ...s,
+      diff: s.pts - s.pa
+    }));
+
+    list.sort((a, b) => (b.wins - a.wins) || (b.diff - a.diff) || (b.pts - a.pts));
+    return list;
+  }
+
   // ---------- RENDERING: FINALS TAB ----------
   function renderFinals() {
     const container = document.getElementById("finalsContainer");
