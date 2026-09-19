@@ -61,14 +61,17 @@
       <button type="button" class="tab-btn active" id="tabBtn-home" onclick="switchTab('home')">
         <span>🏠</span> My Tournament
       </button>
+      <button type="button" class="tab-btn" id="tabBtn-mymatches" onclick="switchTab('mymatches')">
+        <span>🏸</span> My Matches
+      </button>
       <button type="button" class="tab-btn" id="tabBtn-fixtures" onclick="switchTab('fixtures')">
-        <span>📝</span> Scoring Sheet
+        <span>📅</span> Schedule
       </button>
       <button type="button" class="tab-btn" id="tabBtn-leaderboard" onclick="switchTab('leaderboard')">
-        <span>📊</span> Leaderboard
+        <span>🏆</span> Standings
       </button>
       <button type="button" class="tab-btn" id="tabBtn-finals" onclick="switchTab('finals')">
-        <span>🏆</span> Finals
+        <span>🏅</span> Finals
       </button>
       <button type="button" class="tab-btn" id="tabBtn-rules" onclick="switchTab('rules')">
         <span>📖</span> Rules
@@ -83,9 +86,14 @@
       <div class="filter-grid">
         <div class="filter-group">
           <label for="playerSelect">👤 Filter By Player</label>
-          <select id="playerSelect" class="select-styled">
-            <option value="">-- All 24 Players (Full Tournament View) --</option>
-          </select>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select id="playerSelect" class="select-styled" style="flex:1;">
+              <option value="">-- All 24 Players (Full Tournament View) --</option>
+            </select>
+            <button type="button" class="pill-btn" id="btnFilterMine" onclick="filterByMine()" title="Filter to your own matches" style="white-space:nowrap; padding:8px 12px; font-size:0.78rem; font-weight:800; background:var(--primary-light); color:var(--primary); border:1px solid var(--primary-border);">
+              ⭐ Mine
+            </button>
+          </div>
         </div>
         <div class="filter-group">
           <label>🏸 Filter Court</label>
@@ -96,6 +104,16 @@
             <button type="button" class="pill-btn court-filter-btn" data-court="3" onclick="filterByCourt('3')">Court 3</button>
             <button type="button" class="pill-btn court-filter-btn" data-court="5" onclick="filterByCourt('5')">Court 5</button>
             <button type="button" class="pill-btn court-filter-btn" data-court="8" onclick="filterByCourt('8')">Court 8</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label>⚡ Filter Block</label>
+          <div class="quick-filter-btns">
+            <button type="button" class="pill-btn block-filter-btn active" data-block="all" onclick="filterByBlock('all')">All Blocks</button>
+            <button type="button" class="pill-btn block-filter-btn" data-block="1" onclick="filterByBlock('1')">Block 1</button>
+            <button type="button" class="pill-btn block-filter-btn" data-block="2" onclick="filterByBlock('2')">Block 2</button>
+            <button type="button" class="pill-btn block-filter-btn" data-block="3" onclick="filterByBlock('3')">Block 3</button>
+            <button type="button" class="pill-btn block-filter-btn" data-block="4" onclick="filterByBlock('4')">Block 4</button>
           </div>
         </div>
       </div>
@@ -141,6 +159,13 @@
         </div>
       </section>
 
+      <!-- TAB 0.5: PERSONALIZED MY MATCHES -->
+      <section id="tab-mymatches" class="tab-pane hidden" style="display:none;">
+        <div id="myMatchesContainer" class="my-matches-container">
+          <!-- Rendered dynamically by renderMyMatches() -->
+        </div>
+      </section>
+
       <!-- TAB 1: SCORING SHEET / FIXTURES -->
       <section id="tab-fixtures" class="tab-pane hidden" style="display:none;">
         
@@ -180,10 +205,10 @@
                 <tr>
                   <th>#</th>
                   <th style="text-align:left;">Player</th>
-                  <th>GP</th>
+                  <th class="col-secondary">GP</th>
                   <th>W</th>
-                  <th>PTS</th>
-                  <th>PA</th>
+                  <th class="col-secondary">PTS</th>
+                  <th class="col-secondary">PA</th>
                   <th>Diff</th>
                   <th>Finals Pool</th>
                 </tr>
@@ -405,6 +430,93 @@
       <button type="button" class="onboarding-skip-btn" onclick="skipPlayerOnboarding()">
         View full tournament without selecting
       </button>
+    </div>
+  </div>
+
+  <!-- FIXED MOBILE BOTTOM NAVIGATION (Phase 3) -->
+  <nav class="mobile-bottom-nav" aria-label="Mobile Bottom Navigation">
+    <button type="button" class="mob-nav-item active" id="tabBtn-mob-home" onclick="switchTab('home')" aria-label="Home / My Tournament" aria-current="page">
+      <span class="mob-nav-icon">🏠</span>
+      <span>Home</span>
+    </button>
+    <button type="button" class="mob-nav-item" id="tabBtn-mob-mymatches" onclick="switchTab('mymatches')" aria-label="My Matches">
+      <span class="mob-nav-icon">🏸</span>
+      <span>My Matches</span>
+    </button>
+    <button type="button" class="mob-nav-item" id="tabBtn-mob-fixtures" onclick="switchTab('fixtures')" aria-label="Schedule">
+      <span class="mob-nav-icon">📅</span>
+      <span>Schedule</span>
+    </button>
+    <button type="button" class="mob-nav-item" id="tabBtn-mob-leaderboard" onclick="switchTab('leaderboard')" aria-label="Standings">
+      <span class="mob-nav-icon">🏆</span>
+      <span>Standings</span>
+    </button>
+    <button type="button" class="mob-nav-item" id="btn-mob-more" onclick="openMoreMenu()" aria-label="More Options" aria-haspopup="dialog">
+      <span class="mob-nav-icon">⋯</span>
+      <span>More</span>
+    </button>
+  </nav>
+
+  <!-- MORE MENU BOTTOM SHEET / MODAL (Phase 3) -->
+  <div id="moreMenuModal" class="modal-overlay" onclick="if(event.target===this) closeMoreMenu()">
+    <div class="modal-card more-menu-card" role="dialog" aria-modal="true" aria-label="More Tournament Options">
+      <div class="more-menu-header">
+        <h3 class="more-menu-heading">
+          <span>⋯</span> Tournament Menu
+        </h3>
+        <button type="button" class="more-menu-close" onclick="closeMoreMenu()" aria-label="Close menu">&times;</button>
+      </div>
+      <div class="more-menu-grid">
+        <button type="button" class="more-menu-btn" onclick="switchTab('finals'); closeMoreMenu();">
+          <span class="more-menu-icon">🏅</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Finals</div>
+            <div class="more-menu-sub">Balanced Snake Pools (Gold/Silver/Bronze/Copper)</div>
+          </div>
+        </button>
+        <button type="button" class="more-menu-btn" onclick="switchTab('rules'); closeMoreMenu();">
+          <span class="more-menu-icon">📖</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Rules &amp; Referee Guide</div>
+            <div class="more-menu-sub">4-Block Structure, 15-Pt Scoring &amp; Line Judge Rules</div>
+          </div>
+        </button>
+        <a href="poster.html" class="more-menu-btn" style="text-decoration:none;">
+          <span class="more-menu-icon">🖼️</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Poster Wallchart</div>
+            <div class="more-menu-sub">FIFA-Style 48-Match Tournament Graphic</div>
+          </div>
+        </a>
+        <button type="button" class="more-menu-btn" onclick="toggleTheme(); closeMoreMenu();">
+          <span class="more-menu-icon" id="moreThemeIcon">🌙</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Toggle Dark / Light Mode</div>
+            <div class="more-menu-sub">Switch between Light and Dark Theme</div>
+          </div>
+        </button>
+        <button type="button" class="more-menu-btn" onclick="toggleAdminLock(); closeMoreMenu();">
+          <span class="more-menu-icon">🔒</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title" id="moreAdminTitle">Admin Unlock</div>
+            <div class="more-menu-sub">Enter Organizer PIN (1234) for score editing</div>
+          </div>
+        </button>
+        <button type="button" class="more-menu-btn" onclick="openOrganizerModal(); closeMoreMenu();">
+          <span class="more-menu-icon">⚙️</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Organizer Desk Tools</div>
+            <div class="more-menu-sub">Data Backup, JSON Import &amp; Demo Mode</div>
+          </div>
+        </button>
+        <button type="button" class="more-menu-btn" onclick="printTournament(); closeMoreMenu();">
+          <span class="more-menu-icon">🖨️</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Print Scoresheet</div>
+            <div class="more-menu-sub">Generate Printable / PDF Scoresheet</div>
+          </div>
+        </button>
+      </div>
     </div>
   </div>
 

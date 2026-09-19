@@ -1074,8 +1074,9 @@ const ROSTER = [
     copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
   };
 
-  let currentCourtFilter = "all"; // 'all', '1', '2', '3', '4'
-  let scheduleViewMode = "table"; // 'table' (single-row table sheet) or 'cards' (card layout)
+  let currentCourtFilter = "all"; // 'all', '1', '2', '3', '5', '8'
+  let currentBlockFilter = "all"; // 'all', '1', '2', '3', '4'
+  let scheduleViewMode = (typeof window !== 'undefined' && window.innerWidth <= 768) ? "cards" : "table"; // 'table' or 'cards'
 
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
   const STORAGE_KEY = 'badminton_cup_portal_data_v8';
@@ -1329,12 +1330,13 @@ const ROSTER = [
     saveState();
   };
 
-  // ---------- TAB NAVIGATION ----------
+  // ---------- TAB NAVIGATION (Phase 3: Desktop & Mobile Synchronization) ----------
   window.switchTab = function (tab) {
-    const tabs = ['home', 'fixtures', 'leaderboard', 'finals', 'rules'];
+    const tabs = ['home', 'mymatches', 'fixtures', 'leaderboard', 'finals', 'rules'];
     tabs.forEach((t) => {
       const panel = document.getElementById('tab-' + t);
       const btn = document.getElementById('tabBtn-' + t);
+      const btnMob = document.getElementById('tabBtn-mob-' + t);
       const isCurrent = t === tab;
       if (panel) {
         if (isCurrent) {
@@ -1345,8 +1347,20 @@ const ROSTER = [
           panel.style.display = 'none';
         }
       }
-      if (btn) btn.classList.toggle('active', isCurrent);
+      if (btn) {
+        btn.classList.toggle('active', isCurrent);
+        if (isCurrent) btn.setAttribute('aria-current', 'page');
+        else btn.removeAttribute('aria-current');
+      }
+      if (btnMob) {
+        btnMob.classList.toggle('active', isCurrent);
+        if (isCurrent) btnMob.setAttribute('aria-current', 'page');
+        else btnMob.removeAttribute('aria-current');
+      }
     });
+
+    // Close More menu bottom sheet if open
+    closeMoreMenu();
 
     // Only show top filter bar & personalized player hub on the Scoring Sheet (fixtures) tab
     const filterCard = document.querySelector('.filter-card');
@@ -1364,14 +1378,16 @@ const ROSTER = [
     }
 
     if (tab === 'home') renderHomeDashboard();
+    if (tab === 'mymatches') renderMyMatches();
     if (tab === 'leaderboard') renderLeaderboard();
     if (tab === 'finals') renderFinals();
     if (tab === 'fixtures') renderSchedule();
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Instant top-of-screen scroll per Requirement 18
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
-  // ---------- COURT FILTER ----------
+  // ---------- COURT & BLOCK FILTERS (Phase 3) ----------
   window.filterByCourt = function (courtVal) {
     currentCourtFilter = courtVal;
     document.querySelectorAll('.court-filter-btn').forEach(b => {
@@ -1380,6 +1396,58 @@ const ROSTER = [
     renderSchedule();
     saveState();
   };
+
+  window.filterByBlock = function (blockVal) {
+    currentBlockFilter = blockVal;
+    document.querySelectorAll('.block-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.block === blockVal);
+    });
+    renderSchedule();
+  };
+
+  window.filterByMine = function () {
+    const player = getStoredPlayerIdentity();
+    const select = document.getElementById("playerSelect");
+    if (!player) {
+      openPlayerSelector();
+      return;
+    }
+    if (select) {
+      if (select.value === player) {
+        select.value = "";
+      } else {
+        select.value = player;
+      }
+    }
+    saveState();
+    renderSchedule();
+    renderLeaderboard();
+  };
+
+  // ---------- MORE MENU CONTROLS (Phase 3) ----------
+  window.openMoreMenu = function () {
+    const modal = document.getElementById("moreMenuModal");
+    if (!modal) return;
+    modal.classList.add("open");
+    const theme = document.documentElement.getAttribute("data-theme") || "light";
+    const moreThemeIcon = document.getElementById("moreThemeIcon");
+    if (moreThemeIcon) moreThemeIcon.textContent = theme === "dark" ? "☀️" : "🌙";
+    const moreAdminTitle = document.getElementById("moreAdminTitle");
+    if (moreAdminTitle) moreAdminTitle.textContent = isAdminUnlocked() ? "Admin Lock" : "Admin Unlock";
+  };
+
+  window.closeMoreMenu = function () {
+    const modal = document.getElementById("moreMenuModal");
+    if (modal) modal.classList.remove("open");
+  };
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeMoreMenu();
+      document.getElementById("playerOnboardingModal")?.classList.remove("open");
+      closeOrganizerModal();
+    }
+  });
 
   // ---------- MATCH CONCLUSION & REUSABLE HELPERS (Phase 2) ----------
   function isMatchConcluded(f) {
@@ -1926,6 +1994,283 @@ const ROSTER = [
   }
   window.renderHomeDashboard = renderHomeDashboard;
 
+  // ---------- RENDERING: MY MATCHES VIEW (Phase 3) ----------
+  function renderMyMatches() {
+    const container = document.getElementById("myMatchesContainer");
+    if (!container) return;
+
+    const player = getStoredPlayerIdentity();
+    if (!player) {
+      container.innerHTML = `
+        <div class="home-welcome-card" style="text-align:center; justify-content:center; flex-direction:column; padding:36px 20px;">
+          <div style="font-size:2.5rem; margin-bottom:8px;">🏸</div>
+          <h2 style="margin:0 0 8px; font-weight:900; color:var(--text-primary);">Who Are You?</h2>
+          <p style="color:var(--text-secondary); max-width:440px; margin:0 auto 18px; font-size:0.95rem; line-height:1.5;">
+            Select your name to view your dedicated playing matches, referee duties, and court schedule.
+          </p>
+          <button type="button" class="btn-primary" style="padding:12px 28px; font-size:1rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer;" onclick="openPlayerSelector()">
+            Select Your Name &rarr;
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const assignments = getNextPlayerAssignment(player);
+    const summary = getPlayerTournamentSummary(player);
+    if (!assignments || !summary) return;
+
+    const playingMatches = getPlayerPlayingMatches(player);
+    const refDuties = getPlayerRefereeDuties(player);
+
+    const completedPlays = playingMatches.filter(isMatchConcluded);
+    const upcomingPlays = playingMatches.filter(f => !isMatchConcluded(f));
+    const completedRefs = refDuties.filter(isMatchConcluded);
+    const upcomingRefs = refDuties.filter(f => !isMatchConcluded(f));
+
+    // 1. Current / Next Assignment Section
+    let nextSectionHtml = "";
+    if (assignments.nextAssignment) {
+      const na = assignments.nextAssignment;
+      const f = na.fixture;
+      const isPlay = na.type === 'play';
+      const court = f.c;
+      const block = Math.ceil(f.r / 3);
+      const matchesAhead = fixtures.filter(m => m.c === court && fixtures.indexOf(m) < na.index && !isMatchConcluded(m)).length;
+
+      let queueHint = "";
+      if (summary.totalTournamentCompleted === 0) {
+        queueHint = `Tournament begins at 12:00 PM &bull; First match on Court ${court}`;
+      } else if (matchesAhead === 0) {
+        queueHint = `🔥 This assignment is at the front of Court ${court} queue!`;
+      } else if (matchesAhead === 1) {
+        queueHint = `⚡ 1 match before yours on Court ${court}`;
+      } else {
+        queueHint = `⏳ ${matchesAhead} matches before yours on Court ${court}`;
+      }
+
+      if (isPlay) {
+        const isT1 = f.t1.includes(player);
+        const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+        const opps = isT1 ? f.t2 : f.t1;
+        nextSectionHtml = `
+          <div class="my-matches-section">
+            <div class="section-title-row">
+              <h3 class="section-title">⚡ CURRENT / NEXT PLAYING MATCH</h3>
+              <span class="badge badge-court">COURT ${court}</span>
+            </div>
+            <div class="match-card hero-style">
+              <div class="card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="match-pill">${f.m}</span>
+                  <span class="block-label">Stage 1 &bull; Block ${block}</span>
+                </div>
+                <span class="badge badge-blue">NEXT MATCH</span>
+              </div>
+              <div class="card-pairing-box">
+                <div class="team-col is-you">
+                  <span class="team-sub-label">Your Team</span>
+                  <div class="team-players"><span class="you-tag">YOU</span> ${player}<br>+ ${partner}</div>
+                </div>
+                <div class="vs-col">VS</div>
+                <div class="team-col">
+                  <span class="team-sub-label">Opponents</span>
+                  <div class="team-players">${opps[0]}<br>+ ${opps[1]}</div>
+                </div>
+              </div>
+              <div class="card-meta">
+                <div><span>📍</span> ${queueHint}</div>
+                <div><span>👀 Referees:</span> ${f.refs.join(' & ')}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        const otherRef = f.refs.find(r => r !== player) || 'Partner Referee';
+        nextSectionHtml = `
+          <div class="my-matches-section">
+            <div class="section-title-row">
+              <h3 class="section-title">⚠️ CURRENT / NEXT REFEREE DUTY</h3>
+              <span class="badge badge-ref">REFEREE</span>
+            </div>
+            <div class="match-card ref-style">
+              <div class="card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="match-pill">${f.m}</span>
+                  <span class="block-label">Stage 1 &bull; Block ${block}</span>
+                  <span class="badge badge-court">Court ${court}</span>
+                </div>
+                <span class="badge badge-ref">DUTY</span>
+              </div>
+              <div style="padding:10px 14px; font-size:0.92rem; color:var(--text-primary); font-weight:700;">
+                Officiating: <strong>${f.t1.join(' & ')}</strong> vs <strong>${f.t2.join(' & ')}</strong>
+              </div>
+              <div class="card-meta">
+                <div><span>📍</span> ${queueHint}</div>
+                <div><span>Partner Ref:</span> <strong>${otherRef}</strong></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    } else {
+      nextSectionHtml = `
+        <div class="my-matches-section">
+          <div class="match-card" style="text-align:center; padding:24px;">
+            <div style="font-size:2rem; margin-bottom:6px;">🎉</div>
+            <h3 style="font-size:1.15rem; font-weight:900; color:var(--win-color);">All Stage 1 Assignments Completed!</h3>
+            <p style="font-size:0.88rem; color:var(--text-muted); margin-top:4px;">You have finished all 8 playing matches and 4 referee duties. Waiting for Finals!</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. Upcoming Playing Matches Section
+    const upcomingPlaysHtml = upcomingPlays.length === 0
+      ? `<div style="font-size:0.85rem; color:var(--text-muted); padding:10px;">No upcoming playing matches remaining in Stage 1.</div>`
+      : upcomingPlays.map(f => {
+          const court = f.c;
+          const block = Math.ceil(f.r / 3);
+          const isT1 = f.t1.includes(player);
+          const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+          const opps = isT1 ? f.t2 : f.t1;
+          return `
+            <div class="match-card">
+              <div class="card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="match-pill">${f.m}</span>
+                  <span class="block-label">Block ${block}</span>
+                  <span class="badge badge-court">Court ${court}</span>
+                </div>
+                <span class="badge badge-blue">UPCOMING</span>
+              </div>
+              <div class="card-pairing-box compact">
+                <div class="team-col is-you">
+                  <span class="team-sub-label">Partner</span>
+                  <div class="team-players"><span class="you-tag">YOU</span> ${player} + ${partner}</div>
+                </div>
+                <div class="vs-col">VS</div>
+                <div class="team-col">
+                  <span class="team-sub-label">Opponents</span>
+                  <div class="team-players">${opps.join(' & ')}</div>
+                </div>
+              </div>
+              <div class="card-meta">
+                <div><span>👀 Refs:</span> ${f.refs.join(' & ')}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+    // 3. Completed Matches Section
+    const completedPlaysHtml = completedPlays.length === 0
+      ? `<div style="font-size:0.85rem; color:var(--text-muted); padding:10px;">No completed matches recorded yet.</div>`
+      : completedPlays.map(f => {
+          const court = f.c;
+          const block = Math.ceil(f.r / 3);
+          const s1 = Number(f.s1);
+          const s2 = Number(f.s2);
+          const isT1 = f.t1.includes(player);
+          const won = (isT1 && s1 === 15) || (!isT1 && s2 === 15);
+          const yourScore = isT1 ? s1 : s2;
+          const oppScore = isT1 ? s2 : s1;
+          const partner = isT1 ? f.t1.find(p => p !== player) : f.t2.find(p => p !== player);
+          const opps = isT1 ? f.t2 : f.t1;
+          return `
+            <div class="match-card ${won ? 'card-won' : 'card-lost'}">
+              <div class="card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="match-pill">${f.m}</span>
+                  <span class="block-label">Block ${block}</span>
+                  <span class="badge badge-court">Court ${court}</span>
+                </div>
+                <span class="badge ${won ? 'badge-gold' : 'badge-gray'}">${won ? 'WIN' : 'LOSS'} ${yourScore}–${oppScore}</span>
+              </div>
+              <div class="card-pairing-box compact">
+                <div class="team-col ${won ? 'is-won' : ''}">
+                  <div class="team-players"><span class="you-tag">YOU</span> ${player} + ${partner}</div>
+                </div>
+                <div class="vs-col">vs</div>
+                <div class="team-col">
+                  <div class="team-players">${opps.join(' & ')}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+    // 4. Referee Duties Section
+    const refDutiesHtml = refDuties.map(f => {
+      const court = f.c;
+      const block = Math.ceil(f.r / 3);
+      const isDone = isMatchConcluded(f);
+      const otherRef = f.refs.find(r => r !== player) || 'Partner';
+      return `
+        <div class="match-card ref-style" style="opacity:${isDone ? '0.75' : '1'};">
+          <div class="card-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="match-pill">${f.m}</span>
+              <span class="block-label">Block ${block}</span>
+              <span class="badge badge-court">Court ${court}</span>
+            </div>
+            <span class="badge ${isDone ? 'badge-gray' : 'badge-ref'}">${isDone ? 'COMPLETED' : 'PENDING'}</span>
+          </div>
+          <div style="padding:8px 12px; font-size:0.86rem; color:var(--text-secondary);">
+            Teams: <strong>${f.t1.join(' & ')}</strong> vs <strong>${f.t2.join(' & ')}</strong>
+          </div>
+          <div class="card-meta">
+            <div><span>Co-Referee:</span> <strong>${otherRef}</strong></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <!-- Top Player Header -->
+      <div class="home-welcome-card" style="margin-bottom:14px;">
+        <div class="home-welcome-info">
+          <div class="home-welcome-name">
+            <span>🏸</span> ${player}'s Matches
+          </div>
+          <div class="home-welcome-stage">
+            ${summary.played} of 8 Matches Played &bull; Record: ${summary.wins}W - ${summary.losses}L
+          </div>
+        </div>
+        <button type="button" class="change-player-btn" onclick="openPlayerSelector()" title="Change Player">
+          <span>🔄</span> Change Player
+        </button>
+      </div>
+
+      <!-- Section 1: Current / Next Assignment -->
+      ${nextSectionHtml}
+
+      <!-- Section 2: Upcoming Playing Matches -->
+      <div class="my-matches-section">
+        <h3 class="section-title">📅 UPCOMING PLAYING MATCHES (${upcomingPlays.length})</h3>
+        <div class="mobile-card-list">
+          ${upcomingPlaysHtml}
+        </div>
+      </div>
+
+      <!-- Section 3: Completed Matches -->
+      <div class="my-matches-section">
+        <h3 class="section-title">✅ COMPLETED MATCHES (${completedPlays.length})</h3>
+        <div class="mobile-card-list">
+          ${completedPlaysHtml}
+        </div>
+      </div>
+
+      <!-- Section 4: Referee Duties -->
+      <div class="my-matches-section">
+        <h3 class="section-title">👀 REFEREE DUTIES (${completedRefs.length}/4 COMPLETED)</h3>
+        <div class="mobile-card-list">
+          ${refDutiesHtml}
+        </div>
+      </div>
+    `;
+  }
+  window.renderMyMatches = renderMyMatches;
+
 
   // ---------- TOGGLE SCHEDULE VIEW MODE ----------
   window.setScheduleViewMode = function (mode) {
@@ -1991,9 +2336,11 @@ const ROSTER = [
     }
 
     // Filter fixtures
+    const activePlayer = selected || getStoredPlayerIdentity();
     const visibleFixtures = [];
     fixtures.forEach((f, idx) => {
       if (currentCourtFilter !== "all" && String(f.c) !== currentCourtFilter) return;
+      if (currentBlockFilter !== "all" && String(Math.ceil(f.r / 3)) !== currentBlockFilter) return;
       const isPlayer = selected && (f.t1.includes(selected) || f.t2.includes(selected));
       const isRef = selected && f.refs.includes(selected);
       if (selected && !isPlayer && !isRef) return;
@@ -2120,9 +2467,10 @@ const ROSTER = [
           wl2Html = `<span class="wl-pill wl-pending" style="opacity:0.75;" title="In Progress to 15">Live</span>`;
         }
 
-        const t1Html = f.t1.map(p => p === selected ? `<span class="player-highlight-text">${p}</span>` : p).join(" & ");
-        const t2Html = f.t2.map(p => p === selected ? `<span class="player-highlight-text">${p}</span>` : p).join(" & ");
-        const refHtml = f.refs.map(p => p === selected ? `<span class="player-highlight-text">${p}</span>` : p).join(" & ");
+        const formatP = (p) => (p === activePlayer ? `<span class="player-highlight-text"><span class="you-tag">YOU</span> ${p}</span>` : p);
+        const t1Html = f.t1.map(formatP).join(" & ");
+        const t2Html = f.t2.map(formatP).join(" & ");
+        const refHtml = f.refs.map(formatP).join(" & ");
 
         const cInfo = COURT_INFO[f.c] || { name: `Court ${f.c}`, sub: "" };
         const courtBadge = `
@@ -2233,11 +2581,12 @@ const ROSTER = [
         }
 
         const card = document.createElement("div");
-        card.className = `card ${cardStatus}`;
+        card.className = `card ${cardStatus} match-card`;
 
-        const t1Html = f.t1.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
-        const t2Html = f.t2.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
-        const refHtml = f.refs.map(p => p === selected ? `<span class="highlight-player">${p}</span>` : p).join(" & ");
+        const formatCardP = (p) => (p === activePlayer ? `<span class="highlight-player"><span class="you-tag">YOU</span> ${p}</span>` : p);
+        const t1Html = f.t1.map(formatCardP).join(" & ");
+        const t2Html = f.t2.map(formatCardP).join(" & ");
+        const refHtml = f.refs.map(formatCardP).join(" & ");
 
         const cInfo = COURT_INFO[f.c] || { name: `Court ${f.c}`, sub: "" };
         const courtBadge = `<span class="court-badge c${f.c}">${cInfo.name} ${cInfo.sub ? '(' + cInfo.sub + ')' : ''}</span>`;
@@ -2296,8 +2645,9 @@ const ROSTER = [
       });
     }
 
-    // Keep My Tournament dashboard synchronized whenever schedule/scores change
+    // Keep My Tournament & My Matches dashboards synchronized whenever schedule/scores change
     renderHomeDashboard();
+    renderMyMatches();
   }
 
   // ---------- INTERACTIVE SCORE UPDATING ----------
@@ -2336,7 +2686,7 @@ const ROSTER = [
     renderLeaderboard();
   };
 
-  // ---------- RENDERING: LEADERBOARD TAB ----------
+  // ---------- RENDERING: LEADERBOARD TAB (Phase 3: Mobile Optimized) ----------
   function renderLeaderboard() {
     const tbody = document.getElementById("lbBody");
     if (!tbody) return;
@@ -2344,26 +2694,49 @@ const ROSTER = [
 
     const select = document.getElementById("playerSelect");
     const selected = select ? select.value : "";
+    const activePlayer = selected || getStoredPlayerIdentity();
+
+    const totalCompleted = fixtures.filter(isMatchConcluded).length;
+    const isStarted = totalCompleted > 0;
+
+    // Update banner / subtitle wording per Requirement 10
+    const lbHeaderTitle = document.querySelector(".lb-header h2");
+    const lbHeaderSub = document.querySelector(".lb-header p");
+    if (lbHeaderTitle) {
+      lbHeaderTitle.textContent = isStarted ? "Stage 1 Provisional Standings" : "Stage 1 Standings • NOT STARTED";
+    }
+    if (lbHeaderSub) {
+      lbHeaderSub.innerHTML = isStarted 
+        ? "Live Rankings &bull; Top 6 qualify for Gold Championship (Wins &rarr; Net Diff &rarr; Points)"
+        : "Matches begin at 12:00 PM &bull; Rankings will calculate automatically as scores are recorded";
+    }
 
     const standings = computeLeaderboard();
 
     standings.forEach(s => {
       const tr = document.createElement("tr");
-      if (s.name === selected) tr.className = "selected-row";
+      const isSelected = activePlayer && s.name === activePlayer;
+      if (isSelected) tr.className = "selected-row";
 
       const diffClass = s.diff > 0 ? "diff-pos" : (s.diff < 0 ? "diff-neg" : "");
       const diffFormatted = s.diff > 0 ? `+${s.diff}` : s.diff;
-      const rankBadgeClass = s.rank === 1 ? "rank-1" : (s.rank === 2 ? "rank-2" : (s.rank === 3 ? "rank-3" : ""));
+      const rankBadgeClass = isStarted ? (s.rank === 1 ? "rank-1" : (s.rank === 2 ? "rank-2" : (s.rank === 3 ? "rank-3" : ""))) : "";
+      const rankText = isStarted ? s.rank : "-";
+      const poolDisplay = isStarted ? s.tier : "TBD";
+
+      const playerLabel = isSelected
+        ? `<span>🏸</span> <strong><span class="you-tag">YOU</span> ${s.name}</strong>`
+        : `<span>🏸</span> ${s.name}`;
 
       tr.innerHTML = `
-        <td><span class="rank-badge ${rankBadgeClass}">${s.rank}</span></td>
-        <td class="player-cell"><span>🏸</span> ${s.name}</td>
-        <td><strong>${s.gp}</strong></td>
-        <td><strong style="color:var(--win-color);">${s.wins}</strong></td>
-        <td>${s.pts}</td>
-        <td>${s.ga}</td>
+        <td><span class="rank-badge ${rankBadgeClass}">${rankText}</span></td>
+        <td class="player-cell">${playerLabel}</td>
+        <td class="col-secondary"><strong>${s.gp}</strong></td>
+        <td><strong style="color:var(--win-color);">${s.wins}</strong><span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;"> (${s.gp - s.wins}L)</span></td>
+        <td class="col-secondary">${s.pts}</td>
+        <td class="col-secondary">${s.ga}</td>
         <td class="${diffClass}"><strong>${diffFormatted}</strong></td>
-        <td><span class="tier-badge tier-${s.tier.toLowerCase()}">${s.tier}</span></td>
+        <td><span class="tier-badge tier-${poolDisplay.toLowerCase()}">${isStarted ? 'Projected ' + poolDisplay : poolDisplay}</span></td>
       `;
       tbody.appendChild(tr);
     });
