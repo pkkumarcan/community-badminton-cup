@@ -76,6 +76,9 @@
       <button type="button" class="tab-btn" id="tabBtn-rules" onclick="switchTab('rules')">
         <span>📖</span> Rules
       </button>
+      <button type="button" class="tab-btn" id="tabBtn-courts" onclick="switchTab('courts')">
+        <span>🏟️</span> Courts
+      </button>
       <a href="poster.html" class="tab-btn" style="text-decoration:none;" title="Tournament Wallchart Poster">
         <span>🖼️</span> Poster
       </a>
@@ -163,6 +166,13 @@
       <section id="tab-mymatches" class="tab-pane hidden" style="display:none;">
         <div id="myMatchesContainer" class="my-matches-container">
           <!-- Rendered dynamically by renderMyMatches() -->
+        </div>
+      </section>
+
+      <!-- TAB 0.7: COURT VIEW (Phase 5: Gym Readiness) -->
+      <section id="tab-courts" class="tab-pane hidden" style="display:none;">
+        <div id="courtsContainer" class="courts-container">
+          <!-- Rendered dynamically by renderCourtView() -->
         </div>
       </section>
 
@@ -467,6 +477,13 @@
         <button type="button" class="more-menu-close" onclick="closeMoreMenu()" aria-label="Close menu">&times;</button>
       </div>
       <div class="more-menu-grid">
+        <button type="button" class="more-menu-btn" onclick="switchTab('courts'); closeMoreMenu();">
+          <span class="more-menu-icon">🏟️</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Court View (Gym Departure Board)</div>
+            <div class="more-menu-sub">Live 4-Court Queues, Referees &amp; Current Matches</div>
+          </div>
+        </button>
         <button type="button" class="more-menu-btn" onclick="switchTab('finals'); closeMoreMenu();">
           <span class="more-menu-icon">🏅</span>
           <div class="more-menu-text">

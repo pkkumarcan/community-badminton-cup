@@ -1332,7 +1332,7 @@ const ROSTER = [
 
   // ---------- TAB NAVIGATION (Phase 3: Desktop & Mobile Synchronization) ----------
   window.switchTab = function (tab) {
-    const tabs = ['home', 'mymatches', 'fixtures', 'leaderboard', 'finals', 'rules'];
+    const tabs = ['home', 'mymatches', 'courts', 'fixtures', 'leaderboard', 'finals', 'rules'];
     tabs.forEach((t) => {
       const panel = document.getElementById('tab-' + t);
       const btn = document.getElementById('tabBtn-' + t);
@@ -1379,6 +1379,7 @@ const ROSTER = [
 
     if (tab === 'home') renderHomeDashboard();
     if (tab === 'mymatches') renderMyMatches();
+    if (tab === 'courts') renderCourtView();
     if (tab === 'leaderboard') renderLeaderboard();
     if (tab === 'finals') renderFinals();
     if (tab === 'fixtures') renderSchedule();
@@ -1742,8 +1743,10 @@ const ROSTER = [
               Officiating: <strong>${rf.t1.join(' & ')}</strong> vs <strong>${rf.t2.join(' & ')}</strong>
               &bull; Partner Ref: <strong>${otherRef}</strong>
             </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+            <span class="badge" style="background:#f59e0b; color:#fff; font-weight:900; padding:6px 12px; font-size:0.82rem;">REFEREE</span>
+            <button type="button" class="court-link-btn" onclick="focusCourt(${rf.c})" title="View Court ${rf.c} Departure Board"><span>🏟️</span> Court ${rf.c} &rarr;</button>
           </div>
-          <span class="badge" style="background:#f59e0b; color:#fff; font-weight:900; padding:6px 12px; font-size:0.82rem;">REFEREE</span>
         </div>
       `;
     }
@@ -1828,8 +1831,9 @@ const ROSTER = [
             </div>
           </div>
 
-          <div class="hero-queue-hint">
-            <span>📍</span> ${queueHint}
+          <div class="hero-queue-hint" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div><span>📍</span> ${queueHint}</div>
+            <button type="button" class="court-link-btn" onclick="focusCourt(${court})" title="View Court ${court} Departure Board"><span>🏟️</span> View Court ${court} &rarr;</button>
           </div>
         </div>
       `;
@@ -2149,7 +2153,10 @@ const ROSTER = [
               </div>
               <div class="card-meta">
                 <div><span>📍</span> ${queueHint}</div>
-                <div><span>👀 Referees:</span> ${f.refs.join(' & ')}</div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span>👀 Referees:</span> ${f.refs.join(' & ')}
+                  <button type="button" class="court-link-btn" onclick="focusCourt(${court})" title="View Court ${court} Departure Board"><span>🏟️</span> Court ${court} &rarr;</button>
+                </div>
               </div>
               ${afterThatHtml}
             </div>
@@ -2178,7 +2185,10 @@ const ROSTER = [
               </div>
               <div class="card-meta">
                 <div><span>📍</span> ${queueHint}</div>
-                <div><span>Partner Ref:</span> <strong>${otherRef}</strong></div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span>Partner Ref:</span> <strong>${otherRef}</strong>
+                  <button type="button" class="court-link-btn" onclick="focusCourt(${court})" title="View Court ${court} Departure Board"><span>🏟️</span> Court ${court} &rarr;</button>
+                </div>
               </div>
               ${afterThatHtml}
             </div>
@@ -2508,6 +2518,304 @@ const ROSTER = [
   }
   window.renderMyMatches = renderMyMatches;
 
+  // ---------- COURT QUEUE & VIEW CONTROLS (Phase 5: Gym Readiness) ----------
+  let courtViewFilter = 'all';
+  let courtViewGymMode = false;
+
+  window.setCourtViewFilter = function (cStr) {
+    courtViewFilter = cStr;
+    renderCourtView();
+  };
+
+  window.toggleGymMode = function () {
+    courtViewGymMode = !courtViewGymMode;
+    renderCourtView();
+  };
+
+  window.focusCourt = function (courtNum) {
+    courtViewFilter = String(courtNum);
+    switchTab('courts');
+    setTimeout(() => {
+      const el = document.getElementById(`court-card-${courtNum}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+  };
+
+  function getCourtQueue(courtNumber) {
+    const cNum = Number(courtNumber);
+    const courtFixtures = fixtures.filter(f => f.c === cNum);
+    const completed = courtFixtures.filter(isMatchConcluded);
+    const unconcluded = courtFixtures.filter(f => !isMatchConcluded(f));
+
+    const currentMatch = unconcluded[0] || null;
+    const upNextMatch = unconcluded[1] || null;
+    const afterThatMatch = unconcluded[2] || null;
+
+    const totalCount = courtFixtures.length;
+    const completedCount = completed.length;
+    const isStage1Complete = unconcluded.length === 0;
+
+    let status = 'WAITING';
+    let scoreText = '';
+
+    if (isStage1Complete) {
+      status = 'STAGE 1 COMPLETE';
+    } else if (currentMatch) {
+      const s1 = currentMatch.s1;
+      const s2 = currentMatch.s2;
+      const hasScores = s1 != null && s2 != null && s1 !== '' && s2 !== '';
+      if (hasScores && (Number(s1) > 0 || Number(s2) > 0)) {
+        status = 'IN PROGRESS';
+        scoreText = `${s1}–${s2}`;
+      } else {
+        status = 'CURRENT / READY';
+      }
+    }
+
+    return {
+      court: cNum,
+      fixtures: courtFixtures,
+      completed,
+      unconcluded,
+      currentMatch,
+      upNextMatch,
+      afterThatMatch,
+      totalCount,
+      completedCount,
+      isStage1Complete,
+      status,
+      scoreText
+    };
+  }
+  window.getCourtQueue = getCourtQueue;
+
+  function getVisibleCourtNumbers() {
+    // Block 1: Courts 1, 2, 5, 8
+    // Blocks 2-4: Courts 1, 2, 3, 8
+    // Court 5 exists only in Block 1 (M02, M07, M11).
+    // If Court 5 has any remaining unconcluded match, Court 5 is active.
+    // Once Court 5 matches conclude, Court 3 is active.
+    const court5Matches = fixtures.filter(f => f.c === 5);
+    const court5Pending = court5Matches.filter(f => !isMatchConcluded(f)).length;
+    if (court5Pending > 0) {
+      return [1, 2, 5, 8];
+    }
+    return [1, 2, 3, 8];
+  }
+  window.getVisibleCourtNumbers = getVisibleCourtNumbers;
+
+  // ---------- RENDERING: COURT VIEW (Phase 5) ----------
+  function renderCourtView() {
+    const container = document.getElementById("courtsContainer");
+    if (!container) return;
+
+    const activePlayer = getStoredPlayerIdentity();
+    const totalCompleted = fixtures.filter(isMatchConcluded).length;
+    const isStage1AllComplete = totalCompleted === fixtures.length;
+    const visibleCourts = getVisibleCourtNumbers();
+
+    container.className = `courts-container ${courtViewGymMode ? 'gym-mode' : ''}`;
+
+    // Shortcut for selected player
+    let playerShortcutHtml = "";
+    if (activePlayer) {
+      const pAssign = getNextPlayerAssignment(activePlayer);
+      if (pAssign && pAssign.nextAssignment) {
+        const myCourt = pAssign.nextAssignment.fixture.c;
+        const myMatch = pAssign.nextAssignment.fixture.m;
+        const myRole = pAssign.nextAssignment.type === 'play' ? 'PLAYING' : 'REFEREE';
+        playerShortcutHtml = `
+          <div class="court-player-shortcut">
+            <div>
+              <strong><span>🏸</span> ${activePlayer}'s Next Assignment:</strong> Court ${myCourt} &bull; <strong>${myRole}</strong> in Match ${myMatch}
+            </div>
+            <button type="button" class="btn-primary" style="padding:4px 12px; font-size:0.8rem; border-radius:var(--radius-full); cursor:pointer;" onclick="setCourtViewFilter('${myCourt}')">
+              🎯 Focus Court ${myCourt}
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // Determine which courts to render
+    const courtsToRender = courtViewFilter === 'all' 
+      ? visibleCourts 
+      : [Number(courtViewFilter)];
+
+    // Build Court Cards
+    const courtCardsHtml = courtsToRender.map(cNum => {
+      const q = getCourtQueue(cNum);
+      const cInfo = COURT_INFO[cNum] || { name: `Court ${cNum}`, sub: "" };
+
+      // Check if Finals active
+      if (isStage1AllComplete) {
+        const poolMap = {
+          1: { key: 'gold', name: 'Gold Championship Pool', badge: 'badge-gold' },
+          2: { key: 'silver', name: 'Silver Plate Pool', badge: 'badge-gray' },
+          3: { key: 'bronze', name: 'Bronze Shield Pool', badge: 'badge-court' },
+          8: { key: 'copper', name: 'Copper Cup Pool', badge: 'badge-ref' }
+        };
+        const poolInfo = poolMap[cNum] || { key: 'gold', name: 'Finals Pool', badge: 'badge-gold' };
+        return `
+          <div class="court-card" id="court-card-${cNum}">
+            <div class="court-card-header">
+              <div class="court-title-box">
+                <div class="court-main-num"><span>🏟️</span> ${cInfo.name}</div>
+                <div class="court-sub-loc">${cInfo.sub ? cInfo.sub + ' &bull; ' : ''}STAGE 2 FINALS</div>
+              </div>
+              <span class="badge ${poolInfo.badge}">FINALS READY</span>
+            </div>
+            <div class="court-match-box">
+              <div class="court-match-label">
+                <span>🏆 ${poolInfo.name}</span>
+                <span>Best of 21 Pts</span>
+              </div>
+              <div class="court-teams-block" style="font-size:0.95rem;">
+                3-Match Snake Round-Robin scheduled on this court.
+              </div>
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-muted); text-align:right;">
+              View full matches in <a href="javascript:void(0)" onclick="switchTab('finals')" style="color:var(--primary); font-weight:700;">Finals Tab &rarr;</a>
+            </div>
+          </div>
+        `;
+      }
+
+      // Stage 1 Court Rendering
+      const hasYou = activePlayer && q.currentMatch && (
+        q.currentMatch.t1.includes(activePlayer) ||
+        q.currentMatch.t2.includes(activePlayer) ||
+        q.currentMatch.refs.includes(activePlayer)
+      );
+
+      let currentMatchHtml = "";
+      if (q.isStage1Complete) {
+        currentMatchHtml = `
+          <div class="court-match-box" style="text-align:center; padding:18px;">
+            <div style="font-size:1.5rem; margin-bottom:4px;">✅</div>
+            <div style="font-weight:900; color:var(--win-color); font-size:1.05rem;">STAGE 1 COMPLETE ON THIS COURT</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:3px;">All ${q.totalCount} matches finished. Awaiting other courts &amp; Finals.</div>
+          </div>
+        `;
+      } else if (q.currentMatch) {
+        const m = q.currentMatch;
+        const block = Math.ceil(m.r / 3);
+        const formatP = (p) => (p === activePlayer ? `<span class="player-highlight-text"><span class="you-tag">YOU</span> ${p}</span>` : p);
+        const t1Html = m.t1.map(formatP).join(" & ");
+        const t2Html = m.t2.map(formatP).join(" & ");
+        const refHtml = m.refs.map(formatP).join(" & ");
+
+        let statusBadge = "";
+        if (q.status === 'IN PROGRESS') {
+          statusBadge = `<span class="badge badge-gold">IN PROGRESS ${q.scoreText}</span>`;
+        } else if (totalCompleted === 0) {
+          statusBadge = `<span class="badge badge-blue">STARTS 12:00 PM</span>`;
+        } else {
+          statusBadge = `<span class="badge badge-blue">CURRENT / READY</span>`;
+        }
+
+        currentMatchHtml = `
+          <div class="court-match-box">
+            <div class="court-match-label">
+              <span>MATCH ${m.m} &bull; BLOCK ${block}</span>
+              ${statusBadge}
+            </div>
+            <div class="court-teams-block">
+              <div>🏸 ${t1Html}</div>
+              <div style="font-size:0.75rem; color:var(--text-muted); font-weight:800; margin:2px 0 2px 14px;">VS</div>
+              <div>🏸 ${t2Html}</div>
+            </div>
+            <div class="court-ref-box">
+              <span class="court-ref-label">👀 Refs:</span>
+              <div class="court-ref-names">${refHtml}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Up Next Preview
+      let upNextHtml = "";
+      if (q.upNextMatch) {
+        const nm = q.upNextMatch;
+        const nBlock = Math.ceil(nm.r / 3);
+        const formatP = (p) => (p === activePlayer ? `<span class="player-highlight-text"><span class="you-tag">YOU</span> ${p}</span>` : p);
+        upNextHtml = `
+          <div class="court-next-box">
+            <div class="court-next-label">⚡ UP NEXT: MATCH ${nm.m} &bull; BLOCK ${nBlock}</div>
+            <div class="court-next-teams">${nm.t1.map(formatP).join(" & ")} vs ${nm.t2.map(formatP).join(" & ")}</div>
+            <div style="font-size:0.76rem; color:var(--text-muted);">Refs: ${nm.refs.map(formatP).join(" & ")}</div>
+          </div>
+        `;
+      }
+
+      // After That Preview
+      let afterThatHtml = "";
+      if (q.afterThatMatch) {
+        afterThatHtml = `
+          <div style="font-size:0.74rem; color:var(--text-muted); margin-top:6px; border-top:1px dotted var(--border-card); padding-top:4px;">
+            <span>➡️ Then:</span> Match ${q.afterThatMatch.m} &bull; Block ${Math.ceil(q.afterThatMatch.r / 3)}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="court-card ${hasYou ? 'has-you' : ''}" id="court-card-${cNum}">
+          <div class="court-card-header">
+            <div class="court-title-box">
+              <h2 class="court-main-num" style="margin:0;"><span>🏟️</span> ${cInfo.name}</h2>
+              <div class="court-sub-loc">${cInfo.sub ? cInfo.sub : 'Physical Badminton Court'}</div>
+            </div>
+            <span class="badge ${q.isStage1Complete ? 'badge-gray' : (hasYou ? 'badge-gold' : 'badge-court')}">
+              ${q.completedCount}/${q.totalCount} Done
+            </span>
+          </div>
+          ${currentMatchHtml}
+          ${upNextHtml}
+          ${afterThatHtml}
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <!-- Top Departure Board Header -->
+      <div class="court-summary-bar">
+        <div>
+          <div class="court-summary-title">
+            <span>🏟️</span> 4 Tournament Courts
+          </div>
+          <div class="court-summary-sub">
+            Stage 1 &bull; ${totalCompleted} of 48 matches completed &bull; Live Gym Departure Board
+          </div>
+        </div>
+        <button type="button" class="pill-btn" onclick="toggleGymMode()" title="Toggle large text / tablet gym display" style="font-weight:800; padding:6px 12px; font-size:0.8rem; cursor:pointer;">
+          ${courtViewGymMode ? '📱 Standard View' : '📺 Gym Mode'}
+        </button>
+      </div>
+
+      <!-- Player Next Court Shortcut -->
+      ${playerShortcutHtml}
+
+      <!-- Court Filters -->
+      <div class="court-filter-row">
+        <div class="court-filter-pills">
+          <button type="button" class="pill-btn ${courtViewFilter === 'all' ? 'active' : ''}" onclick="setCourtViewFilter('all')">All Courts</button>
+          <button type="button" class="pill-btn ${courtViewFilter === '1' ? 'active' : ''}" onclick="setCourtViewFilter('1')">Court 1</button>
+          <button type="button" class="pill-btn ${courtViewFilter === '2' ? 'active' : ''}" onclick="setCourtViewFilter('2')">Court 2</button>
+          <button type="button" class="pill-btn ${courtViewFilter === '3' ? 'active' : ''}" onclick="setCourtViewFilter('3')">Court 3</button>
+          <button type="button" class="pill-btn ${courtViewFilter === '5' ? 'active' : ''}" onclick="setCourtViewFilter('5')">Court 5</button>
+          <button type="button" class="pill-btn ${courtViewFilter === '8' ? 'active' : ''}" onclick="setCourtViewFilter('8')">Court 8</button>
+        </div>
+      </div>
+
+      <!-- Courts Grid -->
+      <div class="courts-grid">
+        ${courtCardsHtml}
+      </div>
+    `;
+  }
+  window.renderCourtView = renderCourtView;
 
   // ---------- TOGGLE SCHEDULE VIEW MODE ----------
   window.setScheduleViewMode = function (mode) {
@@ -2882,9 +3190,10 @@ const ROSTER = [
       });
     }
 
-    // Keep My Tournament & My Matches dashboards synchronized whenever schedule/scores change
+    // Keep My Tournament, My Matches & Court View dashboards synchronized whenever schedule/scores change
     renderHomeDashboard();
     renderMyMatches();
+    renderCourtView();
   }
 
   // ---------- INTERACTIVE SCORE UPDATING ----------
