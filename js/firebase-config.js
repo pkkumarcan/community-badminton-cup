@@ -32,6 +32,7 @@
   let auth = null;
   let currentUser = null;
   let isAuthorized = false;
+  let hasReceivedInitialSnapshot = false;
   let connectionState = 'CONNECTING'; // 'LIVE' | 'CONNECTING' | 'OFFLINE' | 'PENDING'
   const connectionListeners = [];
   const authListeners = [];
@@ -51,7 +52,11 @@
         const connectedRef = rtdb.ref('.info/connected');
         connectedRef.on('value', function (snap) {
           if (snap.val() === true) {
-            setConnectionState('LIVE');
+            if (hasReceivedInitialSnapshot) {
+              setConnectionState('LIVE');
+            } else {
+              setConnectionState('CONNECTING');
+            }
           } else {
             setConnectionState('OFFLINE');
           }
@@ -84,6 +89,13 @@
     } else {
       isInitialized = false;
       return false;
+    }
+  }
+
+  function markInitialSnapshotReceived() {
+    hasReceivedInitialSnapshot = true;
+    if (connectionState !== 'OFFLINE') {
+      setConnectionState('LIVE');
     }
   }
 
@@ -223,6 +235,7 @@
     isAuthorized: () => isAuthorized,
     getConnectionState: () => connectionState,
     setConnectionState: setConnectionState,
+    markInitialSnapshotReceived: markInitialSnapshotReceived,
     getTournamentRef: getTournamentRef,
     getServerTimestamp: getServerTimestamp,
     signInOrganizer: signInOrganizer,

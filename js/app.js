@@ -1150,6 +1150,8 @@ const ROSTER = [
         sessionStorage.setItem('badminton_initial_loaded', 'true');
       }
 
+      TournamentFirebase.markInitialSnapshotReceived();
+
       if (!data) {
         // Cloud tournament node is completely empty
         if (TournamentFirebase.isAuthorized()) {
@@ -1167,6 +1169,7 @@ const ROSTER = [
       console.warn('[FirebaseSync] Listener error / offline:', err);
       if (overlay) overlay.classList.add('hidden');
       if (offlineBanner) offlineBanner.style.display = 'flex';
+      TournamentFirebase.setConnectionState('OFFLINE');
     });
 
     // Connection state changes
@@ -5132,7 +5135,10 @@ const ROSTER = [
     const tRefResetFinals = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
     if (tRefResetFinals) {
       const updates = {};
-      updates['finalsScores'] = finalsScores;
+      updates['finalsScores/gold'] = finalsScores.gold;
+      updates['finalsScores/silver'] = finalsScores.silver;
+      updates['finalsScores/bronze'] = finalsScores.bronze;
+      updates['finalsScores/copper'] = finalsScores.copper;
       updates['finalsPlayoffs'] = finalsPlayoffs;
       updates[`scoreActivityLog/${resetFinalsPushId}`] = {
         id: resetFinalsPushId,
@@ -5396,18 +5402,19 @@ const ROSTER = [
     // Phase 8: Atomic Cloud Synchronization for Reset Tournament
     const tRefResetTourn = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
     if (tRefResetTourn) {
-      const stage1ScoresReset = {};
+      const updates = {};
       BASE_FIXTURES.forEach(f => {
-        stage1ScoresReset[f.m] = {
+        updates[`stage1Scores/${f.m}`] = {
           s1: null,
           s2: null,
           revision: 0,
           updatedAt: null
         };
       });
-      const updates = {};
-      updates['stage1Scores'] = stage1ScoresReset;
-      updates['finalsScores'] = finalsScores;
+      updates['finalsScores/gold'] = finalsScores.gold;
+      updates['finalsScores/silver'] = finalsScores.silver;
+      updates['finalsScores/bronze'] = finalsScores.bronze;
+      updates['finalsScores/copper'] = finalsScores.copper;
       updates['finalsPlayoffs'] = finalsPlayoffs;
       updates['stage1Lock'] = {
         locked: false,
@@ -6556,7 +6563,20 @@ const ROSTER = [
         }
       };
 
-      await tRef.set(initialPayload);
+      const updates = {};
+      updates['meta'] = initialPayload.meta;
+      Object.keys(initialPayload.stage1Scores).forEach(mCode => {
+        updates[`stage1Scores/${mCode}`] = initialPayload.stage1Scores[mCode];
+      });
+      updates['stage1Lock'] = initialPayload.stage1Lock;
+      updates['finalsScores/gold'] = initialPayload.finalsScores.gold;
+      updates['finalsScores/silver'] = initialPayload.finalsScores.silver;
+      updates['finalsScores/bronze'] = initialPayload.finalsScores.bronze;
+      updates['finalsScores/copper'] = initialPayload.finalsScores.copper;
+      updates['finalsPlayoffs'] = initialPayload.finalsPlayoffs;
+      updates[`scoreActivityLog/${pushId}`] = initialPayload.scoreActivityLog[pushId];
+
+      await tRef.update(updates);
       closeInitCloudModal();
       sessionStorage.setItem('badminton_cloud_init_dismissed', 'true');
       showToast('🚀 Cloud tournament initialized with standard 48-match schedule!');

@@ -7,16 +7,35 @@
     "tournaments": {
       "$tournamentId": {
         ".read": true,
-        ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true",
+        "meta": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()"
+        },
         "stage1Scores": {
           "$matchCode": {
-            ".validate": "newData.hasChildren(['s1', 's2', 'revision', 'updatedAt']) && newData.child('s1').isNumber() && newData.child('s2').isNumber() && newData.child('revision').isNumber()"
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+            ".validate": "newData.hasChildren(['s1', 's2', 'revision']) && (newData.child('s1').val() === null || newData.child('s1').isNumber()) && (newData.child('s2').val() === null || newData.child('s2').isNumber()) && newData.child('revision').isNumber()"
           }
         },
+        "stage1Lock": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+          ".validate": "newData.hasChildren(['locked']) && newData.child('locked').isBoolean()"
+        },
+        "finalsScores": {
+          "$pool": {
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+            "$matchIdx": {
+              ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+              ".validate": "newData.hasChildren(['s1', 's2', 'revision']) && (newData.child('s1').val() === null || newData.child('s1').isNumber()) && (newData.child('s2').val() === null || newData.child('s2').isNumber()) && newData.child('revision').isNumber()"
+            }
+          }
+        },
+        "finalsPlayoffs": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true"
+        },
         "scoreActivityLog": {
-          "$logId": {
-            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && !data.exists()",
-            ".validate": "newData.hasChildren(['action', 'matchId', 'serverTimestamp', 'enteredBy'])"
+          "$pushId": {
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['action', 'serverTimestamp', 'enteredBy'])"
           }
         }
       }
