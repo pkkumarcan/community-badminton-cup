@@ -48,6 +48,10 @@
               🔒 Admin Unlock
             </button>
           </div>
+          <button type="button" id="aiChatToggleBtn" class="ai-header-pill-btn" onclick="toggleAiChat()" title="Ask Tournament AI" aria-label="Ask Tournament AI">
+            <span class="ai-sparkle">✨</span>
+            <span>Ask AI</span>
+          </button>
           <a href="poster.html" class="icon-btn" title="View FIFA-Style Poster / Wallchart" aria-label="Poster Wallchart" style="text-decoration:none;">🖼️</a>
           <button type="button" class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">🌙</button>
           <button type="button" class="icon-btn" onclick="openOrganizerModal()" title="Organizer Tools (Backup/Reset)" aria-label="Organizer Settings">⚙️</button>
@@ -378,12 +382,6 @@
     </footer>
   </div>
 
-  <!-- FLOATING TOURNAMENT AI ASSISTANT BUTTON -->
-  <button type="button" id="aiChatToggleBtn" class="ai-chat-toggle-btn" onclick="toggleAiChat()" title="Ask Tournament AI" aria-label="Ask Tournament AI">
-    <span class="ai-sparkle">✨</span>
-    <span>Ask AI</span>
-  </button>
-
   <!-- AI ASSISTANT CHAT DRAWER -->
   <div id="aiChatDrawer" class="ai-chat-drawer hidden">
     <div class="ai-chat-header">
@@ -431,6 +429,29 @@
     </form>
   </div>
 
+  <!-- SCORE ACTIVITY LOG MODAL -->
+  <div id="scoreLogModal" class="modal-overlay" onclick="if(event.target===this) closeScoreLogModal()">
+    <div class="modal-card" style="max-width:680px; width:95%;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h2 class="modal-title" style="margin:0;">📜 Score Activity Timeline</h2>
+        <button type="button" class="ai-close-btn" onclick="closeScoreLogModal()" style="font-size:1.2rem; cursor:pointer;" aria-label="Close Log">✕</button>
+      </div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
+        Chronological audit trail of all score saves and edits with exact machine timestamps.
+      </p>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" onclick="exportScoreLogJSON()" style="font-size:0.8rem; padding:6px 12px;">💾 Export JSON</button>
+        <button type="button" class="btn-secondary" onclick="exportScoreLogCSV()" style="font-size:0.8rem; padding:6px 12px;">📄 Export CSV</button>
+      </div>
+      <div id="scoreLogList" style="max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+        <!-- Injected dynamically by app.js -->
+      </div>
+      <div class="modal-btn-row" style="margin-top:14px;">
+        <button type="button" class="btn-secondary" onclick="closeScoreLogModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PIN UNLOCK MODAL -->
   <div id="pinModal" class="modal-overlay" onclick="if(event.target===this) closePinModal()">
     <div class="modal-card" style="max-width:380px; text-align:center;">
@@ -461,6 +482,11 @@
               <strong style="font-size:1rem;">Open Scorekeeper Mode</strong>
               <div style="font-size:0.75rem; opacity:0.9;">Fast mobile score entry (M01–M48 &amp; Finals)</div>
             </div>
+          </button>
+
+          <button type="button" class="btn-secondary" onclick="openScoreLogModal(); closeOrganizerModal();" style="text-align:left;">
+            📜 <strong>View Score Activity Log (Audit Trail)</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">View chronological history &amp; timestamps of all score saves/edits</div>
           </button>
 
           <button type="button" class="btn-secondary" onclick="exportDataJSON()" style="text-align:left;">

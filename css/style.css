@@ -4214,6 +4214,279 @@ body {
   background: var(--primary-light);
 }
 
+/* ============================================================
+   PHASE 7.6: BIG COURT PLAN TABLE STYLES
+   ============================================================ */
+
+.home-court-plan-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.court-plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.court-plan-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.court-plan-icon {
+  font-size: 1.4rem;
+}
+
+.court-plan-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.court-plan-subtitle {
+  margin: 2px 0 0 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.court-plan-badge {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.court-plan-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 540px) {
+  .court-plan-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .court-plan-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.court-plan-row {
+  background: var(--bg-main);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  position: relative;
+  transition: var(--transition);
+}
+
+.court-plan-row.is-current {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.court-plan-row.is-next {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.court-plan-status-tag {
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.court-plan-row.is-current .court-plan-status-tag {
+  background: var(--primary);
+  color: #fff;
+}
+
+.court-plan-row.is-next .court-plan-status-tag {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.court-plan-row:not(.is-current):not(.is-next) .court-plan-status-tag {
+  background: var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.court-plan-time {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.court-plan-court-large {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--primary);
+  line-height: 1.1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.court-plan-row.is-next .court-plan-court-large {
+  color: #b45309;
+}
+
+[data-theme="dark"] .court-plan-row.is-next .court-plan-court-large {
+  color: #fbbf24;
+}
+
+.court-plan-transition {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.court-plan-transition.stay {
+  color: var(--win-color);
+}
+
+.court-plan-transition.move {
+  color: #b45309;
+}
+
+[data-theme="dark"] .court-plan-transition.move {
+  color: #fbbf24;
+}
+
+.court-plan-focus-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition);
+}
+
+.court-plan-focus-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   PHASE 7.6: ASK AI HEADER PILL & LOG MODAL STYLES
+   ============================================================ */
+
+.ai-header-pill-btn {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(37, 99, 235, 0.15));
+  color: #7c3aed;
+  border: 1.5px solid rgba(124, 58, 237, 0.35);
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: var(--transition);
+}
+
+[data-theme="dark"] .ai-header-pill-btn {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(59, 130, 246, 0.2));
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.ai-header-pill-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+}
+
+/* Score Log Table / Cards */
+.score-log-item {
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+}
+
+.score-log-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.score-log-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+}
+
+.score-log-action-badge {
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.score-log-action-badge.save {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--win-color);
+}
+
+.score-log-action-badge.edit {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--gold);
+}
+
+.score-log-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 
 
 

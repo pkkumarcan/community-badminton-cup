@@ -1064,6 +1064,7 @@ const ROSTER = [
   window.BASE_FIXTURES = BASE_FIXTURES;
   window.getFixtures = function() { return fixtures; };
   window.ROSTER = ROSTER;
+  window.PLAYERS = PLAYERS;
   window.BLOCKS = BLOCKS;
   window.ROUND_TIMES = ROUND_TIMES;
 
@@ -1103,6 +1104,9 @@ const ROSTER = [
   let skRecentEntries = [];
   let skIsSaving = false;
 
+  // Phase 7.6: Score Activity Log (Audit trail with timestamps)
+  let scoreActivityLog = [];
+
   window.FINALS_TARGET_SCORE = FINALS_TARGET_SCORE;
   window.isStage1Locked = function () { return stage1Locked; };
   window.getStage1Locked = function () { return stage1Locked; };
@@ -1113,6 +1117,8 @@ const ROSTER = [
   window.getFinalsScores = function () { return finalsScores; };
   window.getFinalsPlayoffs = function () { return finalsPlayoffs; };
   window.getSkRecentEntries = function () { return skRecentEntries; };
+  window.getScoreActivityLog = function () { return scoreActivityLog; };
+  window.setScoreActivityLog = function (arr) { scoreActivityLog = arr; };
 
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
   const STORAGE_KEY = 'badminton_cup_portal_data_v9';
@@ -1171,7 +1177,9 @@ const ROSTER = [
         tieResolutions,
         officialFinalsPools,
         // Phase 7.5 Scorekeeper entries
-        skRecentEntries: skRecentEntries.slice(0, 5)
+        skRecentEntries: skRecentEntries.slice(0, 5),
+        // Phase 7.6 Score activity log
+        scoreActivityLog: scoreActivityLog.slice(0, 200)
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -1229,6 +1237,10 @@ const ROSTER = [
       // Restore Phase 7.5 Scorekeeper recent entries
       if (Array.isArray(data.skRecentEntries)) {
         skRecentEntries = data.skRecentEntries;
+      }
+      // Restore Phase 7.6 Score activity log
+      if (Array.isArray(data.scoreActivityLog)) {
+        scoreActivityLog = data.scoreActivityLog;
       }
       if (data.currentCourtFilter) {
         currentCourtFilter = data.currentCourtFilter;
@@ -1446,6 +1458,12 @@ const ROSTER = [
     if (tab === 'finals') renderFinals();
     if (tab === 'fixtures') renderSchedule();
     if (tab === 'scorekeeper') renderScorekeeperView();
+
+    // Phase 7.6: In Scorekeeper Mode, hide Ask AI button so scorekeeper has clean uncluttered entry screen
+    const aiToggleBtn = document.getElementById('aiChatToggleBtn');
+    if (aiToggleBtn) {
+      aiToggleBtn.style.display = (tab === 'scorekeeper') ? 'none' : 'inline-flex';
+    }
 
     // Instant top-of-screen scroll per Requirement 18
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1700,7 +1718,50 @@ const ROSTER = [
     switchTab("fixtures");
   };
 
-  // ---------- RENDERING: MY TOURNAMENT DASHBOARD (Phase 2) ----------
+  // ---------- PHASE 7.6: PLAYER COURT JOURNEY HELPER ----------
+  function getPlayerCourtJourney(player) {
+    if (!player) return [];
+    const blockTimes = {
+      1: "12:00–12:30",
+      2: "12:30–1:00",
+      3: "1:00–1:30",
+      4: "1:30–2:00"
+    };
+
+    const journey = [];
+    for (let b = 1; b <= 4; b++) {
+      const rStart = (b - 1) * 3 + 1;
+      const rEnd = b * 3;
+      const blockMatches = fixtures.filter(f => f.r >= rStart && f.r <= rEnd);
+      // Find where player is involved (playing or refereeing)
+      const pMatch = blockMatches.find(f => f.t1.includes(player) || f.t2.includes(player) || f.refs.includes(player));
+      const court = pMatch ? pMatch.c : null;
+      const isPlay = pMatch ? (pMatch.t1.includes(player) || pMatch.t2.includes(player)) : false;
+      const isRef = pMatch ? pMatch.refs.includes(player) : false;
+
+      let transition = "";
+      if (b > 1 && journey[b - 2] && court != null) {
+        const prevCourt = journey[b - 2].court;
+        if (prevCourt === court) {
+          transition = `STAY ON COURT ${court}`;
+        } else {
+          transition = `MOVE TO COURT ${court}`;
+        }
+      }
+
+      journey.push({
+        block: b,
+        time: blockTimes[b] || "",
+        court: court,
+        role: isPlay ? 'PLAYING' : (isRef ? 'REFEREE' : 'DUTY'),
+        transition: transition
+      });
+    }
+    return journey;
+  }
+  window.getPlayerCourtJourney = getPlayerCourtJourney;
+
+  // ---------- RENDERING: MY TOURNAMENT DASHBOARD (Phase 2 + Phase 7.6) ----------
   function renderHomeDashboard() {
     const container = document.getElementById("homeDashboardContainer");
     if (!container) return;
@@ -1729,6 +1790,64 @@ const ROSTER = [
     // Active tournament Block calculation
     const activeFixture = fixtures.find(f => !isMatchConcluded(f));
     const currentTournamentBlock = activeFixture ? Math.ceil(activeFixture.r / 3) : 4;
+
+    // Phase 7.6: Big Court Plan Table (Where should I be? Where do I go next?)
+    const courtJourney = getPlayerCourtJourney(player);
+    const courtPlanRowsHtml = courtJourney.map(j => {
+      const isCurrent = j.block === currentTournamentBlock;
+      const isNext = j.block === currentTournamentBlock + 1;
+
+      let statusTagText = `BLOCK ${j.block}`;
+      if (isCurrent) statusTagText = "YOU SHOULD BE AT";
+      else if (isNext) statusTagText = "NEXT";
+
+      let transitionBadge = "";
+      if (j.transition) {
+        const isStay = j.transition.startsWith("STAY");
+        transitionBadge = `<div class="court-plan-transition ${isStay ? 'stay' : 'move'}">${isStay ? '🟢' : '🔄'} ${j.transition}</div>`;
+      }
+
+      let focusBtnHtml = "";
+      if (isCurrent && j.court) {
+        focusBtnHtml = `
+          <button type="button" class="court-plan-focus-btn" onclick="focusCourt(${j.court})" title="Focus Court ${j.court}">
+            <span>🏟️</span> View Court ${j.court} &rarr;
+          </button>
+        `;
+      }
+
+      return `
+        <div class="court-plan-row ${isCurrent ? 'is-current' : (isNext ? 'is-next' : '')}">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+            <span class="court-plan-status-tag">${statusTagText}</span>
+            <span class="court-plan-time">${j.time}</span>
+          </div>
+          <div class="court-plan-court-large">
+            <span>COURT ${j.court || 'TBD'}</span>
+            ${focusBtnHtml}
+          </div>
+          ${transitionBadge}
+        </div>
+      `;
+    }).join("");
+
+    const courtPlanHtml = `
+      <div class="home-court-plan-card">
+        <div class="court-plan-header">
+          <div class="court-plan-title-wrap">
+            <span class="court-plan-icon">🏟️</span>
+            <div>
+              <h3 class="court-plan-title">YOUR COURT PLAN</h3>
+              <p class="court-plan-subtitle">Your exact assigned court for all 4 tournament blocks</p>
+            </div>
+          </div>
+          <span class="court-plan-badge">STAGE 1 SCHEDULE</span>
+        </div>
+        <div class="court-plan-grid">
+          ${courtPlanRowsHtml}
+        </div>
+      </div>
+    `;
 
     // Determine current tournament status
     let statusBannerHtml = "";
@@ -1807,6 +1926,7 @@ const ROSTER = [
               Officiating: <strong>${rf.t1.join(' & ')}</strong> vs <strong>${rf.t2.join(' & ')}</strong>
               &bull; Partner Ref: <strong>${otherRef}</strong>
             </div>
+          </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
             <span class="badge" style="background:#f59e0b; color:#fff; font-weight:900; padding:6px 12px; font-size:0.82rem;">REFEREE</span>
             <button type="button" class="court-link-btn" onclick="focusCourt(${rf.c})" title="View Court ${rf.c} Departure Board"><span>🏟️</span> Court ${rf.c} &rarr;</button>
@@ -2137,22 +2257,25 @@ const ROSTER = [
         </button>
       </div>
 
-      <!-- B. CURRENT TOURNAMENT STATUS -->
+      <!-- B. YOUR COURT PLAN (Highest Player Information Priority) -->
+      ${courtPlanHtml}
+
+      <!-- C. CURRENT TOURNAMENT STATUS -->
       ${statusBannerHtml}
 
       <!-- D1. NEXT REFEREE DUTY (If immediate) -->
       ${nextDutyAlertHtml}
 
-      <!-- C. NEXT MATCH HERO CARD -->
+      <!-- D2. NEXT MATCH HERO CARD -->
       ${heroCardHtml}
 
-      <!-- D2. NEXT REFEREE DUTY (If playing comes first) -->
+      <!-- D3. NEXT REFEREE DUTY (If playing comes first) -->
       ${secondaryRefHtml}
 
-      <!-- F. COMPACT PERSONAL STATISTICS -->
+      <!-- E. COMPACT PERSONAL STATISTICS -->
       ${statsGridHtml}
 
-      <!-- E. UPCOMING PLAYING & REFEREE TIMELINE -->
+      <!-- F. UPCOMING PLAYING & REFEREE TIMELINE -->
       ${timelineHtml}
     `;
   }
@@ -4747,6 +4870,14 @@ const ROSTER = [
       copper: []
     };
 
+    // Phase 7.6: Log RESET_FINALS activity
+    scoreActivityLog.unshift({
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      timestamp: new Date().toISOString(),
+      action: 'RESET_FINALS',
+      stage: 'FINALS'
+    });
+
     saveState();
     renderFinals();
     renderHomeDashboard();
@@ -4756,7 +4887,6 @@ const ROSTER = [
     showToast("🔄 All Finals scores and playoffs have been reset.");
   };
 
-  // ---------- POPULATE PLAYER DROPDOWN ----------
   // ---------- POPULATE PLAYER DROPDOWN ----------
   function populatePlayerSelect() {
     const select = document.getElementById("playerSelect");
@@ -4812,7 +4942,9 @@ const ROSTER = [
       tieResolutions,
       officialFinalsPools,
       // Phase 7.5 Scorekeeper entries
-      skRecentEntries: skRecentEntries.slice(0, 5)
+      skRecentEntries: skRecentEntries.slice(0, 5),
+      // Phase 7.6 Score activity log
+      scoreActivityLog: scoreActivityLog.slice(0, 200)
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -4880,6 +5012,10 @@ const ROSTER = [
           skRecentEntries = parsed.skRecentEntries;
         } else {
           skRecentEntries = [];
+        }
+        // Restore Phase 7.6 Score activity log
+        if (Array.isArray(parsed.scoreActivityLog)) {
+          scoreActivityLog = parsed.scoreActivityLog;
         }
         saveState();
         renderSchedule();
@@ -5039,6 +5175,9 @@ const ROSTER = [
         return { ok: false, alreadyScored: true, error: `Finals Match ${cleanCode} is already completed (${existing.s1}–${existing.s2}). Explicit edit confirmation required.` };
       }
 
+      const prevS1 = existing?.s1 != null ? Number(existing.s1) : null;
+      const prevS2 = existing?.s2 != null ? Number(existing.s2) : null;
+
       // Save Finals score
       if (!finalsScores[poolKey]) {
         finalsScores[poolKey] = [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }];
@@ -5052,14 +5191,36 @@ const ROSTER = [
       const t1Name = mMeta?.t1 ? mMeta.t1.join(' & ') : 'Team 1';
       const t2Name = mMeta?.t2 ? mMeta.t2.join(' & ') : 'Team 2';
 
+      const isoNow = new Date().toISOString();
+
+      // Phase 7.6: Log to persistent Score Activity Log (Audit Trail)
+      const activityEvent = {
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        timestamp: isoNow,
+        action: isEditing ? 'EDIT' : 'SAVE',
+        stage: 'FINALS',
+        matchId: cleanCode,
+        court: courtNum,
+        score1: s1,
+        score2: s2,
+        team1: mMeta?.t1 ? [...mMeta.t1] : ['Team 1'],
+        team2: mMeta?.t2 ? [...mMeta.t2] : ['Team 2']
+      };
+      if (isEditing && prevS1 != null && prevS2 != null) {
+        activityEvent.previousScore1 = prevS1;
+        activityEvent.previousScore2 = prevS2;
+      }
+      scoreActivityLog.unshift(activityEvent);
+
       // Record recent entry audit item
       const auditItem = {
         matchCode: cleanCode,
         score: `${s1}–${s2}`,
+        prevScore: (isEditing && prevS1 != null && prevS2 != null) ? `${prevS1}–${prevS2}` : null,
         court: courtNum,
         t1: t1Name,
         t2: t2Name,
-        savedAt: new Date().toISOString(),
+        savedAt: isoNow,
         action: isEditing ? 'EDIT' : 'SAVE',
         isFinals: true
       };
@@ -5115,6 +5276,9 @@ const ROSTER = [
       return { ok: false, alreadyScored: true, error: `Match ${fullMatchCode} is already completed (${f.s1}–${f.s2}). Explicit edit confirmation required.` };
     }
 
+    const prevS1 = f.s1 != null ? Number(f.s1) : null;
+    const prevS2 = f.s2 != null ? Number(f.s2) : null;
+
     // Save Stage 1 score
     f.s1 = s1;
     f.s2 = s2;
@@ -5122,14 +5286,37 @@ const ROSTER = [
     const t1Name = f.t1.join(' & ');
     const t2Name = f.t2.join(' & ');
     const courtNum = f.c;
+    const blockNum = Math.ceil(f.r / 3);
+    const isoNow = new Date().toISOString();
+
+    // Phase 7.6: Log to persistent Score Activity Log (Audit Trail)
+    const activityEvent = {
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      timestamp: isoNow,
+      action: isEditing ? 'EDIT' : 'SAVE',
+      stage: 'STAGE_1',
+      matchId: fullMatchCode,
+      court: courtNum,
+      block: blockNum,
+      score1: s1,
+      score2: s2,
+      team1: [...f.t1],
+      team2: [...f.t2]
+    };
+    if (isEditing && prevS1 != null && prevS2 != null) {
+      activityEvent.previousScore1 = prevS1;
+      activityEvent.previousScore2 = prevS2;
+    }
+    scoreActivityLog.unshift(activityEvent);
 
     const auditItem = {
       matchCode: fullMatchCode,
       score: `${s1}–${s2}`,
+      prevScore: (isEditing && prevS1 != null && prevS2 != null) ? `${prevS1}–${prevS2}` : null,
       court: courtNum,
       t1: t1Name,
       t2: t2Name,
-      savedAt: new Date().toISOString(),
+      savedAt: isoNow,
       action: isEditing ? 'EDIT' : 'SAVE',
       isFinals: false
     };
@@ -5603,13 +5790,14 @@ const ROSTER = [
     }
 
     list.innerHTML = skRecentEntries.map(item => {
-      const timeStr = item.savedAt ? new Date(item.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const timeStr = item.savedAt ? new Date(item.savedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : '';
+      const scoreDisplay = (item.action === 'EDIT' && item.prevScore) ? `${item.prevScore} &rarr; <strong>${item.score}</strong>` : `<strong>${item.score}</strong>`;
       return `
         <div class="sk-recent-item">
           <div class="sk-recent-item-left">
-            <div style="display:flex; align-items:center; gap:6px;">
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
               <span class="sk-recent-badge">✓ ${item.matchCode}</span>
-              <span class="sk-recent-score">${item.score}</span>
+              <span class="sk-recent-score">${scoreDisplay}</span>
               <span class="sk-recent-court">Court ${item.court}</span>
               ${item.action === 'EDIT' ? '<span style="font-size:0.68rem; font-weight:800; background:rgba(245,158,11,0.2); color:var(--gold); padding:2px 6px; border-radius:4px;">EDITED</span>' : ''}
               <span style="font-size:0.72rem; color:var(--text-muted);">${timeStr}</span>
@@ -5640,6 +5828,135 @@ const ROSTER = [
   window.loadScorekeeperMatchForEdit = loadScorekeeperMatchForEdit;
   window.getSkRecentEntries = function () { return skRecentEntries; };
   window.setSkRecentEntries = function (arr) { skRecentEntries = arr; };
+
+  // ---------- PHASE 7.6: SCORE ACTIVITY TIMELINE LOG MODAL & EXPORTS ----------
+  function openScoreLogModal() {
+    const modal = document.getElementById('scoreLogModal');
+    if (modal) {
+      modal.classList.add('open');
+      renderScoreLogList();
+    }
+  }
+  window.openScoreLogModal = openScoreLogModal;
+
+  function closeScoreLogModal() {
+    const modal = document.getElementById('scoreLogModal');
+    if (modal) modal.classList.remove('open');
+  }
+  window.closeScoreLogModal = closeScoreLogModal;
+
+  function renderScoreLogList() {
+    const container = document.getElementById('scoreLogList');
+    if (!container) return;
+
+    if (!scoreActivityLog || scoreActivityLog.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:28px 16px; color:var(--text-muted); font-size:0.85rem; background:var(--bg-main); border-radius:var(--radius-md);">
+          <div style="font-size:1.8rem; margin-bottom:4px;">📜</div>
+          <div>No score activity records logged yet.</div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = scoreActivityLog.map(item => {
+      const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : '';
+      const isEdit = item.action === 'EDIT';
+      const isReset = item.action.startsWith('RESET');
+
+      if (isReset) {
+        return `
+          <div class="score-log-item" style="border-left: 3px solid #ef4444;">
+            <div class="score-log-item-left">
+              <div class="score-log-item-header">
+                <span class="score-log-action-badge" style="background:rgba(239,68,68,0.15); color:#ef4444;">${item.action}</span>
+                <span style="font-size:0.8rem; color:var(--text-secondary);">${item.stage || 'TOURNAMENT'}</span>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div class="score-log-time">${timeStr}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      const scoreStr = isEdit && (item.previousScore1 != null && item.previousScore2 != null)
+        ? `${item.previousScore1}–${item.previousScore2} &rarr; <strong>${item.score1}–${item.score2}</strong>`
+        : `<strong>${item.score1}–${item.score2}</strong>`;
+
+      const stageLabel = item.stage === 'FINALS' ? 'Finals' : (item.block ? `Block ${item.block}` : 'Stage 1');
+      const t1Str = Array.isArray(item.team1) ? item.team1.join(' & ') : (item.team1 || '');
+      const t2Str = Array.isArray(item.team2) ? item.team2.join(' & ') : (item.team2 || '');
+
+      return `
+        <div class="score-log-item">
+          <div class="score-log-item-left">
+            <div class="score-log-item-header">
+              <span class="score-log-action-badge ${isEdit ? 'edit' : 'save'}">${item.action}</span>
+              <span class="match-pill">${item.matchId}</span>
+              <span class="badge badge-court">Court ${item.court}</span>
+              <span style="font-size:0.75rem; color:var(--text-secondary);">${stageLabel}</span>
+            </div>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">
+              ${t1Str} vs ${t2Str}
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.88rem; color:var(--text-primary);">${scoreStr}</div>
+            <div class="score-log-time">${timeStr}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  window.renderScoreLogList = renderScoreLogList;
+
+  function exportScoreLogJSON() {
+    if (!scoreActivityLog || scoreActivityLog.length === 0) {
+      showToast("⚠️ No activity log records to export.");
+      return;
+    }
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(scoreActivityLog, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `badminton_cup_score_log_${new Date().toISOString().slice(0, 10)}.json`);
+    dlAnchorElem.click();
+    showToast("💾 Score activity log exported (JSON)");
+  }
+  window.exportScoreLogJSON = exportScoreLogJSON;
+
+  function exportScoreLogCSV() {
+    if (!scoreActivityLog || scoreActivityLog.length === 0) {
+      showToast("⚠️ No activity log records to export.");
+      return;
+    }
+    const headers = ["Timestamp", "Action", "Stage", "MatchId", "Court", "Block", "Score1", "Score2", "PrevScore1", "PrevScore2", "Team1", "Team2"];
+    const rows = scoreActivityLog.map(e => [
+      `"${e.timestamp || ''}"`,
+      `"${e.action || ''}"`,
+      `"${e.stage || ''}"`,
+      `"${e.matchId || ''}"`,
+      `"${e.court || ''}"`,
+      `"${e.block || ''}"`,
+      `"${e.score1 ?? ''}"`,
+      `"${e.score2 ?? ''}"`,
+      `"${e.previousScore1 ?? ''}"`,
+      `"${e.previousScore2 ?? ''}"`,
+      `"${Array.isArray(e.team1) ? e.team1.join(' & ') : (e.team1 || '')}"`,
+      `"${Array.isArray(e.team2) ? e.team2.join(' & ') : (e.team2 || '')}"`
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `badminton_cup_score_log_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("📄 Score activity log exported (CSV)");
+  }
+  window.exportScoreLogCSV = exportScoreLogCSV;
 
   window.printTournament = function () {
     window.print();
