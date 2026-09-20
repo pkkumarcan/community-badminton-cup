@@ -1215,8 +1215,8 @@ const ROSTER = [
       if (lock.locked === true) {
         stage1Locked = true;
         stage1LockedAt = lock.lockedAt || null;
-        officialStage1Rankings = lock.rankings || null;
-        officialFinalsPools = lock.finalsPools || null;
+        officialStage1Rankings = lock.officialStage1Rankings || lock.rankings || null;
+        officialFinalsPools = lock.officialFinalsPools || lock.finalsPools || null;
         tieResolutions = lock.tieResolutions || {};
       } else {
         stage1Locked = false;
@@ -1489,14 +1489,14 @@ const ROSTER = [
 
     if (authBtn) {
       if (user) {
-        authBtn.textContent = "Sign Out (" + (user.email ? user.email.split('@')[0] : 'Org') + ")";
+        authBtn.innerHTML = "<span>🔑</span> <span>Sign Out (" + (user.email ? user.email.split('@')[0] : 'Org') + ")</span>";
         authBtn.onclick = function () {
           if (confirm("Sign out of organizer scorekeeping account?")) {
             TournamentFirebase.signOutOrganizer();
           }
         };
       } else {
-        authBtn.textContent = "🔑 Organizer Sign In";
+        authBtn.innerHTML = "<span>🔑</span> <span>Sign In</span>";
         authBtn.onclick = openAuthModal;
       }
     }
@@ -1504,17 +1504,14 @@ const ROSTER = [
     if (lockArea) {
       if (isUnlocked) {
         lockArea.innerHTML = `
-          <span class="badge" style="background:var(--win-bg); color:var(--win-color); border:1px solid var(--win-color); font-size:0.75rem; font-weight:800; padding:4px 10px; border-radius:var(--radius-full);">
-            🔓 Admin
-          </span>
-          <button type="button" class="btn-secondary" onclick="lockAdmin()" style="padding:4px 10px; font-size:0.75rem; border-radius:var(--radius-full);" title="Lock and return to participant view">
-            🔒 Lock
+          <button type="button" class="header-pill-btn admin-pill-btn unlocked" onclick="lockAdmin()" title="Lock and return to participant view">
+            <span>🔓</span> <span>Lock</span>
           </button>
         `;
       } else {
         lockArea.innerHTML = `
-          <button type="button" id="adminLockBtn" class="nav-link-btn" onclick="toggleAdminLock()" style="background:rgba(245, 158, 11, 0.15); color:var(--gold); border:1px solid rgba(245, 158, 11, 0.4); padding:6px 14px; font-size:0.8rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Enter Organizer PIN (1234) to unlock score editing">
-            🔒 Admin Unlock
+          <button type="button" id="adminLockBtn" class="header-pill-btn admin-pill-btn" onclick="toggleAdminLock()" title="Enter Organizer PIN (1234) to unlock score editing">
+            <span>🔒</span> <span>Admin</span>
           </button>
         `;
       }
@@ -2440,14 +2437,14 @@ const ROSTER = [
       <div class="home-welcome-card">
         <div class="home-welcome-info">
           <div class="home-welcome-name">
-            <span>🏸</span> ${player}
+            <span>🏸</span> <span>${player}</span>
           </div>
           <div class="home-welcome-stage">
-            Stage 1 &bull; Current: Block ${currentTournamentBlock} &bull; 8 Partner Guarantee
+            Stage 1 &bull; Block ${currentTournamentBlock}
           </div>
         </div>
         <button type="button" class="change-player-btn" onclick="openPlayerSelector()" title="Change selected player">
-          <span>🔄</span> Change Player
+          <span>🔄</span> <span>Change</span>
         </button>
       </div>
 
@@ -3974,6 +3971,8 @@ const ROSTER = [
       updates['stage1Lock'] = {
         locked: true,
         lockedAt: stage1LockedAt,
+        officialStage1Rankings: officialStage1Rankings,
+        officialFinalsPools: officialFinalsPools,
         rankings: officialStage1Rankings,
         finalsPools: officialFinalsPools,
         tieResolutions: tieResolutions || {}

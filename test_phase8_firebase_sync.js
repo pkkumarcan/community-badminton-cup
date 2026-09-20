@@ -117,7 +117,13 @@ function evaluateRule(ruleStr, context) {
     },
     data: {
       exists: () => context.dataExists === true,
-      val: () => context.dataVal || null
+      val: () => context.dataVal || null,
+      child: (k) => ({
+        val: () => (context.dataVal ? context.dataVal[k] : null),
+        isNumber: () => (context.dataVal && typeof context.dataVal[k] === 'number'),
+        isBoolean: () => (context.dataVal && typeof context.dataVal[k] === 'boolean'),
+        isString: () => (context.dataVal && typeof context.dataVal[k] === 'string')
+      })
     },
     newData: {
       exists: () => context.newDataExists === true,
@@ -165,7 +171,9 @@ const stage1WriteRule = rules.rules.tournaments['$tournamentId'].stage1Scores['$
 const stage1ValidateRule = rules.rules.tournaments['$tournamentId'].stage1Scores['$matchCode']['.validate'];
 const logWriteRule = rules.rules.tournaments['$tournamentId'].scoreActivityLog['$pushId']['.write'];
 const lockWriteRule = rules.rules.tournaments['$tournamentId'].stage1Lock['.write'];
+const lockValidateRule = rules.rules.tournaments['$tournamentId'].stage1Lock['.validate'];
 const finalsWriteRule = rules.rules.tournaments['$tournamentId'].finalsScores['$pool']['$matchIdx']['.write'];
+const finalsValidateRule = rules.rules.tournaments['$tournamentId'].finalsScores['$pool']['$matchIdx']['.validate'];
 
 // 1. Unauthenticated checks
 test('Rules Matrix: Unauthenticated read tournament -> ALLOWED', () => {
@@ -230,24 +238,141 @@ test('Rules Matrix: Authenticated but unauthorized log append -> DENIED', () => 
   assert.strictEqual(allowed, false);
 });
 
-// 3. Authorized Organizer checks
-test('Rules Matrix: Authorized valid Stage 1 score create/update -> ALLOWED', () => {
-  const allowedWrite = evaluateRule(stage1WriteRule, {
+// 3. Server-Side Revision Enforcement (Part A)
+test('Rules Matrix: NEW Match score with revision 1 -> ALLOWED', () => {
+  const allowed = evaluateRule(stage1ValidateRule, {
     ...authorizedOrganizerContext,
+    dataExists: false,
     newDataExists: true,
     newDataVal: { s1: 15, s2: 12, revision: 1 }
   });
-  const allowedVal = evaluateRule(stage1ValidateRule, {
+  assert.strictEqual(allowed, true);
+});
+
+test('Rules Matrix: NEW Match score with invalid revision != 1 -> DENIED', () => {
+  const allowed = evaluateRule(stage1ValidateRule, {
     ...authorizedOrganizerContext,
+    dataExists: false,
+    newDataExists: true,
+    newDataVal: { s1: 15, s2: 12, revision: 2 }
+  });
+  assert.strictEqual(allowed, false, 'New match must start at revision 1');
+});
+
+test('Rules Matrix: EXISTING Match score (rev 1) advancing to revision 2 -> ALLOWED', () => {
+  const allowed = evaluateRule(stage1ValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: true,
+    dataVal: { s1: 15, s2: 10, revision: 1 },
+    newDataExists: true,
+    newDataVal: { s1: 15, s2: 12, revision: 2 }
+  });
+  assert.strictEqual(allowed, true);
+});
+
+test('Rules Matrix: EXISTING Match score (rev 1) with non-advancing revision 1 -> DENIED', () => {
+  const allowed = evaluateRule(stage1ValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: true,
+    dataVal: { s1: 15, s2: 10, revision: 1 },
     newDataExists: true,
     newDataVal: { s1: 15, s2: 12, revision: 1 }
   });
-  assert.strictEqual(allowedWrite && allowedVal, true);
+  assert.strictEqual(allowed, false, 'Must advance revision by exactly +1');
+});
+
+test('Rules Matrix: EXISTING Match score (rev 1) skipping revision to 3 -> DENIED', () => {
+  const allowed = evaluateRule(stage1ValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: true,
+    dataVal: { s1: 15, s2: 10, revision: 1 },
+    newDataExists: true,
+    newDataVal: { s1: 15, s2: 12, revision: 3 }
+  });
+  assert.strictEqual(allowed, false, 'Skipping revision numbers is prohibited');
+});
+
+test('Rules Matrix: Server-Side Concurrency Race (Stale Client attempting rev 2 when cloud is rev 2) -> DENIED', () => {
+  const allowed = evaluateRule(stage1ValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: true,
+    dataVal: { s1: 15, s2: 13, revision: 2 }, // Cloud already updated to rev 2 by Client B
+    newDataExists: true,
+    newDataVal: { s1: 15, s2: 9, revision: 2 } // Stale Client A attempting rev 2
+  });
+  assert.strictEqual(allowed, false, 'Server-side CAS rule rejects stale client revision');
+});
+
+test('Rules Matrix: Finals score revision progression (New rev 1 -> ALLOWED, Edit rev 2 -> ALLOWED, Stale -> DENIED)', () => {
+  const newAllowed = evaluateRule(finalsValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: false,
+    newDataExists: true,
+    newDataVal: { s1: 21, s2: 19, revision: 1 }
+  });
+  assert.strictEqual(newAllowed, true);
+
+  const editAllowed = evaluateRule(finalsValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: true,
+    dataVal: { s1: 21, s2: 19, revision: 1 },
+    newDataExists: true,
+    newDataVal: { s1: 21, s2: 18, revision: 2 }
+  });
+  assert.strictEqual(editAllowed, true);
+
+  const staleDenied = evaluateRule(finalsValidateRule, {
+    ...authorizedOrganizerContext,
+    dataExists: true,
+    dataVal: { s1: 21, s2: 18, revision: 2 },
+    newDataExists: true,
+    newDataVal: { s1: 21, s2: 15, revision: 2 }
+  });
+  assert.strictEqual(staleDenied, false);
+});
+
+// 4. Stage 1 Lock Validation (Part B)
+test('Rules Matrix: Malformed Stage 1 lock state { locked: true } missing snapshot fields -> DENIED', () => {
+  const allowed = evaluateRule(lockValidateRule, {
+    ...authorizedOrganizerContext,
+    newDataExists: true,
+    newDataVal: { locked: true } // Missing lockedAt, officialStage1Rankings, officialFinalsPools
+  });
+  assert.strictEqual(allowed, false, 'Malformed lock state must be rejected');
+});
+
+test('Rules Matrix: Authoritative Stage 1 lock with full snapshot -> ALLOWED', () => {
+  const allowed = evaluateRule(lockValidateRule, {
+    ...authorizedOrganizerContext,
+    newDataExists: true,
+    newDataVal: {
+      locked: true,
+      lockedAt: '2026-09-20T12:30:00.000Z',
+      officialStage1Rankings: [{ player: 'Ajeet', rank: 1 }],
+      officialFinalsPools: [{ key: 'gold', label: 'Gold' }]
+    }
+  });
+  assert.strictEqual(allowed, true);
+});
+
+test('Rules Matrix: Stage 1 unlock state { locked: false } -> ALLOWED', () => {
+  const allowed = evaluateRule(lockValidateRule, {
+    ...authorizedOrganizerContext,
+    newDataExists: true,
+    newDataVal: {
+      locked: false,
+      lockedAt: null,
+      rankings: null,
+      finalsPools: null
+    }
+  });
+  assert.strictEqual(allowed, true);
 });
 
 test('Rules Matrix: Malformed score (non-number score) -> DENIED by .validate', () => {
   const allowedVal = evaluateRule(stage1ValidateRule, {
     ...authorizedOrganizerContext,
+    dataExists: false,
     newDataExists: true,
     newDataVal: { s1: "fifteen", s2: 12, revision: 1 }
   });

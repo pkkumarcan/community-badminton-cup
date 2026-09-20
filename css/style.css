@@ -2691,17 +2691,85 @@ body {
 /* Header & Navigation Mobile Breakpoint */
 @media (max-width: 768px) {
   body {
-    padding: 8px 8px calc(76px + env(safe-area-inset-bottom)) !important;
+    padding: 6px 6px calc(72px + env(safe-area-inset-bottom)) !important;
   }
   .portal-header {
-    padding: 10px 12px;
-    margin-bottom: 12px;
+    padding: 8px 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: var(--radius-md) !important;
+  }
+  .header-top-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+  .header-brand-wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+  .header-badge-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  .brand-badge {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+    margin-bottom: 0 !important;
+  }
+  .connection-status-pill {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+  }
+  .badge-view-only {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
   }
   .portal-title {
-    font-size: 1.25rem;
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
   }
   .portal-subtitle {
-    font-size: 0.78rem;
+    font-size: 0.72rem !important;
+    margin-top: 1px !important;
+    color: var(--text-muted) !important;
+  }
+  .header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+  }
+  #adminLockArea {
+    flex: 1 !important;
+    display: flex !important;
+  }
+  #adminLockArea button {
+    flex: 1 !important;
+    width: 100% !important;
+  }
+  .header-pill-btn,
+  .ai-header-pill-btn,
+  .nav-link-btn,
+  #organizerAuthBtn,
+  #adminLockBtn {
+    min-height: 42px !important;
+    padding: 6px 10px !important;
+    font-size: 0.76rem !important;
+    font-weight: 800 !important;
+    flex: 1 !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    border-radius: var(--radius-full) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
   }
   .header-actions .icon-btn {
     display: none !important; /* Secondary actions moved to More menu */
@@ -2710,7 +2778,7 @@ body {
     display: none !important; /* Replaced by mobile bottom nav */
   }
   .mobile-bottom-nav {
-    display: flex;
+    display: flex !important;
   }
   .more-menu-card {
     position: fixed;
@@ -4619,6 +4687,272 @@ body {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+/* ============================================================
+   PART L: HEADER PILL BUTTONS & MOBILE COMPACTION STYLES
+   ============================================================ */
+
+/* Base Header Pill Buttons (Desktop & Mobile) */
+.header-pill-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  color: var(--text-primary);
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: var(--transition);
+  min-height: 38px;
+}
+
+.auth-pill-btn {
+  background: rgba(124, 58, 237, 0.12);
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+}
+
+[data-theme="dark"] .auth-pill-btn {
+  background: rgba(167, 139, 250, 0.18);
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.35);
+}
+
+.auth-pill-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+}
+
+.admin-pill-btn {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--gold);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="dark"] .admin-pill-btn {
+  color: #fde047;
+  border-color: rgba(253, 224, 71, 0.4);
+}
+
+.admin-pill-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
+.admin-pill-btn.unlocked {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--win-color);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.badge-view-only {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Aggressive Compaction for Mobile Viewports (320px - 480px / 768px) */
+@media (max-width: 768px) {
+  body {
+    padding: 6px 6px calc(72px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .portal-header {
+    padding: 8px 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  .header-top-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+
+  .header-brand-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .header-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .brand-badge {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .connection-status-pill {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .organizer-auth-badge {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .badge-view-only {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .portal-title {
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    margin: 1px 0 0 0 !important;
+  }
+
+  .portal-subtitle {
+    font-size: 0.72rem !important;
+    margin-top: 1px !important;
+    color: var(--text-muted) !important;
+  }
+
+  .header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin-top: 2px !important;
+  }
+
+  .header-pill-btn,
+  .ai-header-pill-btn,
+  .nav-link-btn {
+    min-height: 42px !important;
+    padding: 6px 10px !important;
+    font-size: 0.76rem !important;
+    font-weight: 800 !important;
+    flex: 1 !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  .header-actions .icon-btn {
+    display: none !important;
+  }
+
+  /* Compact Selected Player Card */
+  .home-welcome-card {
+    padding: 8px 12px !important;
+    margin-bottom: 8px !important;
+    border-radius: var(--radius-md) !important;
+    gap: 6px !important;
+  }
+
+  .home-welcome-name {
+    font-size: 1.1rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.2px !important;
+  }
+
+  .home-welcome-stage {
+    font-size: 0.74rem !important;
+  }
+
+  .change-player-btn {
+    padding: 4px 10px !important;
+    font-size: 0.74rem !important;
+    min-height: 32px !important;
+  }
+
+  /* Compact Court Plan Card */
+  .home-court-plan-card {
+    padding: 10px 12px !important;
+    margin-bottom: 8px !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  .court-plan-header {
+    margin-bottom: 8px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .court-plan-title {
+    font-size: 0.95rem !important;
+  }
+
+  .court-plan-subtitle {
+    font-size: 0.72rem !important;
+  }
+
+  .court-plan-badge {
+    font-size: 0.65rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .court-plan-row {
+    padding: 8px 10px !important;
+    border-radius: var(--radius-sm) !important;
+  }
+
+  .court-plan-time {
+    font-size: 0.85rem !important;
+  }
+
+  .court-plan-court-large {
+    font-size: 1.25rem !important;
+  }
+
+  .court-plan-focus-btn {
+    font-size: 0.7rem !important;
+    padding: 3px 8px !important;
+  }
+
+  /* Compact Status Banner & Next Cards */
+  .home-status-banner {
+    padding: 8px 12px !important;
+    font-size: 0.82rem !important;
+    border-radius: var(--radius-sm) !important;
+    margin-bottom: 8px !important;
+  }
+
+  .home-sub-card {
+    padding: 10px 12px !important;
+    border-radius: var(--radius-md) !important;
+    margin-bottom: 8px !important;
+  }
+
+  .hero-match-card {
+    padding: 12px !important;
+    border-radius: var(--radius-md) !important;
+    margin-bottom: 8px !important;
+  }
+
+  .hero-pairing-container {
+    margin: 8px 0 !important;
+    gap: 6px !important;
+  }
+
+  .hero-team-box {
+    padding: 8px !important;
+    min-width: 100px !important;
+  }
+
+  .hero-team-names {
+    font-size: 0.92rem !important;
+  }
 }
 
 

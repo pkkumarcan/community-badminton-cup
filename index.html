@@ -18,7 +18,7 @@
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=9.1">
   <style>
     .app-wrapper {
       max-width: 1540px !important;
@@ -39,14 +39,14 @@
     <!-- Header Section -->
     <header class="portal-header">
       <div class="header-top-row">
-        <div>
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
-            <div class="brand-badge">🏸 Sindhi Boys Tourney</div>
+        <div class="header-brand-wrap">
+          <div class="header-badge-row">
+            <div class="brand-badge">🏸 Sindhi Boys</div>
             <div id="connectionStatusPill" class="connection-status-pill status-connecting" title="Firebase Realtime Database live connection status">
               <span>● CONNECTING...</span>
             </div>
             <div id="organizerAuthBadge" class="organizer-auth-badge" style="display:none;"></div>
-            <div id="viewModeBadge" class="badge" style="background:rgba(37, 99, 235, 0.12); color:var(--primary); border:1px solid var(--primary-border); font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:9999px; text-transform:uppercase;">
+            <div id="viewModeBadge" class="badge badge-view-only">
               🔒 View Only
             </div>
           </div>
@@ -54,12 +54,12 @@
           <p class="portal-subtitle">Live Mixer Fixtures &bull; Standings &bull; Dynamic Finals</p>
         </div>
         <div class="header-actions">
-          <button type="button" id="organizerAuthBtn" class="nav-link-btn" onclick="handleOrganizerAuthClick()" style="background:rgba(124, 58, 237, 0.12); color:#7c3aed; border:1px solid rgba(124, 58, 237, 0.35); padding:6px 12px; font-size:0.78rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Sign in as Authorized Scorekeeper / Organizer">
-            🔑 Organizer Sign In
+          <button type="button" id="organizerAuthBtn" class="header-pill-btn auth-pill-btn" onclick="handleOrganizerAuthClick()" title="Sign in as Authorized Scorekeeper / Organizer">
+            <span>🔑</span> <span>Sign In</span>
           </button>
           <div id="adminLockArea" style="display:inline-flex; align-items:center; gap:6px;">
-            <button type="button" id="adminLockBtn" class="nav-link-btn" onclick="toggleAdminLock()" style="background:rgba(245, 158, 11, 0.15); color:var(--gold); border:1px solid rgba(245, 158, 11, 0.4); padding:6px 14px; font-size:0.8rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Enter Organizer PIN (1234) to unlock local score controls">
-              🔒 Admin Unlock
+            <button type="button" id="adminLockBtn" class="header-pill-btn admin-pill-btn" onclick="toggleAdminLock()" title="Enter Organizer PIN (1234) to unlock local score controls">
+              <span>🔒</span> <span>Admin</span>
             </button>
           </div>
           <button type="button" id="aiChatToggleBtn" class="ai-header-pill-btn" onclick="toggleAiChat()" title="Ask Tournament AI" aria-label="Ask Tournament AI">

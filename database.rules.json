@@ -13,19 +13,19 @@
         "stage1Scores": {
           "$matchCode": {
             ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
-            ".validate": "newData.hasChildren(['s1', 's2', 'revision']) && (newData.child('s1').val() === null || newData.child('s1').isNumber()) && (newData.child('s2').val() === null || newData.child('s2').isNumber()) && newData.child('revision').isNumber()"
+            ".validate": "newData.hasChildren(['s1', 's2', 'revision']) && (newData.child('s1').val() === null || newData.child('s1').isNumber()) && (newData.child('s2').val() === null || newData.child('s2').isNumber()) && newData.child('revision').isNumber() && ((!data.exists() && newData.child('revision').val() === 1) || (data.exists() && newData.child('revision').val() === data.child('revision').val() + 1))"
           }
         },
         "stage1Lock": {
           ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
-          ".validate": "newData.hasChildren(['locked']) && newData.child('locked').isBoolean()"
+          ".validate": "newData.hasChildren(['locked']) && newData.child('locked').isBoolean() && (newData.child('locked').val() === false || (newData.child('locked').val() === true && newData.hasChildren(['locked', 'lockedAt', 'officialStage1Rankings', 'officialFinalsPools'])))"
         },
         "finalsScores": {
           "$pool": {
             ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
             "$matchIdx": {
               ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
-              ".validate": "newData.hasChildren(['s1', 's2', 'revision']) && (newData.child('s1').val() === null || newData.child('s1').isNumber()) && (newData.child('s2').val() === null || newData.child('s2').isNumber()) && newData.child('revision').isNumber()"
+              ".validate": "newData.hasChildren(['s1', 's2', 'revision']) && (newData.child('s1').val() === null || newData.child('s1').isNumber()) && (newData.child('s2').val() === null || newData.child('s2').isNumber()) && newData.child('revision').isNumber() && ((!data.exists() && newData.child('revision').val() === 1) || (data.exists() && newData.child('revision').val() === data.child('revision').val() + 1))"
             }
           }
         },
