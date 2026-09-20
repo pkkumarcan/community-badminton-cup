@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "authorizedUsers": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "tournaments": {
+      "$tournamentId": {
+        ".read": true,
+        ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true",
+        "stage1Scores": {
+          "$matchCode": {
+            ".validate": "newData.hasChildren(['s1', 's2', 'revision', 'updatedAt']) && newData.child('s1').isNumber() && newData.child('s2').isNumber() && newData.child('revision').isNumber()"
+          }
+        },
+        "scoreActivityLog": {
+          "$logId": {
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && !data.exists()",
+            ".validate": "newData.hasChildren(['action', 'matchId', 'serverTimestamp', 'enteredBy'])"
+          }
+        }
+      }
+    }
+  }
+}

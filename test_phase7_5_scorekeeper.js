@@ -203,131 +203,133 @@ test('8. Correct referees shown for M17',
   f17.refs[0] !== f17.t2[0]
 );
 
-// 9. Valid Stage 1 score saves
-const resValid = window.saveTournamentScore('M17', 15, 11, false);
-test('9. Valid Stage 1 score saves via centralized saveTournamentScore',
-  resValid.ok === true &&
-  resValid.score1 === 15 &&
-  resValid.score2 === 11 &&
-  f17.s1 === 15 &&
-  f17.s2 === 11
-);
+(async function runAllTests() {
+  // 9. Valid Stage 1 score saves
+  const resValid = await window.saveTournamentScore('M17', 15, 11, false);
+  test('9. Valid Stage 1 score saves via centralized saveTournamentScore',
+    resValid.ok === true &&
+    resValid.score1 === 15 &&
+    resValid.score2 === 11 &&
+    f17.s1 === 15 &&
+    f17.s2 === 11
+  );
 
-// 10. Invalid Stage 1 score rejected
-const resTie = window.saveTournamentScore('M18', 14, 14, false);
-const resShort = window.saveTournamentScore('M18', 13, 11, false);
-const resOver = window.saveTournamentScore('M18', 16, 14, false);
-test('10. Invalid Stage 1 score rejected by validator (tie, incomplete, over 15)',
-  resTie.ok === false &&
-  resShort.ok === false &&
-  resOver.ok === false
-);
+  // 10. Invalid Stage 1 score rejected
+  const resTie = await window.saveTournamentScore('M18', 14, 14, false);
+  const resShort = await window.saveTournamentScore('M18', 13, 11, false);
+  const resOver = await window.saveTournamentScore('M18', 16, 14, false);
+  test('10. Invalid Stage 1 score rejected by validator (tie, incomplete, over 15)',
+    resTie.ok === false &&
+    resShort.ok === false &&
+    resOver.ok === false
+  );
 
-// 11. Existing score requires explicit edit
-const resOverwrite = window.saveTournamentScore('M17', 15, 8, false);
-const resExplicitEdit = window.saveTournamentScore('M17', 15, 8, true);
-test('11. Existing score requires explicit edit flag (protects accidental overwrite)',
-  resOverwrite.ok === false &&
-  resOverwrite.alreadyScored === true &&
-  resExplicitEdit.ok === true &&
-  resExplicitEdit.action === 'EDIT'
-);
+  // 11. Existing score requires explicit edit
+  const resOverwrite = await window.saveTournamentScore('M17', 15, 8, false);
+  const resExplicitEdit = await window.saveTournamentScore('M17', 15, 8, true);
+  test('11. Existing score requires explicit edit flag (protects accidental overwrite)',
+    resOverwrite.ok === false &&
+    resOverwrite.alreadyScored === true &&
+    resExplicitEdit.ok === true &&
+    resExplicitEdit.action === 'EDIT'
+  );
 
-// 12. Score edit recalculates tournament
-const leaderboard = window.computeLeaderboard();
-const pWinner = f17.t1[0];
-const winnerStat = leaderboard.find(s => s.name === pWinner);
-test('12. Score edit recalculates tournament standings reactively',
-  winnerStat && winnerStat.gp > 0 && winnerStat.wins > 0
-);
+  // 12. Score edit recalculates tournament
+  const leaderboard = window.computeLeaderboard();
+  const pWinner = f17.t1[0];
+  const winnerStat = leaderboard.find(s => s.name === pWinner);
+  test('12. Score edit recalculates tournament standings reactively',
+    winnerStat && winnerStat.gp > 0 && winnerStat.wins > 0
+  );
 
-// 13. Stage 1 lock blocks edit
-// Complete all 48, resolve any boundary ties, and lock Stage 1
-const pattern = [[15,11],[15,13],[12,15],[14,15],[15,9],[10,15],[15,12],[8,15]];
-fixtures.forEach((fix, i) => {
-  const combo = pattern[i % pattern.length];
-  fix.s1 = combo[0]; fix.s2 = combo[1];
-});
-const check = window.validateStage1ForLock();
-if (check.reason === 'ties' && check.tieGroups) {
-  check.tieGroups.forEach(tg => {
-    window.getTieResolutions()[tg.id] = tg.players.map(p => p.name);
+  // 13. Stage 1 lock blocks edit
+  // Complete all 48, resolve any boundary ties, and lock Stage 1
+  const pattern = [[15,11],[15,13],[12,15],[14,15],[15,9],[10,15],[15,12],[8,15]];
+  fixtures.forEach((fix, i) => {
+    const combo = pattern[i % pattern.length];
+    fix.s1 = combo[0]; fix.s2 = combo[1];
   });
-}
-window.confirmStage1Lock();
+  const check = window.validateStage1ForLock();
+  if (check.reason === 'ties' && check.tieGroups) {
+    check.tieGroups.forEach(tg => {
+      window.getTieResolutions()[tg.id] = tg.players.map(p => p.name);
+    });
+  }
+  window.confirmStage1Lock();
 
-const isLocked = window.isStage1Locked();
-const resLockedEdit = window.saveTournamentScore('M01', 15, 10, true);
-test('13. Stage 1 lock blocks Stage 1 score editing in Scorekeeper Mode',
-  isLocked === true &&
-  resLockedEdit.ok === false &&
-  resLockedEdit.error.includes('STAGE 1 LOCKED')
-);
+  const isLocked = window.isStage1Locked();
+  const resLockedEdit = await window.saveTournamentScore('M01', 15, 10, true);
+  test('13. Stage 1 lock blocks Stage 1 score editing in Scorekeeper Mode',
+    isLocked === true &&
+    resLockedEdit.ok === false &&
+    resLockedEdit.error.includes('STAGE 1 LOCKED')
+  );
 
-// 14. Recent entries update
-const recentEntries = window.getSkRecentEntries();
-test('14. Recent entries list updates and preserves last entries',
-  Array.isArray(recentEntries) &&
-  recentEntries.length > 0 &&
-  recentEntries.length <= 5
-);
+  // 14. Recent entries update
+  const recentEntries = window.getSkRecentEntries();
+  test('14. Recent entries list updates and preserves last entries',
+    Array.isArray(recentEntries) &&
+    recentEntries.length > 0 &&
+    recentEntries.length <= 5
+  );
 
-// 15. Finals IDs G1–C3 available after lock
-const finalsPools = window.getEffectiveFinalsPools();
-const allFinalsCodes = finalsPools.flatMap(p => p.matches.map(m => m.matchCode || m.id));
-test('15. Finals IDs G1–C3 generated and available after lock',
-  allFinalsCodes.includes('G1') &&
-  allFinalsCodes.includes('G2') &&
-  allFinalsCodes.includes('G3') &&
-  allFinalsCodes.includes('S1') &&
-  allFinalsCodes.includes('B1') &&
-  allFinalsCodes.includes('C1') &&
-  allFinalsCodes.length === 12
-);
+  // 15. Finals IDs G1–C3 available after lock
+  const finalsPools = window.getEffectiveFinalsPools();
+  const allFinalsCodes = finalsPools.flatMap(p => p.matches.map(m => m.matchCode || m.id));
+  test('15. Finals IDs G1–C3 generated and available after lock',
+    allFinalsCodes.includes('G1') &&
+    allFinalsCodes.includes('G2') &&
+    allFinalsCodes.includes('G3') &&
+    allFinalsCodes.includes('S1') &&
+    allFinalsCodes.includes('B1') &&
+    allFinalsCodes.includes('C1') &&
+    allFinalsCodes.length === 12
+  );
 
-// 16. Finals scoring uses Finals validation (21 points sudden death)
-const resFinals15 = window.saveTournamentScore('G1', 15, 11, false);
-const resFinals21 = window.saveTournamentScore('G1', 21, 18, false);
-const finalsScores = window.getFinalsScores();
-test('16. Finals scoring uses Finals validation (21-point sudden death, rejects 15)',
-  resFinals15.ok === false &&
-  resFinals21.ok === true &&
-  resFinals21.isFinals === true &&
-  finalsScores.gold[0].s1 === 21 &&
-  finalsScores.gold[0].s2 === 18
-);
+  // 16. Finals scoring uses Finals validation (21 points sudden death)
+  const resFinals15 = await window.saveTournamentScore('G1', 15, 11, false);
+  const resFinals21 = await window.saveTournamentScore('G1', 21, 18, false);
+  const finalsScores = window.getFinalsScores();
+  test('16. Finals scoring uses Finals validation (21-point sudden death, rejects 15)',
+    resFinals15.ok === false &&
+    resFinals21.ok === true &&
+    resFinals21.isFinals === true &&
+    finalsScores.gold[0].s1 === 21 &&
+    finalsScores.gold[0].s2 === 18
+  );
 
-// 17. Scorekeeper cannot type/change player names
-test('17. Invariant: Player names derived from fixtures/finals data without editable text inputs',
-  !htmlCode.includes('<input id="skPlayer1Name"') &&
-  !htmlCode.includes('<input id="skPlayer2Name"') &&
-  appJsCode.includes('class="sk-team-names"')
-);
+  // 17. Scorekeeper cannot type/change player names
+  test('17. Invariant: Player names derived from fixtures/finals data without editable text inputs',
+    !htmlCode.includes('<input id="skPlayer1Name"') &&
+    !htmlCode.includes('<input id="skPlayer2Name"') &&
+    appJsCode.includes('class="sk-team-names"')
+  );
 
-// 18. Reset form works
-window.resetScorekeeperForm();
-test('18. Reset form clears selected match code and edit state',
-  typeof window.resetScorekeeperForm === 'function'
-);
+  // 18. Reset form works
+  window.resetScorekeeperForm();
+  test('18. Reset form clears selected match code and edit state',
+    typeof window.resetScorekeeperForm === 'function'
+  );
 
-// 19. Prevent double submission
-test('19. Prevent double submission guard present in save handler',
-  appJsCode.includes('if (skIsSaving) return;') &&
-  appJsCode.includes('saveBtn.disabled = true;')
-);
+  // 19. Prevent double submission
+  test('19. Prevent double submission guard present in save handler',
+    appJsCode.includes('if (skIsSaving) return;') &&
+    appJsCode.includes('saveBtn.disabled = true;')
+  );
 
-// 20. Mobile layout & CSS rules configured
-test('20. Mobile layout contains responsive styles without horizontal overflow',
-  cssCode.includes('.sk-view-wrap') &&
-  cssCode.includes('.sk-score-input-large') &&
-  cssCode.includes('.sk-save-btn') &&
-  cssCode.includes('overflow-x: hidden')
-);
+  // 20. Mobile layout & CSS rules configured
+  test('20. Mobile layout contains responsive styles without horizontal overflow',
+    cssCode.includes('.sk-view-wrap') &&
+    cssCode.includes('.sk-score-input-large') &&
+    cssCode.includes('.sk-save-btn') &&
+    cssCode.includes('overflow-x: hidden')
+  );
 
-console.log('\n============================================================');
-console.log(`PHASE 7.5 TEST RESULTS: ${PASS}/20 PASS, ${FAIL} FAIL`);
-console.log('============================================================\n');
+  console.log('\n============================================================');
+  console.log(`PHASE 7.5 TEST RESULTS: ${PASS}/20 PASS, ${FAIL} FAIL`);
+  console.log('============================================================\n');
 
-if (FAIL > 0) {
-  process.exit(1);
-}
+  if (FAIL > 0) {
+    process.exit(1);
+  }
+})();

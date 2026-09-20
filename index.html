@@ -28,6 +28,13 @@
 </head>
 <body>
 
+  <!-- Initial Loading Overlay Skeleton (Phase 8) -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">LOADING TOURNAMENT...</div>
+    <div class="loading-subtext">Synchronizing live cloud tournament data</div>
+  </div>
+
   <div class="app-wrapper">
     <!-- Header Section -->
     <header class="portal-header">
@@ -35,6 +42,10 @@
         <div>
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
             <div class="brand-badge">🏸 Sindhi Boys Tourney</div>
+            <div id="connectionStatusPill" class="connection-status-pill status-connecting" title="Firebase Realtime Database live connection status">
+              <span>● CONNECTING...</span>
+            </div>
+            <div id="organizerAuthBadge" class="organizer-auth-badge" style="display:none;"></div>
             <div id="viewModeBadge" class="badge" style="background:rgba(37, 99, 235, 0.12); color:var(--primary); border:1px solid var(--primary-border); font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:9999px; text-transform:uppercase;">
               🔒 View Only
             </div>
@@ -43,8 +54,11 @@
           <p class="portal-subtitle">Live Mixer Fixtures &bull; Standings &bull; Dynamic Finals</p>
         </div>
         <div class="header-actions">
+          <button type="button" id="organizerAuthBtn" class="nav-link-btn" onclick="handleOrganizerAuthClick()" style="background:rgba(124, 58, 237, 0.12); color:#7c3aed; border:1px solid rgba(124, 58, 237, 0.35); padding:6px 12px; font-size:0.78rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Sign in as Authorized Scorekeeper / Organizer">
+            🔑 Organizer Sign In
+          </button>
           <div id="adminLockArea" style="display:inline-flex; align-items:center; gap:6px;">
-            <button type="button" id="adminLockBtn" class="nav-link-btn" onclick="toggleAdminLock()" style="background:rgba(245, 158, 11, 0.15); color:var(--gold); border:1px solid rgba(245, 158, 11, 0.4); padding:6px 14px; font-size:0.8rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Enter Organizer PIN (1234) to unlock score editing">
+            <button type="button" id="adminLockBtn" class="nav-link-btn" onclick="toggleAdminLock()" style="background:rgba(245, 158, 11, 0.15); color:var(--gold); border:1px solid rgba(245, 158, 11, 0.4); padding:6px 14px; font-size:0.8rem; font-weight:800; border-radius:var(--radius-full); cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="Enter Organizer PIN (1234) to unlock local score controls">
               🔒 Admin Unlock
             </button>
           </div>
@@ -90,6 +104,12 @@
         <span>🖼️</span> Poster
       </a>
     </nav>
+
+    <!-- Offline Stale Notice Banner (Phase 8) -->
+    <div id="offlineBanner" class="offline-banner" style="display:none;">
+      <div>⚠️ <strong>OFFLINE:</strong> Showing last known cached tournament data. Score changes cannot be submitted until reconnected.</div>
+      <button type="button" class="btn-secondary" onclick="window.location.reload()" style="font-size:0.72rem; padding:2px 8px;">Retry</button>
+    </div>
 
     <!-- Filter & Personalization Card -->
     <div class="filter-card">
@@ -651,8 +671,17 @@
 
   <!-- External High-Res Screenshot Library -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <!-- Firebase App & Services (CDN Compat v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+  <!-- Firebase Adapter Configuration (Phase 8) -->
+  <script src="js/firebase-config.js?v=23"></script>
+
   <!-- Application Script -->
-  <script src="js/app.js?v=22"></script>
+  <script src="js/app.js?v=23"></script>
 
   <!-- PHASE 6: STAGE 1 LOCK BLOCKED MODAL (incomplete matches) -->
   <div id="stage1LockBlockedModal" class="modal-overlay" onclick="if(event.target===this) closeLockBlockedModal()">
@@ -780,6 +809,56 @@
       <div class="modal-actions" style="margin-top:24px; justify-content:center; gap:12px;">
         <button type="button" class="btn-secondary" onclick="closeWinnersModal()">Close</button>
         <button type="button" class="btn-primary" onclick="printTournament()">🖨️ Print / Save Awards</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 8: ORGANIZER SIGN IN MODAL -->
+  <div id="authModal" class="modal-overlay" onclick="if(event.target===this) closeAuthModal()">
+    <div class="modal-card" style="max-width:380px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h2 class="modal-title" style="margin:0;">🔑 Organizer Sign In</h2>
+        <button type="button" class="ai-close-btn" onclick="closeAuthModal()" style="font-size:1.2rem; cursor:pointer;" aria-label="Close">✕</button>
+      </div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px;">
+        Sign in with an authorized organizer / scorekeeper account for live cloud write access.
+      </p>
+      <form onsubmit="handleOrganizerSignInSubmit(event)">
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:0.75rem; font-weight:800; color:var(--text-secondary); margin-bottom:4px;">ORGANIZER EMAIL</label>
+          <input type="email" id="authEmailInput" class="select-styled" style="width:100%; box-sizing:border-box;" placeholder="organizer@tournament.com" required autocomplete="username">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:0.75rem; font-weight:800; color:var(--text-secondary); margin-bottom:4px;">PASSWORD</label>
+          <input type="password" id="authPasswordInput" class="select-styled" style="width:100%; box-sizing:border-box;" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <div id="authErrorBox" class="sk-error-box" style="display:none; margin-bottom:12px;"></div>
+        <div class="modal-btn-row">
+          <button type="button" class="btn-secondary" onclick="closeAuthModal()">Cancel</button>
+          <button type="submit" id="authSubmitBtn" class="btn-primary" style="flex:2;">Sign In &rarr;</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PHASE 8: INITIALIZE CLOUD TOURNAMENT MODAL -->
+  <div id="initCloudModal" class="modal-overlay" onclick="if(event.target===this) closeInitCloudModal()">
+    <div class="modal-card" style="max-width:440px; text-align:center;">
+      <div style="font-size:2.2rem; margin-bottom:8px;">☁️</div>
+      <h2 class="modal-title" style="margin:0 0 6px 0;">Initialize Cloud Database</h2>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px;">
+        The cloud tournament database is currently empty. As an authorized organizer, choose how to initialize:
+      </p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" class="btn-primary" onclick="initializeCloudTournament(true)" style="padding:12px; font-weight:800;">
+          📥 Initialize from Local Device State
+        </button>
+        <button type="button" class="btn-secondary" onclick="initializeCloudTournament(false)" style="padding:12px; font-weight:800;">
+          ✨ Start with Blank / Clean Tournament
+        </button>
+      </div>
+      <div class="modal-btn-row" style="margin-top:14px;">
+        <button type="button" class="btn-secondary" onclick="closeInitCloudModal()" style="width:100%;">Cancel</button>
       </div>
     </div>
   </div>

@@ -1120,6 +1120,163 @@ const ROSTER = [
   window.getScoreActivityLog = function () { return scoreActivityLog; };
   window.setScoreActivityLog = function (arr) { scoreActivityLog = arr; };
 
+  // ---------- PHASE 8: FIREBASE LIVE SYNCHRONIZATION ENGINE ----------
+  let isFirebaseSyncActive = false;
+  let skLoadedRevision = 0;
+
+  function initFirebaseSync() {
+    if (typeof TournamentFirebase === 'undefined') return;
+
+    const overlay = document.getElementById('loadingOverlay');
+    const offlineBanner = document.getElementById('offlineBanner');
+
+    // Show loading skeleton until first snapshot resolves
+    if (overlay && !sessionStorage.getItem('badminton_initial_loaded')) {
+      overlay.classList.remove('hidden');
+    }
+
+    const tRef = TournamentFirebase.getTournamentRef();
+    if (!tRef) {
+      if (overlay) overlay.classList.add('hidden');
+      return;
+    }
+
+    isFirebaseSyncActive = true;
+
+    tRef.on('value', function (snap) {
+      const data = snap.val();
+      if (overlay) {
+        overlay.classList.add('hidden');
+        sessionStorage.setItem('badminton_initial_loaded', 'true');
+      }
+
+      if (!data) {
+        // Cloud tournament node is completely empty
+        if (TournamentFirebase.isAuthorized()) {
+          const initModal = document.getElementById('initCloudModal');
+          if (initModal && !sessionStorage.getItem('badminton_cloud_init_dismissed')) {
+            initModal.classList.add('open');
+          }
+        }
+        return;
+      }
+
+      // Ingest authoritative cloud state
+      applyCloudTournamentState(data);
+    }, function (err) {
+      console.warn('[FirebaseSync] Listener error / offline:', err);
+      if (overlay) overlay.classList.add('hidden');
+      if (offlineBanner) offlineBanner.style.display = 'flex';
+    });
+
+    // Connection state changes
+    TournamentFirebase.onConnectionChange(function (state) {
+      if (offlineBanner) {
+        offlineBanner.style.display = (state === 'OFFLINE') ? 'flex' : 'none';
+      }
+    });
+
+    // Auth state changes
+    TournamentFirebase.onAuthChange(function () {
+      updateAdminUI();
+      renderScorekeeperView();
+    });
+  }
+  window.initFirebaseSync = initFirebaseSync;
+
+  function applyCloudTournamentState(cloudState) {
+    if (!cloudState) return;
+
+    // 1. Stage 1 Scores & Revisions
+    if (cloudState.stage1Scores) {
+      fixtures.forEach((f, idx) => {
+        const fullMatchCode = f.m || ('M' + String(idx + 1).padStart(2, '0'));
+        const mScore = cloudState.stage1Scores[fullMatchCode];
+        if (mScore) {
+          f.s1 = (mScore.s1 != null && mScore.s1 !== '') ? Number(mScore.s1) : null;
+          f.s2 = (mScore.s2 != null && mScore.s2 !== '') ? Number(mScore.s2) : null;
+          f.revision = Number(mScore.revision) || 1;
+          f.updatedAt = mScore.updatedAt || null;
+        } else {
+          f.s1 = null;
+          f.s2 = null;
+          f.revision = 0;
+          f.updatedAt = null;
+        }
+      });
+    }
+
+    // 2. Stage 1 Lock State
+    if (cloudState.stage1Lock) {
+      const lock = cloudState.stage1Lock;
+      if (lock.locked === true) {
+        stage1Locked = true;
+        stage1LockedAt = lock.lockedAt || null;
+        officialStage1Rankings = lock.rankings || null;
+        officialFinalsPools = lock.finalsPools || null;
+        tieResolutions = lock.tieResolutions || {};
+      } else {
+        stage1Locked = false;
+        stage1LockedAt = null;
+        officialStage1Rankings = null;
+        officialFinalsPools = null;
+        tieResolutions = {};
+      }
+    }
+
+    // 3. Finals Scores
+    if (cloudState.finalsScores) {
+      finalsScores = {
+        gold: cloudState.finalsScores.gold || [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }],
+        silver: cloudState.finalsScores.silver || [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }],
+        bronze: cloudState.finalsScores.bronze || [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }],
+        copper: cloudState.finalsScores.copper || [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }]
+      };
+    }
+
+    // 4. Finals Playoffs
+    if (cloudState.finalsPlayoffs) {
+      finalsPlayoffs = {
+        gold: cloudState.finalsPlayoffs.gold || [],
+        silver: cloudState.finalsPlayoffs.silver || [],
+        bronze: cloudState.finalsPlayoffs.bronze || [],
+        copper: cloudState.finalsPlayoffs.copper || []
+      };
+    }
+
+    // 5. Score Activity Log
+    if (cloudState.scoreActivityLog) {
+      const logArray = Array.isArray(cloudState.scoreActivityLog)
+        ? cloudState.scoreActivityLog
+        : Object.values(cloudState.scoreActivityLog);
+
+      logArray.sort((a, b) => {
+        const timeA = a.serverTimestamp || Date.parse(a.timestamp) || 0;
+        const timeB = b.serverTimestamp || Date.parse(b.timestamp) || 0;
+        return timeB - timeA;
+      });
+      scoreActivityLog = logArray;
+    }
+
+    // Cache locally for offline spectator viewing
+    try {
+      localStorage.setItem('badminton_cached_cloud_state', JSON.stringify({
+        cachedAt: new Date().toISOString(),
+        cloudState
+      }));
+    } catch (e) {}
+
+    // Refresh affected UI views reactively
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+    renderScorekeeperView();
+  }
+  window.applyCloudTournamentState = applyCloudTournamentState;
+
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
   const STORAGE_KEY = 'badminton_cup_portal_data_v9';
   const LEGACY_STORAGE_KEY_V8 = 'badminton_cup_portal_data_v8';
@@ -1292,7 +1449,11 @@ const ROSTER = [
     const isUnlocked = isAdminUnlocked();
     const lockArea = document.getElementById("adminLockArea");
     const viewBadge = document.getElementById("viewModeBadge");
-    
+    const authBadge = document.getElementById("organizerAuthBadge");
+    const authBtn = document.getElementById("organizerAuthBtn");
+    const isAuth = typeof TournamentFirebase !== 'undefined' && TournamentFirebase.isAuthorized();
+    const user = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getUser() : null;
+
     if (viewBadge) {
       if (isUnlocked) {
         viewBadge.innerHTML = "🔓 Admin Mode";
@@ -1304,6 +1465,36 @@ const ROSTER = [
         viewBadge.style.background = "rgba(37, 99, 235, 0.12)";
         viewBadge.style.color = "var(--primary)";
         viewBadge.style.borderColor = "var(--primary-border)";
+      }
+    }
+
+    if (authBadge) {
+      if (isAuth) {
+        authBadge.textContent = "✓ Authorized (" + (user?.email ? user.email.split('@')[0] : 'Organizer') + ")";
+        authBadge.classList.add("authorized");
+        authBadge.classList.remove("unauthorized");
+        authBadge.style.display = "inline-flex";
+      } else if (user) {
+        authBadge.textContent = "⚠️ Not Authorized";
+        authBadge.classList.add("unauthorized");
+        authBadge.classList.remove("authorized");
+        authBadge.style.display = "inline-flex";
+      } else {
+        authBadge.style.display = "none";
+      }
+    }
+
+    if (authBtn) {
+      if (user) {
+        authBtn.textContent = "Sign Out (" + (user.email ? user.email.split('@')[0] : 'Org') + ")";
+        authBtn.onclick = function () {
+          if (confirm("Sign out of organizer scorekeeping account?")) {
+            TournamentFirebase.signOutOrganizer();
+          }
+        };
+      } else {
+        authBtn.textContent = "🔑 Organizer Sign In";
+        authBtn.onclick = openAuthModal;
       }
     }
 
@@ -3769,6 +3960,32 @@ const ROSTER = [
     officialFinalsPools = JSON.parse(JSON.stringify(buildFinalsPools(officialStage1Rankings)));
     stage1Locked = true;
     stage1LockedAt = new Date().toISOString();
+
+    // Phase 8: Atomic Cloud Synchronization for Stage 1 Lock
+    const tRefLock = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+    if (tRefLock) {
+      const pushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const user = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+      const userLabel = user ? (user.email || user.uid) : 'Organizer';
+      const updates = {};
+      updates['stage1Lock'] = {
+        locked: true,
+        lockedAt: stage1LockedAt,
+        rankings: officialStage1Rankings,
+        finalsPools: officialFinalsPools,
+        tieResolutions: tieResolutions || {}
+      };
+      updates[`scoreActivityLog/${pushId}`] = {
+        id: pushId,
+        timestamp: stage1LockedAt,
+        serverTimestamp: TournamentFirebase.getServerTimestamp(),
+        action: 'STAGE1_LOCK',
+        stage: 'STAGE_1',
+        enteredBy: userLabel
+      };
+      tRefLock.update(updates).catch(err => console.warn('Cloud lock update error:', err));
+    }
+
     saveState();
     document.getElementById('stage1LockConfirmModal')?.classList.remove('open');
     // Show success banner
@@ -3823,6 +4040,33 @@ const ROSTER = [
     officialStage1Rankings = null;
     officialFinalsPools = null;
     tieResolutions = {};
+
+    // Phase 8: Atomic Cloud Synchronization for Stage 1 Unlock
+    const tRefUnlock = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+    if (tRefUnlock) {
+      const nowIso = new Date().toISOString();
+      const pushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const user = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+      const userLabel = user ? (user.email || user.uid) : 'Organizer';
+      const updates = {};
+      updates['stage1Lock'] = {
+        locked: false,
+        lockedAt: null,
+        rankings: null,
+        finalsPools: null,
+        tieResolutions: {}
+      };
+      updates[`scoreActivityLog/${pushId}`] = {
+        id: pushId,
+        timestamp: nowIso,
+        serverTimestamp: TournamentFirebase.getServerTimestamp(),
+        action: 'STAGE1_UNLOCK',
+        stage: 'STAGE_1',
+        enteredBy: userLabel
+      };
+      tRefUnlock.update(updates).catch(err => console.warn('Cloud unlock update error:', err));
+    }
+
     saveState();
     document.getElementById('stage1UnlockConfirmModal')?.classList.remove('open');
     renderLeaderboard();
@@ -4871,12 +5115,35 @@ const ROSTER = [
     };
 
     // Phase 7.6: Log RESET_FINALS activity
+    const resetFinalsPushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const resetFinalsIso = new Date().toISOString();
+    const userFinals = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+    const userFinalsLabel = userFinals ? (userFinals.email || userFinals.uid) : 'Organizer';
+
     scoreActivityLog.unshift({
-      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      timestamp: new Date().toISOString(),
+      id: resetFinalsPushId,
+      timestamp: resetFinalsIso,
       action: 'RESET_FINALS',
-      stage: 'FINALS'
+      stage: 'FINALS',
+      enteredBy: userFinalsLabel
     });
+
+    // Phase 8: Atomic Cloud Update for Reset Finals
+    const tRefResetFinals = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+    if (tRefResetFinals) {
+      const updates = {};
+      updates['finalsScores'] = finalsScores;
+      updates['finalsPlayoffs'] = finalsPlayoffs;
+      updates[`scoreActivityLog/${resetFinalsPushId}`] = {
+        id: resetFinalsPushId,
+        timestamp: resetFinalsIso,
+        serverTimestamp: TournamentFirebase.getServerTimestamp(),
+        action: 'RESET_FINALS',
+        stage: 'FINALS',
+        enteredBy: userFinalsLabel
+      };
+      tRefResetFinals.update(updates).catch(err => console.warn('Cloud resetFinals error:', err));
+    }
 
     saveState();
     renderFinals();
@@ -5112,6 +5379,54 @@ const ROSTER = [
     skSelectedMatchCode = "";
     skIsEditing = false;
 
+    // Phase 7.6 & Phase 8: Log and sync RESET_TOURNAMENT activity
+    const resetTournPushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const resetTournIso = new Date().toISOString();
+    const userTourn = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+    const userTournLabel = userTourn ? (userTourn.email || userTourn.uid) : 'Organizer';
+
+    scoreActivityLog.unshift({
+      id: resetTournPushId,
+      timestamp: resetTournIso,
+      action: 'RESET_TOURNAMENT',
+      stage: 'TOURNAMENT',
+      enteredBy: userTournLabel
+    });
+
+    // Phase 8: Atomic Cloud Synchronization for Reset Tournament
+    const tRefResetTourn = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+    if (tRefResetTourn) {
+      const stage1ScoresReset = {};
+      BASE_FIXTURES.forEach(f => {
+        stage1ScoresReset[f.m] = {
+          s1: null,
+          s2: null,
+          revision: 0,
+          updatedAt: null
+        };
+      });
+      const updates = {};
+      updates['stage1Scores'] = stage1ScoresReset;
+      updates['finalsScores'] = finalsScores;
+      updates['finalsPlayoffs'] = finalsPlayoffs;
+      updates['stage1Lock'] = {
+        locked: false,
+        lockedAt: null,
+        rankings: null,
+        finalsPools: null,
+        tieResolutions: {}
+      };
+      updates[`scoreActivityLog/${resetTournPushId}`] = {
+        id: resetTournPushId,
+        timestamp: resetTournIso,
+        serverTimestamp: TournamentFirebase.getServerTimestamp(),
+        action: 'RESET_TOURNAMENT',
+        stage: 'TOURNAMENT',
+        enteredBy: userTournLabel
+      };
+      tRefResetTourn.update(updates).catch(err => console.warn('Cloud resetTournament error:', err));
+    }
+
     saveState();
     renderSchedule();
     renderLeaderboard();
@@ -5128,16 +5443,17 @@ const ROSTER = [
   // ============================================================
 
   /**
-   * Centralized tournament score save entry point (designed for Phase 8 Firebase compatibility).
+   * Centralized tournament score save entry point (Phase 8 Firebase Live Sync & Multi-Location Atomic Update).
    * UI and Scorekeeper mode call this single function.
    *
    * @param {string} matchCode - Match ID e.g. "M17", "17", "G1", "S2", "B3", "C1"
    * @param {number|string} score1 - Team 1 score
    * @param {number|string} score2 - Team 2 score
    * @param {boolean} isEditing - Explicit override flag for completed matches
-   * @returns {Object} { ok: boolean, error?: string, alreadyScored?: boolean, ... }
+   * @param {number|null} loadedRevision - Optimistic concurrency revision counter
+   * @returns {Promise<Object>} { ok: boolean, error?: string, alreadyScored?: boolean, conflict?: boolean, ... }
    */
-  function saveTournamentScore(matchCode, score1, score2, isEditing = false) {
+  async function saveTournamentScore(matchCode, score1, score2, isEditing = false, loadedRevision = null) {
     if (!matchCode) {
       return { ok: false, error: "Please select a valid match." };
     }
@@ -5175,14 +5491,27 @@ const ROSTER = [
         return { ok: false, alreadyScored: true, error: `Finals Match ${cleanCode} is already completed (${existing.s1}–${existing.s2}). Explicit edit confirmation required.` };
       }
 
+      // Concurrency check for Finals
+      const curRev = existing?.revision || 0;
+      if (isEditing && loadedRevision != null && curRev !== loadedRevision) {
+        return {
+          ok: false,
+          conflict: true,
+          error: `THIS MATCH WAS UPDATED ON ANOTHER DEVICE (Score: ${existing.s1}–${existing.s2}). Please reload match before editing.`
+        };
+      }
+
+      // Check Firebase authorization if DB active
+      if (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getDb() && !TournamentFirebase.isAuthorized()) {
+        return {
+          ok: false,
+          unauthorized: true,
+          error: "ORGANIZER AUTHENTICATION REQUIRED: Please sign in with an authorized account to record scores."
+        };
+      }
+
       const prevS1 = existing?.s1 != null ? Number(existing.s1) : null;
       const prevS2 = existing?.s2 != null ? Number(existing.s2) : null;
-
-      // Save Finals score
-      if (!finalsScores[poolKey]) {
-        finalsScores[poolKey] = [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }];
-      }
-      finalsScores[poolKey][matchIdx] = { s1, s2 };
 
       const pools = getEffectiveFinalsPools();
       const poolMeta = pools.find(p => p.key === poolKey);
@@ -5192,10 +5521,59 @@ const ROSTER = [
       const t2Name = mMeta?.t2 ? mMeta.t2.join(' & ') : 'Team 2';
 
       const isoNow = new Date().toISOString();
+      const pushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const newRev = (loadedRevision != null ? loadedRevision : curRev) + 1;
+      const user = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+      const userLabel = user ? (user.email || user.uid) : 'Organizer';
 
-      // Phase 7.6: Log to persistent Score Activity Log (Audit Trail)
-      const activityEvent = {
-        id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      // Atomic Cloud Write
+      const tRef = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+      if (tRef) {
+        try {
+          TournamentFirebase.setConnectionState('PENDING');
+          const updates = {};
+          updates[`finalsScores/${poolKey}/${matchIdx}`] = {
+            s1, s2,
+            revision: newRev,
+            updatedAt: isoNow,
+            serverTimestamp: TournamentFirebase.getServerTimestamp(),
+            updatedBy: userLabel
+          };
+          const activityItem = {
+            id: pushId,
+            timestamp: isoNow,
+            serverTimestamp: TournamentFirebase.getServerTimestamp(),
+            action: isEditing ? 'EDIT' : 'SAVE',
+            stage: 'FINALS',
+            matchId: cleanCode,
+            court: courtNum,
+            score1: s1,
+            score2: s2,
+            team1: mMeta?.t1 ? [...mMeta.t1] : ['Team 1'],
+            team2: mMeta?.t2 ? [...mMeta.t2] : ['Team 2'],
+            enteredBy: userLabel
+          };
+          if (isEditing && prevS1 != null && prevS2 != null) {
+            activityItem.previousScore1 = prevS1;
+            activityItem.previousScore2 = prevS2;
+          }
+          updates[`scoreActivityLog/${pushId}`] = activityItem;
+          await tRef.update(updates);
+          TournamentFirebase.setConnectionState('LIVE');
+        } catch (err) {
+          TournamentFirebase.setConnectionState('OFFLINE');
+          return { ok: false, error: 'OFFLINE — SCORE NOT SUBMITTED: Cloud write failed. ' + (err.message || '') };
+        }
+      }
+
+      // Memory state update
+      if (!finalsScores[poolKey]) {
+        finalsScores[poolKey] = [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }];
+      }
+      finalsScores[poolKey][matchIdx] = { s1, s2, revision: newRev, updatedAt: isoNow };
+
+      const auditEvent = {
+        id: pushId,
         timestamp: isoNow,
         action: isEditing ? 'EDIT' : 'SAVE',
         stage: 'FINALS',
@@ -5204,15 +5582,15 @@ const ROSTER = [
         score1: s1,
         score2: s2,
         team1: mMeta?.t1 ? [...mMeta.t1] : ['Team 1'],
-        team2: mMeta?.t2 ? [...mMeta.t2] : ['Team 2']
+        team2: mMeta?.t2 ? [...mMeta.t2] : ['Team 2'],
+        enteredBy: userLabel
       };
       if (isEditing && prevS1 != null && prevS2 != null) {
-        activityEvent.previousScore1 = prevS1;
-        activityEvent.previousScore2 = prevS2;
+        auditEvent.previousScore1 = prevS1;
+        auditEvent.previousScore2 = prevS2;
       }
-      scoreActivityLog.unshift(activityEvent);
+      scoreActivityLog.unshift(auditEvent);
 
-      // Record recent entry audit item
       const auditItem = {
         matchCode: cleanCode,
         score: `${s1}–${s2}`,
@@ -5276,22 +5654,87 @@ const ROSTER = [
       return { ok: false, alreadyScored: true, error: `Match ${fullMatchCode} is already completed (${f.s1}–${f.s2}). Explicit edit confirmation required.` };
     }
 
+    // Concurrency check for Stage 1
+    const curRev = f.revision || 0;
+    if (isEditing && loadedRevision != null && curRev !== loadedRevision) {
+      return {
+        ok: false,
+        conflict: true,
+        error: `THIS MATCH WAS UPDATED ON ANOTHER DEVICE (Score: ${f.s1}–${f.s2}). Please reload match before editing.`
+      };
+    }
+
+    // Check Firebase auth if DB active
+    if (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getDb() && !TournamentFirebase.isAuthorized()) {
+      return {
+        ok: false,
+        unauthorized: true,
+        error: "ORGANIZER AUTHENTICATION REQUIRED: Please sign in with an authorized account to record scores."
+      };
+    }
+
     const prevS1 = f.s1 != null ? Number(f.s1) : null;
     const prevS2 = f.s2 != null ? Number(f.s2) : null;
-
-    // Save Stage 1 score
-    f.s1 = s1;
-    f.s2 = s2;
 
     const t1Name = f.t1.join(' & ');
     const t2Name = f.t2.join(' & ');
     const courtNum = f.c;
     const blockNum = Math.ceil(f.r / 3);
     const isoNow = new Date().toISOString();
+    const pushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const newRev = (loadedRevision != null ? loadedRevision : curRev) + 1;
+    const user = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+    const userLabel = user ? (user.email || user.uid) : 'Organizer';
 
-    // Phase 7.6: Log to persistent Score Activity Log (Audit Trail)
+    // Atomic Cloud Write
+    const tRef = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+    if (tRef) {
+      try {
+        TournamentFirebase.setConnectionState('PENDING');
+        const updates = {};
+        updates[`stage1Scores/${fullMatchCode}`] = {
+          s1, s2,
+          revision: newRev,
+          updatedAt: isoNow,
+          serverTimestamp: TournamentFirebase.getServerTimestamp(),
+          updatedBy: userLabel
+        };
+        const activityItem = {
+          id: pushId,
+          timestamp: isoNow,
+          serverTimestamp: TournamentFirebase.getServerTimestamp(),
+          action: isEditing ? 'EDIT' : 'SAVE',
+          stage: 'STAGE_1',
+          matchId: fullMatchCode,
+          court: courtNum,
+          block: blockNum,
+          score1: s1,
+          score2: s2,
+          team1: [...f.t1],
+          team2: [...f.t2],
+          enteredBy: userLabel
+        };
+        if (isEditing && prevS1 != null && prevS2 != null) {
+          activityItem.previousScore1 = prevS1;
+          activityItem.previousScore2 = prevS2;
+        }
+        updates[`scoreActivityLog/${pushId}`] = activityItem;
+        await tRef.update(updates);
+        TournamentFirebase.setConnectionState('LIVE');
+      } catch (err) {
+        TournamentFirebase.setConnectionState('OFFLINE');
+        return { ok: false, error: 'OFFLINE — SCORE NOT SUBMITTED: Cloud write failed. ' + (err.message || '') };
+      }
+    }
+
+    // Save Stage 1 score locally in memory
+    f.s1 = s1;
+    f.s2 = s2;
+    f.revision = newRev;
+    f.updatedAt = isoNow;
+
     const activityEvent = {
-      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      id: pushId,
       timestamp: isoNow,
       action: isEditing ? 'EDIT' : 'SAVE',
       stage: 'STAGE_1',
@@ -5301,7 +5744,8 @@ const ROSTER = [
       score1: s1,
       score2: s2,
       team1: [...f.t1],
-      team2: [...f.t2]
+      team2: [...f.t2],
+      enteredBy: userLabel
     };
     if (isEditing && prevS1 != null && prevS2 != null) {
       activityEvent.previousScore1 = prevS1;
@@ -5555,6 +5999,7 @@ const ROSTER = [
       }
 
       // Render Editable Finals Entry Card
+      skLoadedRevision = fScore?.revision != null ? Number(fScore.revision) : 0;
       container.innerHTML = `
         <form class="sk-entry-card" onsubmit="handleScorekeeperSave(event)">
           <div class="sk-entry-header">
@@ -5657,6 +6102,7 @@ const ROSTER = [
     }
 
     // Unscored OR in Edit Mode
+    skLoadedRevision = f.revision != null ? Number(f.revision) : 0;
     container.innerHTML = `
       <form class="sk-entry-card" onsubmit="handleScorekeeperSave(event)">
         <div class="sk-entry-header">
@@ -5698,7 +6144,7 @@ const ROSTER = [
   }
   window.renderScorekeeperMatchDetail = renderScorekeeperMatchDetail;
 
-  function handleScorekeeperSave(e) {
+  async function handleScorekeeperSave(e) {
     if (e) e.preventDefault();
     if (skIsSaving) return;
 
@@ -5716,7 +6162,7 @@ const ROSTER = [
       saveBtn.innerHTML = '<span>⏳</span> Saving...';
     }
 
-    const res = saveTournamentScore(skSelectedMatchCode, s1Input.value, s2Input.value, skIsEditing);
+    const res = await saveTournamentScore(skSelectedMatchCode, s1Input.value, s2Input.value, skIsEditing, skLoadedRevision);
 
     if (res.ok) {
       // Show Success Banner
@@ -5756,8 +6202,6 @@ const ROSTER = [
 
     skIsSaving = false;
   }
-  window.handleScorekeeperSave = handleScorekeeperSave;
-
   function enterScorekeeperEditMode() {
     skIsEditing = true;
     renderScorekeeperMatchDetail(skSelectedMatchCode);
@@ -5957,6 +6401,175 @@ const ROSTER = [
     showToast("📄 Score activity log exported (CSV)");
   }
   window.exportScoreLogCSV = exportScoreLogCSV;
+
+  // ---------- PHASE 8: AUTHENTICATION & CLOUD MODALS ----------
+  function openAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+      const errBox = document.getElementById('authErrorBox');
+      if (errBox) {
+        errBox.textContent = '';
+        errBox.style.display = 'none';
+      }
+      modal.classList.add('open');
+      setTimeout(() => document.getElementById('authEmail')?.focus(), 50);
+    }
+  }
+  window.openAuthModal = openAuthModal;
+
+  function closeAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.classList.remove('open');
+  }
+  window.closeAuthModal = closeAuthModal;
+
+  async function handleOrganizerSignInSubmit(e) {
+    if (e) e.preventDefault();
+    const emailInput = document.getElementById('authEmail');
+    const passInput = document.getElementById('authPassword');
+    const errBox = document.getElementById('authErrorBox');
+    const submitBtn = document.getElementById('authSubmitBtn');
+
+    if (!emailInput || !passInput) return;
+    const email = emailInput.value.trim();
+    const password = passInput.value;
+
+    if (!email || !password) {
+      if (errBox) {
+        errBox.textContent = 'Please enter both email and password.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>⏳</span> Signing In...';
+    }
+
+    try {
+      if (typeof TournamentFirebase !== 'undefined') {
+        const res = await TournamentFirebase.signInOrganizer(email, password);
+        if (res.ok) {
+          closeAuthModal();
+          showToast('✅ Signed in as authorized organizer (' + email + ')');
+          updateAdminUI();
+          renderScorekeeperView();
+        } else {
+          if (errBox) {
+            errBox.textContent = res.error || 'Authentication failed.';
+            errBox.style.display = 'block';
+          }
+        }
+      }
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Authentication error.';
+        errBox.style.display = 'block';
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>🔑</span> Sign In';
+      }
+    }
+  }
+  window.handleOrganizerSignInSubmit = handleOrganizerSignInSubmit;
+
+  function openInitCloudModal() {
+    document.getElementById('initCloudModal')?.classList.add('open');
+  }
+  window.openInitCloudModal = openInitCloudModal;
+
+  function closeInitCloudModal() {
+    document.getElementById('initCloudModal')?.classList.remove('open');
+  }
+  window.closeInitCloudModal = closeInitCloudModal;
+
+  async function initializeCloudTournament() {
+    const btn = document.getElementById('initCloudBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Initializing Cloud Tournament...';
+    }
+
+    try {
+      const tRef = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+      if (!tRef) {
+        alert('Firebase tournament reference not available.');
+        return;
+      }
+
+      const isoNow = new Date().toISOString();
+      const pushId = 'log_' + Date.now() + '_init';
+      const user = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+      const userLabel = user ? (user.email || user.uid) : 'Organizer';
+
+      // Build initial stage 1 scores payload
+      const stage1Scores = {};
+      BASE_FIXTURES.forEach(f => {
+        stage1Scores[f.m] = {
+          s1: null,
+          s2: null,
+          revision: 0,
+          updatedAt: null
+        };
+      });
+
+      const initialPayload = {
+        meta: {
+          name: "Sindhi Boys Badminton Cup 2026",
+          format: "24 Players · 4 Courts · 12 Rounds · 4-Block Mini-Pod Format",
+          initializedAt: isoNow,
+          initializedBy: userLabel,
+          rules: "Sudden Death 15 pts (Stage 1) / 21 pts (Finals)"
+        },
+        stage1Scores: stage1Scores,
+        stage1Lock: {
+          locked: false,
+          lockedAt: null,
+          rankings: null,
+          finalsPools: null,
+          tieResolutions: {}
+        },
+        finalsScores: {
+          gold: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }],
+          silver: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }],
+          bronze: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }],
+          copper: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }]
+        },
+        finalsPlayoffs: {
+          gold: [],
+          silver: [],
+          bronze: [],
+          copper: []
+        },
+        scoreActivityLog: {
+          [pushId]: {
+            id: pushId,
+            timestamp: isoNow,
+            serverTimestamp: TournamentFirebase.getServerTimestamp(),
+            action: 'INITIALIZE_TOURNAMENT',
+            stage: 'SETUP',
+            enteredBy: userLabel
+          }
+        }
+      };
+
+      await tRef.set(initialPayload);
+      closeInitCloudModal();
+      sessionStorage.setItem('badminton_cloud_init_dismissed', 'true');
+      showToast('🚀 Cloud tournament initialized with standard 48-match schedule!');
+    } catch (err) {
+      alert('Failed to initialize cloud tournament: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🚀</span> Initialize Blank Cloud Tournament';
+      }
+    }
+  }
+  window.initializeCloudTournament = initializeCloudTournament;
 
   window.printTournament = function () {
     window.print();
@@ -6343,6 +6956,9 @@ Try asking:<br>
     } else {
       loadState();
     }
+
+    // Initialize Firebase Realtime Sync Engine (Phase 8)
+    initFirebaseSync();
 
     updateAdminUI();
     populateOnboardingSelect();

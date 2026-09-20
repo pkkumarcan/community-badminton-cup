@@ -215,29 +215,29 @@ console.log('\n--- Section 2: Scorekeeper Activity Log & Timestamps ---');
 
 window.setScoreActivityLog([]);
 
-test('11. saveTournamentScore appends timestamped event with ISO time', (() => {
-  const res = window.saveTournamentScore('M01', 15, 10, false);
-  const log = window.getScoreActivityLog();
-  return res.ok === true && log.length === 1 && typeof log[0].timestamp === 'string' && !isNaN(Date.parse(log[0].timestamp));
-})());
+(async function runSection2And3() {
+  const res1 = await window.saveTournamentScore('M01', 15, 10, false);
+  test('11. saveTournamentScore appends timestamped event with ISO time', (() => {
+    const log = window.getScoreActivityLog();
+    return res1.ok === true && log.length === 1 && typeof log[0].timestamp === 'string' && !isNaN(Date.parse(log[0].timestamp));
+  })());
 
-test('12. First score save records action SAVE', (() => {
-  const log = window.getScoreActivityLog();
-  return log[0].action === 'SAVE' && log[0].matchId === 'M01' && log[0].score1 === 15 && log[0].score2 === 10;
-})());
+  test('12. First score save records action SAVE', (() => {
+    const log = window.getScoreActivityLog();
+    return log[0].action === 'SAVE' && log[0].matchId === 'M01' && log[0].score1 === 15 && log[0].score2 === 10;
+  })());
 
-test('13. Score edit appends EDIT event without deleting prior SAVE event', (() => {
-  const res = window.saveTournamentScore('M01', 15, 12, true);
-  const log = window.getScoreActivityLog();
-  return res.ok === true && log.length === 2 && log[0].action === 'EDIT' && log[1].action === 'SAVE';
-})());
+  const res2 = await window.saveTournamentScore('M01', 15, 12, true);
+  test('13. Score edit appends EDIT event without deleting prior SAVE event', (() => {
+    const log = window.getScoreActivityLog();
+    return res2.ok === true && log.length === 2 && log[0].action === 'EDIT' && log[1].action === 'SAVE';
+  })());
 
-test('14. EDIT event captures previousScore1 and previousScore2', (() => {
-  const log = window.getScoreActivityLog();
-  return log[0].previousScore1 === 15 && log[0].previousScore2 === 10 && log[0].score1 === 15 && log[0].score2 === 12;
-})());
+  test('14. EDIT event captures previousScore1 and previousScore2', (() => {
+    const log = window.getScoreActivityLog();
+    return log[0].previousScore1 === 15 && log[0].previousScore2 === 10 && log[0].score1 === 15 && log[0].score2 === 12;
+  })());
 
-test('15. Finals scores append FINALS stage activity events', (() => {
   const pattern = [[15,11],[15,13],[12,15],[14,15],[15,9],[10,15],[15,12],[8,15]];
   const fixes = window.getFixtures();
   fixes.forEach((fix, i) => {
@@ -252,73 +252,75 @@ test('15. Finals scores append FINALS stage activity events', (() => {
   }
   window.confirmStage1Lock();
 
-  const res = window.saveTournamentScore('G1', 21, 19, false);
-  const log = window.getScoreActivityLog();
-  return res.ok === true && log[0].stage === 'FINALS' && log[0].matchId === 'G1' && log[0].score1 === 21 && log[0].score2 === 19;
-})());
+  const resFinals = await window.saveTournamentScore('G1', 21, 19, false);
+  test('15. Finals scores append FINALS stage activity events', (() => {
+    const log = window.getScoreActivityLog();
+    return resFinals.ok === true && log[0].stage === 'FINALS' && log[0].matchId === 'G1' && log[0].score1 === 21 && log[0].score2 === 19;
+  })());
 
-test('16. resetFinals logs RESET_FINALS without erasing history', (() => {
-  const countBefore = window.getScoreActivityLog().length;
-  window.resetFinals(true);
-  const log = window.getScoreActivityLog();
-  return log.length === countBefore + 1 && log[0].action === 'RESET_FINALS' && log[0].stage === 'FINALS';
-})());
+  test('16. resetFinals logs RESET_FINALS without erasing history', (() => {
+    const countBefore = window.getScoreActivityLog().length;
+    window.resetFinals(true);
+    const log = window.getScoreActivityLog();
+    return log.length === countBefore + 1 && log[0].action === 'RESET_FINALS' && log[0].stage === 'FINALS';
+  })());
 
-test('17. Scorekeeper Recent Entries displays exact seconds timestamp and delta', (() => {
-  window.renderScorekeeperRecentEntries();
-  const list = document.getElementById('skRecentEntriesList');
-  return list.innerHTML.includes('sk-recent-item') && list.innerHTML.includes('Court');
-})());
+  test('17. Scorekeeper Recent Entries displays exact seconds timestamp and delta', (() => {
+    window.renderScorekeeperRecentEntries();
+    const list = document.getElementById('skRecentEntriesList');
+    return list.innerHTML.includes('sk-recent-item') && list.innerHTML.includes('Court');
+  })());
 
-test('18. Backup payload preserves scoreActivityLog array', (() => {
-  const payload = {
-    version: 'v9',
-    scoreActivityLog: window.getScoreActivityLog()
-  };
-  const str = JSON.stringify(payload);
-  const parsed = JSON.parse(str);
-  return Array.isArray(parsed.scoreActivityLog) && parsed.scoreActivityLog.length >= 4;
-})());
+  test('18. Backup payload preserves scoreActivityLog array', (() => {
+    const payload = {
+      version: 'v9',
+      scoreActivityLog: window.getScoreActivityLog()
+    };
+    const str = JSON.stringify(payload);
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed.scoreActivityLog) && parsed.scoreActivityLog.length >= 4;
+  })());
 
-// ----------------------------------------------------
-// SECTION 3: ASK AI POSITIONING & SCOREKEEPER ISOLATION
-// ----------------------------------------------------
-console.log('\n--- Section 3: Ask AI Positioning & Scorekeeper Isolation ---');
+  // ----------------------------------------------------
+  // SECTION 3: ASK AI POSITIONING & SCOREKEEPER ISOLATION
+  // ----------------------------------------------------
+  console.log('\n--- Section 3: Ask AI Positioning & Scorekeeper Isolation ---');
 
-test('19. Ask AI button in header actions bar (.ai-header-pill-btn) in HTML', (() => {
-  return htmlCode.includes('class="ai-header-pill-btn"') &&
-         htmlCode.includes('id="aiChatToggleBtn"') &&
-         !htmlCode.includes('class="ai-chat-toggle-btn"');
-})());
+  test('19. Ask AI button in header actions bar (.ai-header-pill-btn) in HTML', (() => {
+    return htmlCode.includes('class="ai-header-pill-btn"') &&
+           htmlCode.includes('id="aiChatToggleBtn"') &&
+           !htmlCode.includes('class="ai-chat-toggle-btn"');
+  })());
 
-test('20. Scorekeeper Mode hides Ask AI button', (() => {
-  const btn = document.getElementById('aiChatToggleBtn');
-  window.switchTab('home');
-  const homeDisplay = btn.style.display;
-  window.switchTab('scorekeeper');
-  const skDisplay = btn.style.display;
-  window.switchTab('fixtures');
-  const fixDisplay = btn.style.display;
-  return skDisplay === 'none' && homeDisplay !== 'none' && fixDisplay !== 'none';
-})());
+  test('20. Scorekeeper Mode hides Ask AI button', (() => {
+    const btn = document.getElementById('aiChatToggleBtn');
+    window.switchTab('home');
+    const homeDisplay = btn.style.display;
+    window.switchTab('scorekeeper');
+    const skDisplay = btn.style.display;
+    window.switchTab('fixtures');
+    const fixDisplay = btn.style.display;
+    return skDisplay === 'none' && homeDisplay !== 'none' && fixDisplay !== 'none';
+  })());
 
-test('21. Score Activity Log modal and export functions exist', (() => {
-  return typeof window.openScoreLogModal === 'function' &&
-         typeof window.closeScoreLogModal === 'function' &&
-         typeof window.exportScoreLogJSON === 'function' &&
-         typeof window.exportScoreLogCSV === 'function' &&
-         htmlCode.includes('id="scoreLogModal"');
-})());
+  test('21. Score Activity Log modal and export functions exist', (() => {
+    return typeof window.openScoreLogModal === 'function' &&
+           typeof window.closeScoreLogModal === 'function' &&
+           typeof window.exportScoreLogJSON === 'function' &&
+           typeof window.exportScoreLogCSV === 'function' &&
+           htmlCode.includes('id="scoreLogModal"');
+  })());
 
-// ----------------------------------------------------
-// SUMMARY
-// ----------------------------------------------------
-console.log('\n============================================================');
-console.log('RESULTS: ' + PASS + ' passed, ' + FAIL + ' failed out of 21 checks');
-console.log('============================================================\n');
+  // ----------------------------------------------------
+  // SUMMARY
+  // ----------------------------------------------------
+  console.log('\n============================================================');
+  console.log('RESULTS: ' + PASS + ' passed, ' + FAIL + ' failed out of 21 checks');
+  console.log('============================================================\n');
 
-if (FAIL > 0) {
-  process.exit(1);
-} else {
-  process.exit(0);
-}
+  if (FAIL > 0) {
+    process.exit(1);
+  } else {
+    process.exit(0);
+  }
+})();
