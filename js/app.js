@@ -5308,6 +5308,82 @@ const ROSTER = [
     reader.readAsText(file);
   };
 
+  const RECORDED_STAGE1_SCORES = {
+    M01: [15, 12],
+    M02: [15, 11],
+    M03: [15, 14],
+    M04: [10, 15],
+    M05: [11, 15],
+    M06: [15, 10],
+    M07: [15, 14],
+    M08: [15, 5],
+    M09: [15, 14],
+    M10: [15, 7],
+    M11: [15, 7],
+    M12: [15, 14],
+    M13: [15, 4],
+    M14: [14, 15],
+    M15: [15, 9],
+    M16: [11, 15],
+    M17: [15, 9],
+    M18: [15, 13],
+    M19: [15, 7],
+    M20: [12, 15],
+    M21: [9, 15],
+    M22: [15, 6],
+    M23: [4, 15],
+    M24: [9, 15],
+    M25: [7, 15],
+    M26: [9, 15],
+    M27: [15, 7],
+    M28: [15, 11],
+    M29: [15, 9],
+    M30: [11, 15],
+    M31: [15, 7],
+    M32: [15, 7],
+    M33: [15, 13],
+    M34: [15, 7],
+    M35: [15, 4],
+    M36: [15, 13],
+    M37: [15, 9],
+    M38: [14, 15],
+    M39: [15, 14],
+    M40: [15, 13],
+    M41: [15, 4],
+    M42: [15, 10],
+    M43: [15, 6],
+    M44: [12, 15],
+    M45: [12, 15],
+    M46: [13, 15],
+    M47: [15, 12],
+    M48: [8, 15]
+  };
+
+  window.loadRecordedStage1Scores = function (skipConfirm = false) {
+    if (!checkStage1LockBeforeEdit()) return;
+    if (!skipConfirm && !confirm("Load official referee-recorded scores for all 48 Stage 1 matches?\n\nThis will populate all 48 match scores. You can review the provisional leaderboard before locking Stage 1.")) return;
+
+    fixtures.forEach((f) => {
+      if (RECORDED_STAGE1_SCORES[f.m]) {
+        f.s1 = RECORDED_STAGE1_SCORES[f.m][0];
+        f.s2 = RECORDED_STAGE1_SCORES[f.m][1];
+        f.revision = (f.revision || 0) + 1;
+        f.updatedAt = new Date().toISOString();
+      }
+    });
+
+    saveState();
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+    renderScorekeeperView();
+    closeOrganizerModal();
+    showToast("📋 48 Recorded Stage 1 scores loaded! Review standings before locking.");
+  };
+
   window.loadDemoData = function (skipConfirm = false) {
     if (stage1Locked) {
       // Stage 1 is locked. Load demo scores for Finals only (Requirement 22)
