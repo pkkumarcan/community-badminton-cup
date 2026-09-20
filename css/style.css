@@ -114,7 +114,6 @@ body {
   padding: 12px 12px 60px;
   line-height: 1.5;
   transition: background-color 0.25s ease, color 0.25s ease;
-  overflow-x: hidden;
 }
 
 .app-wrapper {

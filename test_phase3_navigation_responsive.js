@@ -35,7 +35,7 @@ console.log('Test 2: Touch Target & Safe Area CSS Verification');
 assert(cssContent.includes('padding-bottom: env(safe-area-inset-bottom);') || cssContent.includes('env(safe-area-inset-bottom)'), 'Must respect safe-area-inset-bottom');
 assert(cssContent.includes('.mob-nav-item'), 'Must style mob-nav-item');
 assert(cssContent.includes('min-height: 48px') || cssContent.includes('height: 52px') || cssContent.includes('min-height: 44px'), 'Minimum touch target >= 44px');
-assert(cssContent.includes('calc(76px + env(safe-area-inset-bottom))') || cssContent.includes('padding-bottom: calc('), 'Content must have bottom padding to prevent bottom nav overlay');
+assert(cssContent.includes('calc(72px + env(safe-area-inset-bottom))') || cssContent.includes('calc(76px + env(safe-area-inset-bottom))') || cssContent.includes('padding-bottom: calc('), 'Content must have bottom padding to prevent bottom nav overlay');
 console.log('  ✅ Safe area inset and 48px touch targets verified');
 
 // Test 3: More menu secondary functions

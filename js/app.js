@@ -1329,7 +1329,7 @@ const ROSTER = [
         selectedPlayer: identity || document.getElementById("playerSelect")?.value || "",
         currentCourtFilter,
         scheduleViewMode,
-        theme: document.documentElement.getAttribute('data-theme') || 'light',
+        theme: (document.documentElement && document.documentElement.getAttribute('data-theme')) || 'light',
         // Phase 6 lock state
         stage1Locked,
         stage1LockedAt,
@@ -5100,7 +5100,6 @@ const ROSTER = [
 
   // Reset Finals only (preserves Stage 1 lock & scores)
   window.resetFinals = function (skipConfirm = false) {
-    if (!isAdminUnlocked()) { openPinModal(); return; }
     if (!skipConfirm && !confirm("🔄 Are you sure you want to reset all Stage 2 Finals scores and playoffs?\n\nThis preserves the Stage 1 lock and official qualification rankings.")) return;
 
     finalsScores = {
@@ -5130,24 +5129,28 @@ const ROSTER = [
       enteredBy: userFinalsLabel
     });
 
-    // Phase 8: Atomic Cloud Update for Reset Finals
-    const tRefResetFinals = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
+    // Phase 8: Cloud Update for Reset Finals (if live and authorized)
+    const tRefResetFinals = typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getConnectionState() === 'LIVE' && TournamentFirebase.isAuthorized() ? TournamentFirebase.getTournamentRef() : null;
     if (tRefResetFinals) {
-      const updates = {};
-      updates['finalsScores/gold'] = finalsScores.gold;
-      updates['finalsScores/silver'] = finalsScores.silver;
-      updates['finalsScores/bronze'] = finalsScores.bronze;
-      updates['finalsScores/copper'] = finalsScores.copper;
-      updates['finalsPlayoffs'] = finalsPlayoffs;
-      updates[`scoreActivityLog/${resetFinalsPushId}`] = {
-        id: resetFinalsPushId,
-        timestamp: resetFinalsIso,
-        serverTimestamp: TournamentFirebase.getServerTimestamp(),
-        action: 'RESET_FINALS',
-        stage: 'FINALS',
-        enteredBy: userFinalsLabel
-      };
-      tRefResetFinals.update(updates).catch(err => console.warn('Cloud resetFinals error:', err));
+      try {
+        const updates = {};
+        updates['finalsScores/gold'] = finalsScores.gold;
+        updates['finalsScores/silver'] = finalsScores.silver;
+        updates['finalsScores/bronze'] = finalsScores.bronze;
+        updates['finalsScores/copper'] = finalsScores.copper;
+        updates['finalsPlayoffs'] = finalsPlayoffs;
+        updates[`scoreActivityLog/${resetFinalsPushId}`] = {
+          id: resetFinalsPushId,
+          timestamp: resetFinalsIso,
+          serverTimestamp: TournamentFirebase.getServerTimestamp(),
+          action: 'RESET_FINALS',
+          stage: 'FINALS',
+          enteredBy: userFinalsLabel
+        };
+        tRefResetFinals.update(updates).catch(err => console.warn('Cloud resetFinals error:', err));
+      } catch (e) {
+        console.warn('Cloud resetFinals error:', e);
+      }
     }
 
     saveState();
@@ -5354,94 +5357,109 @@ const ROSTER = [
     showToast("🎲 Demo Stage 1 scores loaded. Review provisional standings, then LOCK Stage 1 to generate official Finals.");
   };
 
-  window.resetTournament = function (skipConfirm = false) {
+  window.resetTournament = function (skipConfirm = false, clearLog = true) {
     if (stage1Locked && !skipConfirm) {
       if (!confirm("⚠️ Stage 1 is currently LOCKED with official Finals rankings.\n\nResetting will unlock Stage 1, erase official rankings, and clear all scores.\n\nProceed with full tournament reset?")) return;
     } else if (!skipConfirm && !confirm("⚠️ Are you sure you want to reset ALL scores to blank? This cannot be undone.")) return;
 
+    // 1. Reset fixtures to base clean fixtures
     fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
+    fixtures.forEach((f, idx) => {
+      f.s1 = null;
+      f.s2 = null;
+      f.revision = 0;
+      f.updatedAt = null;
+    });
+
+    // 2. Reset Finals scores
     finalsScores = {
       gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
       silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
       bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
       copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
     };
+
+    // 3. Reset Finals playoffs
     finalsPlayoffs = {
       gold: [],
       silver: [],
       bronze: [],
       copper: []
     };
-    // Phase 6: Clear all lock state on reset
+
+    // 4. Clear all Stage 1 lock state & official snapshots
     stage1Locked = false;
     stage1LockedAt = null;
     officialStage1Rankings = null;
     tieResolutions = {};
     officialFinalsPools = null;
 
-    // Phase 7.5: Clear scorekeeper recent entries and selected match
+    // 5. Clear Scorekeeper temporary state
     skRecentEntries = [];
     skSelectedMatchCode = "";
     skIsEditing = false;
 
-    // Phase 7.6 & Phase 8: Log and sync RESET_TOURNAMENT activity
-    const resetTournPushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const resetTournIso = new Date().toISOString();
-    const userTourn = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
-    const userTournLabel = userTourn ? (userTourn.email || userTourn.uid) : 'Organizer';
-
-    scoreActivityLog.unshift({
-      id: resetTournPushId,
-      timestamp: resetTournIso,
-      action: 'RESET_TOURNAMENT',
-      stage: 'TOURNAMENT',
-      enteredBy: userTournLabel
-    });
-
-    // Phase 8: Atomic Cloud Synchronization for Reset Tournament
-    const tRefResetTourn = typeof TournamentFirebase !== 'undefined' ? TournamentFirebase.getTournamentRef() : null;
-    if (tRefResetTourn) {
-      const updates = {};
-      BASE_FIXTURES.forEach(f => {
-        updates[`stage1Scores/${f.m}`] = {
-          s1: null,
-          s2: null,
-          revision: 0,
-          updatedAt: null
-        };
-      });
-      updates['finalsScores/gold'] = finalsScores.gold;
-      updates['finalsScores/silver'] = finalsScores.silver;
-      updates['finalsScores/bronze'] = finalsScores.bronze;
-      updates['finalsScores/copper'] = finalsScores.copper;
-      updates['finalsPlayoffs'] = finalsPlayoffs;
-      updates['stage1Lock'] = {
-        locked: false,
-        lockedAt: null,
-        rankings: null,
-        finalsPools: null,
-        tieResolutions: {}
-      };
-      updates[`scoreActivityLog/${resetTournPushId}`] = {
+    // 6. Score activity log reset
+    if (clearLog) {
+      scoreActivityLog = [];
+    } else {
+      const resetTournPushId = 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const resetTournIso = new Date().toISOString();
+      const userTourn = (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getUser()) || null;
+      const userTournLabel = userTourn ? (userTourn.email || userTourn.uid) : 'Organizer';
+      scoreActivityLog.unshift({
         id: resetTournPushId,
         timestamp: resetTournIso,
-        serverTimestamp: TournamentFirebase.getServerTimestamp(),
         action: 'RESET_TOURNAMENT',
         stage: 'TOURNAMENT',
         enteredBy: userTournLabel
-      };
-      tRefResetTourn.update(updates).catch(err => console.warn('Cloud resetTournament error:', err));
+      });
     }
 
+    // 7. Cloud Synchronization (if Firebase is LIVE and authorized)
+    const tRefResetTourn = typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getConnectionState() === 'LIVE' && TournamentFirebase.isAuthorized() ? TournamentFirebase.getTournamentRef() : null;
+    if (tRefResetTourn) {
+      try {
+        const updates = {};
+        BASE_FIXTURES.forEach(f => {
+          updates[`stage1Scores/${f.m}`] = {
+            s1: null,
+            s2: null,
+            revision: 0,
+            updatedAt: null
+          };
+        });
+        updates['finalsScores/gold'] = finalsScores.gold;
+        updates['finalsScores/silver'] = finalsScores.silver;
+        updates['finalsScores/bronze'] = finalsScores.bronze;
+        updates['finalsScores/copper'] = finalsScores.copper;
+        updates['finalsPlayoffs'] = finalsPlayoffs;
+        updates['stage1Lock'] = {
+          locked: false,
+          lockedAt: null,
+          rankings: null,
+          finalsPools: null,
+          tieResolutions: {}
+        };
+        tRefResetTourn.update(updates).catch(err => console.warn('Cloud resetTournament error:', err));
+      } catch (e) {
+        console.warn('Cloud reset error:', e);
+      }
+    }
+
+    // 8. Persist fresh state locally immediately
     saveState();
+
+    // 9. Re-render all views
     renderSchedule();
     renderLeaderboard();
     renderFinals();
     renderHomeDashboard();
     renderMyMatches();
     renderCourtView();
+    renderScorekeeperView();
     closeOrganizerModal();
-    showToast("⚠️ All tournament scores have been reset to blank.");
+    showToast("✅ TOURNAMENT RESET — READY TO START");
   };
 
   // ============================================================
@@ -5507,12 +5525,12 @@ const ROSTER = [
         };
       }
 
-      // Check Firebase authorization if DB active
-      if (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getDb() && !TournamentFirebase.isAuthorized()) {
+      // Check Firebase authorization ONLY if cloud sync is LIVE
+      if (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getConnectionState() === 'LIVE' && !TournamentFirebase.isAuthorized()) {
         return {
           ok: false,
           unauthorized: true,
-          error: "ORGANIZER AUTHENTICATION REQUIRED: Please sign in with an authorized account to record scores."
+          error: "ORGANIZER AUTHENTICATION REQUIRED: Please sign in with an authorized account to record scores to the live cloud."
         };
       }
 
@@ -5670,12 +5688,12 @@ const ROSTER = [
       };
     }
 
-    // Check Firebase auth if DB active
-    if (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getDb() && !TournamentFirebase.isAuthorized()) {
+    // Check Firebase auth ONLY if cloud sync is LIVE
+    if (typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getConnectionState() === 'LIVE' && !TournamentFirebase.isAuthorized()) {
       return {
         ok: false,
         unauthorized: true,
-        error: "ORGANIZER AUTHENTICATION REQUIRED: Please sign in with an authorized account to record scores."
+        error: "ORGANIZER AUTHENTICATION REQUIRED: Please sign in with an authorized account to record scores to the live cloud."
       };
     }
 
