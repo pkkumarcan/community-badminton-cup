@@ -73,6 +73,9 @@
       <button type="button" class="tab-btn" id="tabBtn-finals" onclick="switchTab('finals')">
         <span>🏅</span> Finals
       </button>
+      <button type="button" class="tab-btn" id="tabBtn-scorekeeper" onclick="switchTab('scorekeeper')" title="Fast Mobile Scorekeeper Mode">
+        <span>📱</span> Scorekeeper
+      </button>
       <button type="button" class="tab-btn" id="tabBtn-rules" onclick="switchTab('rules')">
         <span>📖</span> Rules
       </button>
@@ -243,11 +246,71 @@
         </div>
       </section>
 
-      <!-- TAB 4: RULES & REFEREE GUIDE -->
+      <!-- TAB 5: SCOREKEEPER MODE (Phase 7.5: Rapid Mobile Entry) -->
+      <section id="tab-scorekeeper" class="tab-pane hidden" style="display:none;">
+        <div class="sk-view-wrap">
+          <!-- Top Bar & Instructions -->
+          <div class="sk-top-bar">
+            <div class="sk-title-row">
+              <h2><span>📱</span> SCOREKEEPER MODE</h2>
+              <span class="sk-test-badge">🧪 TEST MODE (Local Only)</span>
+            </div>
+            <p class="sk-instruction">
+              Select match &rarr; verify players &rarr; enter score &rarr; save.<br>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Note: In this test version, scores are stored on this device only.</span>
+            </p>
+          </div>
+
+          <!-- Match Selector Card -->
+          <div class="sk-selector-card">
+            <div class="sk-filter-pills" id="skCourtFilterPills">
+              <button type="button" class="sk-pill-btn active" data-court="all" onclick="filterScorekeeperCourt('all')">All Courts</button>
+              <button type="button" class="sk-pill-btn" data-court="1" onclick="filterScorekeeperCourt('1')">Court 1</button>
+              <button type="button" class="sk-pill-btn" data-court="2" onclick="filterScorekeeperCourt('2')">Court 2</button>
+              <button type="button" class="sk-pill-btn" data-court="3" onclick="filterScorekeeperCourt('3')">Court 3</button>
+              <button type="button" class="sk-pill-btn" data-court="5" onclick="filterScorekeeperCourt('5')">Court 5</button>
+              <button type="button" class="sk-pill-btn" data-court="8" onclick="filterScorekeeperCourt('8')">Court 8</button>
+            </div>
+
+            <div class="sk-search-wrap">
+              <input type="text" id="skSearchInput" class="sk-search-input" placeholder="Search match (e.g. 17 or M17 or G1)..." oninput="onScorekeeperSearch(this.value)" autocomplete="off">
+            </div>
+
+            <label for="skMatchSelect" style="font-size:0.75rem; font-weight:800; color:var(--text-muted); display:block; margin-bottom:4px; text-transform:uppercase;">SELECT MATCH</label>
+            <select id="skMatchSelect" class="sk-match-select" onchange="onScorekeeperMatchSelect(this.value)">
+              <!-- Options populated dynamically by app.js -->
+            </select>
+          </div>
+
+          <!-- Success / Notification Area -->
+          <div id="skSuccessArea"></div>
+
+          <!-- Active Match Entry Detail Container -->
+          <div id="skMatchDetailContainer">
+            <!-- Injected by renderScorekeeperMatchDetail() in app.js -->
+          </div>
+
+          <!-- Recent Entries Card -->
+          <div class="sk-recent-card">
+            <div class="sk-recent-header">Recent Scorekeeper Entries (Last 5)</div>
+            <div id="skRecentEntriesList" class="sk-recent-list">
+              <!-- Injected dynamically by app.js -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: RULES & REFEREE GUIDE -->
       <section id="tab-rules" class="tab-pane hidden">
         <div class="rules-container">
           <div class="rule-section-card">
             <h3>⚡ Tournament Structure &amp; 4-Block Format</h3>
+            <p>The <strong>Sindh Boys Badminton Cup 2026</strong> is a non-stop 3-hour doubles tournament with 24 players divided into 4 sequential blocks of play across 4 physical courts.</p>
+            <ul class="rule-list">
+              <li><strong>Block 1 (12:00–12:30 PM):</strong> Rounds 1–3 on Courts 1, 2, 5, 8.</li>
+              <li><strong>Blocks 2–4 (12:30–2:00 PM):</strong> Rounds 4–12 on Courts 1, 2, 3, 8.</li>
+              <li><strong>Stage 2 Championship Finals (2:00–3:00 PM):</strong> Gold on Court 1, Silver on Court 2, Bronze on Court 3, Copper on Court 8.</li>
+            </ul>
             <ul>
               <li><strong>Zero Eliminations:</strong> Every participant plays all 10 matches (8 Stage 1 mini-pod matches + 2 championship finals matches).</li>
               <li><strong>Autonomous 6-Player Court Pods:</strong> Each court runs independently as a self-contained 6-player pod. Zero inter-court roaming; as soon as a match finishes, resting referees step on as players.</li>
@@ -391,9 +454,15 @@
     <div class="modal-card">
       <h2 class="modal-title">⚙️ Tournament Desk Tools</h2>
       <div class="modal-body">
-        <p>Manage tournament state, download backup files, or reset for a new event:</p>
-        
         <div style="display:flex; flex-direction:column; gap:10px;">
+          <button type="button" class="btn-primary" onclick="switchTab('scorekeeper'); closeOrganizerModal();" style="text-align:left; padding:12px; display:flex; align-items:center; gap:10px;">
+            <span style="font-size:1.4rem;">📱</span>
+            <div>
+              <strong style="font-size:1rem;">Open Scorekeeper Mode</strong>
+              <div style="font-size:0.75rem; opacity:0.9;">Fast mobile score entry (M01–M48 &amp; Finals)</div>
+            </div>
+          </button>
+
           <button type="button" class="btn-secondary" onclick="exportDataJSON()" style="text-align:left;">
             💾 <strong>Export Backup (JSON)</strong>
             <div style="font-size:0.75rem; color:var(--text-muted);">Save full match scores &amp; standings to your computer</div>
@@ -484,6 +553,13 @@
         <button type="button" class="more-menu-close" onclick="closeMoreMenu()" aria-label="Close menu">&times;</button>
       </div>
       <div class="more-menu-grid">
+        <button type="button" class="more-menu-btn" onclick="switchTab('scorekeeper'); closeMoreMenu();">
+          <span class="more-menu-icon">📱</span>
+          <div class="more-menu-text">
+            <div class="more-menu-title">Scorekeeper Mode</div>
+            <div class="more-menu-sub">Fast mobile match score entry (5–10s per match)</div>
+          </div>
+        </button>
         <button type="button" class="more-menu-btn" onclick="switchTab('courts'); closeMoreMenu();">
           <span class="more-menu-icon">🏟️</span>
           <div class="more-menu-text">

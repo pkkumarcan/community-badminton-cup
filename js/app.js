@@ -1095,6 +1095,14 @@ const ROSTER = [
   let tieResolutions = {};              // { 'tie-group-id': ['Player A', 'Player B', ...] }
   let officialFinalsPools = null;       // buildFinalsPools(officialStage1Rankings) stored at lock time
 
+  // Phase 7.5: Scorekeeper Mode state
+  let skSelectedMatchCode = "";
+  let skCourtFilter = "all";
+  let skSearchQuery = "";
+  let skIsEditing = false;
+  let skRecentEntries = [];
+  let skIsSaving = false;
+
   window.FINALS_TARGET_SCORE = FINALS_TARGET_SCORE;
   window.isStage1Locked = function () { return stage1Locked; };
   window.getStage1Locked = function () { return stage1Locked; };
@@ -1104,6 +1112,7 @@ const ROSTER = [
   window.getTieResolutions = function () { return tieResolutions; };
   window.getFinalsScores = function () { return finalsScores; };
   window.getFinalsPlayoffs = function () { return finalsPlayoffs; };
+  window.getSkRecentEntries = function () { return skRecentEntries; };
 
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
   const STORAGE_KEY = 'badminton_cup_portal_data_v9';
@@ -1160,7 +1169,9 @@ const ROSTER = [
         stage1LockedAt,
         officialStage1Rankings,
         tieResolutions,
-        officialFinalsPools
+        officialFinalsPools,
+        // Phase 7.5 Scorekeeper entries
+        skRecentEntries: skRecentEntries.slice(0, 5)
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -1214,6 +1225,10 @@ const ROSTER = [
         officialStage1Rankings = data.officialStage1Rankings || null;
         tieResolutions = data.tieResolutions || {};
         officialFinalsPools = data.officialFinalsPools || null;
+      }
+      // Restore Phase 7.5 Scorekeeper recent entries
+      if (Array.isArray(data.skRecentEntries)) {
+        skRecentEntries = data.skRecentEntries;
       }
       if (data.currentCourtFilter) {
         currentCourtFilter = data.currentCourtFilter;
@@ -1379,7 +1394,7 @@ const ROSTER = [
 
   // ---------- TAB NAVIGATION (Phase 3: Desktop & Mobile Synchronization) ----------
   window.switchTab = function (tab) {
-    const tabs = ['home', 'mymatches', 'courts', 'fixtures', 'leaderboard', 'finals', 'rules'];
+    const tabs = ['home', 'mymatches', 'courts', 'fixtures', 'leaderboard', 'finals', 'scorekeeper', 'rules'];
     tabs.forEach((t) => {
       const panel = document.getElementById('tab-' + t);
       const btn = document.getElementById('tabBtn-' + t);
@@ -1430,6 +1445,7 @@ const ROSTER = [
     if (tab === 'leaderboard') renderLeaderboard();
     if (tab === 'finals') renderFinals();
     if (tab === 'fixtures') renderSchedule();
+    if (tab === 'scorekeeper') renderScorekeeperView();
 
     // Instant top-of-screen scroll per Requirement 18
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -4794,7 +4810,9 @@ const ROSTER = [
       stage1LockedAt,
       officialStage1Rankings,
       tieResolutions,
-      officialFinalsPools
+      officialFinalsPools,
+      // Phase 7.5 Scorekeeper entries
+      skRecentEntries: skRecentEntries.slice(0, 5)
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -4856,6 +4874,12 @@ const ROSTER = [
           officialStage1Rankings = null;
           tieResolutions = {};
           officialFinalsPools = null;
+        }
+        // Restore Phase 7.5 Scorekeeper entries
+        if (Array.isArray(parsed.skRecentEntries)) {
+          skRecentEntries = parsed.skRecentEntries;
+        } else {
+          skRecentEntries = [];
         }
         saveState();
         renderSchedule();
@@ -4947,6 +4971,11 @@ const ROSTER = [
     tieResolutions = {};
     officialFinalsPools = null;
 
+    // Phase 7.5: Clear scorekeeper recent entries and selected match
+    skRecentEntries = [];
+    skSelectedMatchCode = "";
+    skIsEditing = false;
+
     saveState();
     renderSchedule();
     renderLeaderboard();
@@ -4957,6 +4986,660 @@ const ROSTER = [
     closeOrganizerModal();
     showToast("⚠️ All tournament scores have been reset to blank.");
   };
+
+  // ============================================================
+  // ---------- PHASE 7.5: SCOREKEEPER MODE (RAPID MOBILE ENTRY) ----------
+  // ============================================================
+
+  /**
+   * Centralized tournament score save entry point (designed for Phase 8 Firebase compatibility).
+   * UI and Scorekeeper mode call this single function.
+   *
+   * @param {string} matchCode - Match ID e.g. "M17", "17", "G1", "S2", "B3", "C1"
+   * @param {number|string} score1 - Team 1 score
+   * @param {number|string} score2 - Team 2 score
+   * @param {boolean} isEditing - Explicit override flag for completed matches
+   * @returns {Object} { ok: boolean, error?: string, alreadyScored?: boolean, ... }
+   */
+  function saveTournamentScore(matchCode, score1, score2, isEditing = false) {
+    if (!matchCode) {
+      return { ok: false, error: "Please select a valid match." };
+    }
+
+    const cleanCode = String(matchCode).trim().toUpperCase();
+    const s1 = parseInt(score1, 10);
+    const s2 = parseInt(score2, 10);
+
+    // 1. Stage 2 Finals Match (G1-G3, S1-S3, B1-B3, C1-C3)
+    const isFinalsMatch = /^[GSBC][1-3]$/.test(cleanCode);
+
+    if (isFinalsMatch) {
+      if (!stage1Locked) {
+        return { ok: false, error: "Stage 1 must be locked before Finals matches can be scored." };
+      }
+
+      const tierLetter = cleanCode.charAt(0);
+      const matchIdx = parseInt(cleanCode.charAt(1), 10) - 1;
+      const tierMap = { G: 'gold', S: 'silver', B: 'bronze', C: 'copper' };
+      const poolKey = tierMap[tierLetter];
+
+      if (!poolKey || matchIdx < 0 || matchIdx > 2) {
+        return { ok: false, error: `Invalid Finals match identifier "${cleanCode}".` };
+      }
+
+      // Finals score validation: exactly 21 sudden death, max 21, no ties
+      if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0 || s1 > FINALS_TARGET_SCORE || s2 > FINALS_TARGET_SCORE || s1 === s2 || (s1 !== FINALS_TARGET_SCORE && s2 !== FINALS_TARGET_SCORE)) {
+        return { ok: false, error: `Invalid Finals score. One team must reach exactly ${FINALS_TARGET_SCORE} points sudden death (no deuce/ties, max ${FINALS_TARGET_SCORE}).` };
+      }
+
+      // Check if already concluded
+      const existing = finalsScores[poolKey]?.[matchIdx];
+      const wasConcluded = existing && (Number(existing.s1) === FINALS_TARGET_SCORE || Number(existing.s2) === FINALS_TARGET_SCORE) && existing.s1 !== existing.s2;
+      if (wasConcluded && !isEditing) {
+        return { ok: false, alreadyScored: true, error: `Finals Match ${cleanCode} is already completed (${existing.s1}–${existing.s2}). Explicit edit confirmation required.` };
+      }
+
+      // Save Finals score
+      if (!finalsScores[poolKey]) {
+        finalsScores[poolKey] = [{ s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null }];
+      }
+      finalsScores[poolKey][matchIdx] = { s1, s2 };
+
+      const pools = getEffectiveFinalsPools();
+      const poolMeta = pools.find(p => p.key === poolKey);
+      const mMeta = poolMeta?.matches?.[matchIdx];
+      const courtNum = mMeta?.court || (poolKey === 'gold' ? 1 : (poolKey === 'silver' ? 2 : (poolKey === 'bronze' ? 3 : 8)));
+      const t1Name = mMeta?.t1 ? mMeta.t1.join(' & ') : 'Team 1';
+      const t2Name = mMeta?.t2 ? mMeta.t2.join(' & ') : 'Team 2';
+
+      // Record recent entry audit item
+      const auditItem = {
+        matchCode: cleanCode,
+        score: `${s1}–${s2}`,
+        court: courtNum,
+        t1: t1Name,
+        t2: t2Name,
+        savedAt: new Date().toISOString(),
+        action: isEditing ? 'EDIT' : 'SAVE',
+        isFinals: true
+      };
+      skRecentEntries = [auditItem, ...skRecentEntries.filter(e => e.matchCode !== cleanCode)].slice(0, 5);
+
+      saveState();
+      renderSchedule();
+      renderLeaderboard();
+      renderFinals();
+      renderCourtView();
+      renderHomeDashboard();
+      renderMyMatches();
+
+      return {
+        ok: true,
+        matchCode: cleanCode,
+        score1: s1,
+        score2: s2,
+        court: courtNum,
+        t1: t1Name,
+        t2: t2Name,
+        action: isEditing ? 'EDIT' : 'SAVE',
+        isFinals: true
+      };
+    }
+
+    // 2. Stage 1 Match (M01-M48 or 1-48)
+    const matchNum = parseInt(cleanCode.replace(/^M/, ''), 10);
+    if (isNaN(matchNum) || matchNum < 1 || matchNum > fixtures.length) {
+      return { ok: false, error: `Invalid match identifier "${cleanCode}". Must be M01–M48 or G1–C3.` };
+    }
+
+    const fIdx = matchNum - 1;
+    const f = fixtures[fIdx];
+    const fullMatchCode = f.m || ('M' + String(matchNum).padStart(2, '0'));
+
+    // Guard: Stage 1 Lock prevents Stage 1 edits
+    if (stage1Locked) {
+      return {
+        ok: false,
+        error: "STAGE 1 LOCKED: Official Finals teams have been generated. Stage 1 scores cannot be changed from Scorekeeper Mode."
+      };
+    }
+
+    // Stage 1 score validation: exactly 15 sudden death, max 15, no ties
+    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0 || s1 > 15 || s2 > 15 || s1 === s2 || (s1 !== 15 && s2 !== 15)) {
+      return { ok: false, error: "Invalid Stage 1 score. One team must reach exactly 15 points (sudden death, no deuce/ties, max 15)." };
+    }
+
+    // Check if already concluded
+    const wasConcluded = isMatchConcluded(f);
+    if (wasConcluded && !isEditing) {
+      return { ok: false, alreadyScored: true, error: `Match ${fullMatchCode} is already completed (${f.s1}–${f.s2}). Explicit edit confirmation required.` };
+    }
+
+    // Save Stage 1 score
+    f.s1 = s1;
+    f.s2 = s2;
+
+    const t1Name = f.t1.join(' & ');
+    const t2Name = f.t2.join(' & ');
+    const courtNum = f.c;
+
+    const auditItem = {
+      matchCode: fullMatchCode,
+      score: `${s1}–${s2}`,
+      court: courtNum,
+      t1: t1Name,
+      t2: t2Name,
+      savedAt: new Date().toISOString(),
+      action: isEditing ? 'EDIT' : 'SAVE',
+      isFinals: false
+    };
+    skRecentEntries = [auditItem, ...skRecentEntries.filter(e => e.matchCode !== fullMatchCode)].slice(0, 5);
+
+    saveState();
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+    renderCourtView();
+    renderHomeDashboard();
+    renderMyMatches();
+
+    return {
+      ok: true,
+      matchCode: fullMatchCode,
+      score1: s1,
+      score2: s2,
+      court: courtNum,
+      t1: t1Name,
+      t2: t2Name,
+      action: isEditing ? 'EDIT' : 'SAVE',
+      isFinals: false
+    };
+  }
+  window.saveTournamentScore = saveTournamentScore;
+
+  // ---------- SCOREKEEPER MODE UI HELPERS ----------
+
+  function renderScorekeeperView() {
+    populateScorekeeperMatchSelect();
+    renderScorekeeperRecentEntries();
+    renderScorekeeperMatchDetail(skSelectedMatchCode);
+  }
+  window.renderScorekeeperView = renderScorekeeperView;
+
+  function filterScorekeeperCourt(court) {
+    skCourtFilter = String(court);
+    document.querySelectorAll('#skCourtFilterPills .sk-pill-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.court === skCourtFilter);
+    });
+    populateScorekeeperMatchSelect();
+  }
+  window.filterScorekeeperCourt = filterScorekeeperCourt;
+
+  function onScorekeeperSearch(query) {
+    skSearchQuery = (query || '').trim();
+    populateScorekeeperMatchSelect();
+
+    // Auto-select if search query matches a match exactly
+    const clean = skSearchQuery.toUpperCase();
+    if (/^(M?\d{1,2}|[GSBC][1-3])$/i.test(clean)) {
+      let targetCode = clean;
+      if (/^\d{1,2}$/.test(clean)) {
+        targetCode = 'M' + clean.padStart(2, '0');
+      } else if (/^M\d{1,2}$/.test(clean)) {
+        targetCode = 'M' + clean.slice(1).padStart(2, '0');
+      }
+      const select = document.getElementById('skMatchSelect');
+      if (select) {
+        const matchingOpt = Array.from(select.options).find(o => o.value === targetCode);
+        if (matchingOpt) {
+          select.value = targetCode;
+          onScorekeeperMatchSelect(targetCode);
+        }
+      }
+    }
+  }
+  window.onScorekeeperSearch = onScorekeeperSearch;
+
+  function populateScorekeeperMatchSelect() {
+    const select = document.getElementById('skMatchSelect');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">-- Choose Match to Score --</option>';
+
+    const query = skSearchQuery.toLowerCase();
+    const courtFilter = skCourtFilter;
+
+    // 1. Stage 1 Matches
+    const unscoredMatches = [];
+    const completedMatches = [];
+
+    fixtures.forEach((f, idx) => {
+      const matchCode = f.m || ('M' + String(idx + 1).padStart(2, '0'));
+      const numStr = String(idx + 1);
+
+      // Court filter
+      if (courtFilter !== 'all' && String(f.c) !== courtFilter) return;
+
+      // Search filter
+      if (query) {
+        const matchesCode = matchCode.toLowerCase().includes(query) || numStr === query;
+        const matchesPlayer = f.t1.some(p => p.toLowerCase().includes(query)) || f.t2.some(p => p.toLowerCase().includes(query));
+        if (!matchesCode && !matchesPlayer) return;
+      }
+
+      if (isMatchConcluded(f)) {
+        completedMatches.push({ f, matchCode, idx });
+      } else {
+        unscoredMatches.push({ f, matchCode, idx });
+      }
+    });
+
+    if (unscoredMatches.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = `⚡ UNSCORED MATCHES (${unscoredMatches.length})`;
+      unscoredMatches.forEach(({ f, matchCode }) => {
+        const opt = document.createElement('option');
+        opt.value = matchCode;
+        opt.textContent = `${matchCode} — Court ${f.c} (Block ${Math.ceil(f.r / 3)}) • ${f.t1.join(' & ')} vs ${f.t2.join(' & ')}`;
+        group.appendChild(opt);
+      });
+      select.appendChild(group);
+    }
+
+    if (completedMatches.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = `✓ COMPLETED MATCHES (${completedMatches.length})`;
+      completedMatches.forEach(({ f, matchCode }) => {
+        const opt = document.createElement('option');
+        opt.value = matchCode;
+        opt.textContent = `✓ ${matchCode} — ${f.s1}–${f.s2} (Court ${f.c}) • ${f.t1.join(' & ')} vs ${f.t2.join(' & ')}`;
+        group.appendChild(opt);
+      });
+      select.appendChild(group);
+    }
+
+    // 2. Stage 2 Finals (if Stage 1 is locked)
+    if (stage1Locked) {
+      const finalsGroup = document.createElement('optgroup');
+      finalsGroup.label = '🏆 STAGE 2 — FINALS';
+      const pools = getEffectiveFinalsPools();
+
+      pools.forEach(pool => {
+        (pool.matches || []).forEach((m, mIdx) => {
+          const mCode = m.matchCode || m.id;
+          if (courtFilter !== 'all' && String(m.court) !== courtFilter) return;
+          if (query && !mCode.toLowerCase().includes(query)) return;
+
+          const fScore = finalsScores[pool.key]?.[mIdx];
+          const isDone = fScore && (Number(fScore.s1) === FINALS_TARGET_SCORE || Number(fScore.s2) === FINALS_TARGET_SCORE) && fScore.s1 !== fScore.s2;
+
+          const opt = document.createElement('option');
+          opt.value = mCode;
+          const poolShort = pool.label.split('(')[0].trim();
+          if (isDone) {
+            opt.textContent = `✓ ${mCode} — ${fScore.s1}–${fScore.s2} (${poolShort} • Court ${m.court})`;
+          } else {
+            opt.textContent = `${mCode} — ${poolShort} (Court ${m.court}) • ${m.t1?.join(' & ')} vs ${m.t2?.join(' & ')}`;
+          }
+          finalsGroup.appendChild(opt);
+        });
+      });
+
+      if (finalsGroup.children.length > 0) {
+        select.appendChild(finalsGroup);
+      }
+    }
+
+    if (skSelectedMatchCode) {
+      select.value = skSelectedMatchCode;
+    }
+  }
+  window.populateScorekeeperMatchSelect = populateScorekeeperMatchSelect;
+
+  function onScorekeeperMatchSelect(matchCode) {
+    skSelectedMatchCode = (matchCode || '').trim();
+    skIsEditing = false;
+    const successArea = document.getElementById('skSuccessArea');
+    if (successArea) successArea.innerHTML = '';
+    renderScorekeeperMatchDetail(skSelectedMatchCode);
+  }
+  window.onScorekeeperMatchSelect = onScorekeeperMatchSelect;
+
+  function renderScorekeeperMatchDetail(matchCode) {
+    const container = document.getElementById('skMatchDetailContainer');
+    if (!container) return;
+
+    if (!matchCode) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:32px 16px; color:var(--text-muted); background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border-card);">
+          <div style="font-size:2.2rem; margin-bottom:8px;">🏸</div>
+          <h3 style="font-size:1.05rem; font-weight:700; color:var(--text-primary); margin-bottom:4px;">No Match Selected</h3>
+          <p style="font-size:0.82rem; margin:0;">Select a match from the dropdown above to enter scores in seconds.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const cleanCode = matchCode.toUpperCase();
+    const isFinals = /^[GSBC][1-3]$/.test(cleanCode);
+
+    if (isFinals) {
+      // Stage 2 Finals Match
+      const tierLetter = cleanCode.charAt(0);
+      const mIdx = parseInt(cleanCode.charAt(1), 10) - 1;
+      const tierMap = { G: 'gold', S: 'silver', B: 'bronze', C: 'copper' };
+      const poolKey = tierMap[tierLetter];
+      const pools = getEffectiveFinalsPools();
+      const pool = pools.find(p => p.key === poolKey);
+      const mMeta = pool?.matches?.[mIdx];
+      const fScore = finalsScores[poolKey]?.[mIdx];
+      const isConcluded = fScore && (Number(fScore.s1) === FINALS_TARGET_SCORE || Number(fScore.s2) === FINALS_TARGET_SCORE) && fScore.s1 !== fScore.s2;
+
+      const t1Name = mMeta?.t1 ? mMeta.t1.join(' & ') : 'Team 1';
+      const t2Name = mMeta?.t2 ? mMeta.t2.join(' & ') : 'Team 2';
+      const refName = mMeta?.refs ? mMeta.refs.join(' & ') : 'Sitting Team';
+      const courtNum = mMeta?.court || (poolKey === 'gold' ? 1 : (poolKey === 'silver' ? 2 : (poolKey === 'bronze' ? 3 : 8)));
+      const poolLabel = pool?.label || `${poolKey.toUpperCase()} FINALS`;
+
+      if (isConcluded && !skIsEditing) {
+        const s1Num = Number(fScore.s1);
+        const s2Num = Number(fScore.s2);
+        container.innerHTML = `
+          <div class="sk-already-box">
+            <div class="sk-already-badge">✓ MATCH ${cleanCode} ALREADY SCORED</div>
+            <div class="sk-already-teams">
+              <div class="sk-already-team ${s1Num === FINALS_TARGET_SCORE ? 'winner' : ''}">
+                <span>${t1Name}</span>
+                <strong>${s1Num}</strong>
+              </div>
+              <div class="sk-already-team ${s2Num === FINALS_TARGET_SCORE ? 'winner' : ''}">
+                <span>${t2Name}</span>
+                <strong>${s2Num}</strong>
+              </div>
+            </div>
+            <div class="sk-already-meta">Court ${courtNum} &bull; ${poolLabel} &bull; Refs: ${refName}</div>
+            <div class="sk-already-actions">
+              <button type="button" class="btn-secondary" onclick="resetScorekeeperForm()">Back / Next</button>
+              <button type="button" class="btn-primary" onclick="enterScorekeeperEditMode()">✏️ Edit Score</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // Render Editable Finals Entry Card
+      container.innerHTML = `
+        <form class="sk-entry-card" onsubmit="handleScorekeeperSave(event)">
+          <div class="sk-entry-header">
+            <div class="sk-entry-badge-row">
+              <span class="sk-match-id-badge">${cleanCode}</span>
+              <span class="sk-block-badge">${poolLabel.split('(')[0].trim()}</span>
+              <span class="sk-court-badge">Court ${courtNum}</span>
+              ${skIsEditing ? '<span class="sk-editing-badge">✏️ EDITING</span>' : ''}
+            </div>
+            <div class="sk-target-rule-note">Target: First to <strong>${FINALS_TARGET_SCORE} points</strong> sudden death (no deuce)</div>
+          </div>
+          <div class="sk-teams-inputs-wrap">
+            <div class="sk-team-block">
+              <div class="sk-team-label">TEAM 1</div>
+              <div class="sk-team-names">${t1Name}</div>
+              <input type="number" id="skScore1" class="sk-score-input-large" inputmode="numeric" min="0" max="${FINALS_TARGET_SCORE}" placeholder="0" value="${skIsEditing && fScore?.s1 != null ? fScore.s1 : ''}" required autocomplete="off">
+            </div>
+            <div class="sk-vs-divider">VS</div>
+            <div class="sk-team-block">
+              <div class="sk-team-label">TEAM 2</div>
+              <div class="sk-team-names">${t2Name}</div>
+              <input type="number" id="skScore2" class="sk-score-input-large" inputmode="numeric" min="0" max="${FINALS_TARGET_SCORE}" placeholder="0" value="${skIsEditing && fScore?.s2 != null ? fScore.s2 : ''}" required autocomplete="off">
+            </div>
+          </div>
+          <div class="sk-refs-info">👀 Referees: <strong>${refName}</strong></div>
+          <div id="skErrorBox" class="sk-error-box" style="display:none;"></div>
+          <div class="sk-actions-row">
+            ${skIsEditing ? '<button type="button" class="btn-secondary" onclick="cancelScorekeeperEditMode()" style="flex:1;">Cancel</button>' : '<button type="button" class="btn-secondary" onclick="resetScorekeeperForm()" style="flex:1;">Reset</button>'}
+            <button type="submit" id="skSaveBtn" class="sk-save-btn" style="flex:2;">
+              <span>💾</span> ${skIsEditing ? 'SAVE EDITED SCORE' : 'SAVE SCORE'}
+            </button>
+          </div>
+        </form>
+      `;
+
+      setTimeout(() => {
+        document.getElementById('skScore1')?.focus();
+      }, 50);
+      return;
+    }
+
+    // Stage 1 Match
+    const matchNum = parseInt(cleanCode.replace(/^M/, ''), 10);
+    const fIdx = matchNum - 1;
+    const f = fixtures[fIdx];
+    if (!f) {
+      container.innerHTML = `<div class="sk-error-box" style="display:block;">Match ${cleanCode} not found in schedule.</div>`;
+      return;
+    }
+
+    const fullMatchCode = f.m || ('M' + String(matchNum).padStart(2, '0'));
+    const t1Name = f.t1.join(' & ');
+    const t2Name = f.t2.join(' & ');
+    const refName = f.refs.join(' & ');
+    const blockNum = Math.ceil(f.r / 3);
+
+    // Stage 1 Lock Guard
+    if (stage1Locked) {
+      container.innerHTML = `
+        <div class="sk-locked-box" style="background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.3); border-radius:var(--radius-lg); padding:20px; text-align:center;">
+          <div style="font-size:2rem; margin-bottom:6px;">🔒</div>
+          <h3 style="color:var(--loss-color); margin-bottom:6px; font-weight:800;">STAGE 1 LOCKED</h3>
+          <p style="font-size:0.84rem; color:var(--text-secondary); margin-bottom:12px;">
+            Official Finals teams have been generated. Stage 1 scores cannot be changed from Scorekeeper Mode.
+          </p>
+          <div style="font-weight:700; font-size:0.9rem; margin-bottom:14px;">
+            ${fullMatchCode} Score: ${t1Name} (${f.s1 ?? '-'}) vs ${t2Name} (${f.s2 ?? '-'}) • Court ${f.c}
+          </div>
+          <button type="button" class="btn-secondary" onclick="resetScorekeeperForm()" style="width:100%; padding:10px;">Select Another Match</button>
+        </div>
+      `;
+      return;
+    }
+
+    // Already concluded and not explicitly editing
+    if (isMatchConcluded(f) && !skIsEditing) {
+      const s1Num = Number(f.s1);
+      const s2Num = Number(f.s2);
+      container.innerHTML = `
+        <div class="sk-already-box">
+          <div class="sk-already-badge">✓ MATCH ${fullMatchCode} ALREADY SCORED</div>
+          <div class="sk-already-teams">
+            <div class="sk-already-team ${s1Num === 15 ? 'winner' : ''}">
+              <span>${t1Name}</span>
+              <strong>${s1Num}</strong>
+            </div>
+            <div class="sk-already-team ${s2Num === 15 ? 'winner' : ''}">
+              <span>${t2Name}</span>
+              <strong>${s2Num}</strong>
+            </div>
+          </div>
+          <div class="sk-already-meta">Court ${f.c} &bull; Block ${blockNum} &bull; Refs: ${refName}</div>
+          <div class="sk-already-actions">
+            <button type="button" class="btn-secondary" onclick="resetScorekeeperForm()">Back / Next</button>
+            <button type="button" class="btn-primary" onclick="enterScorekeeperEditMode()">✏️ Edit Score</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Unscored OR in Edit Mode
+    container.innerHTML = `
+      <form class="sk-entry-card" onsubmit="handleScorekeeperSave(event)">
+        <div class="sk-entry-header">
+          <div class="sk-entry-badge-row">
+            <span class="sk-match-id-badge">${fullMatchCode}</span>
+            <span class="sk-block-badge">Block ${blockNum}</span>
+            <span class="sk-court-badge">Court ${f.c}</span>
+            ${skIsEditing ? '<span class="sk-editing-badge">✏️ EDITING</span>' : ''}
+          </div>
+          <div class="sk-target-rule-note">Target: First to <strong>15 points</strong> sudden death (no deuce)</div>
+        </div>
+        <div class="sk-teams-inputs-wrap">
+          <div class="sk-team-block">
+            <div class="sk-team-label">TEAM 1</div>
+            <div class="sk-team-names">${t1Name}</div>
+            <input type="number" id="skScore1" class="sk-score-input-large" inputmode="numeric" min="0" max="15" placeholder="0" value="${skIsEditing && f.s1 != null ? f.s1 : ''}" required autocomplete="off">
+          </div>
+          <div class="sk-vs-divider">VS</div>
+          <div class="sk-team-block">
+            <div class="sk-team-label">TEAM 2</div>
+            <div class="sk-team-names">${t2Name}</div>
+            <input type="number" id="skScore2" class="sk-score-input-large" inputmode="numeric" min="0" max="15" placeholder="0" value="${skIsEditing && f.s2 != null ? f.s2 : ''}" required autocomplete="off">
+          </div>
+        </div>
+        <div class="sk-refs-info">👀 Referees: <strong>${refName}</strong></div>
+        <div id="skErrorBox" class="sk-error-box" style="display:none;"></div>
+        <div class="sk-actions-row">
+          ${skIsEditing ? '<button type="button" class="btn-secondary" onclick="cancelScorekeeperEditMode()" style="flex:1;">Cancel</button>' : '<button type="button" class="btn-secondary" onclick="resetScorekeeperForm()" style="flex:1;">Reset</button>'}
+          <button type="submit" id="skSaveBtn" class="sk-save-btn" style="flex:2;">
+            <span>💾</span> ${skIsEditing ? 'SAVE EDITED SCORE' : 'SAVE SCORE'}
+          </button>
+        </div>
+      </form>
+    `;
+
+    setTimeout(() => {
+      document.getElementById('skScore1')?.focus();
+    }, 50);
+  }
+  window.renderScorekeeperMatchDetail = renderScorekeeperMatchDetail;
+
+  function handleScorekeeperSave(e) {
+    if (e) e.preventDefault();
+    if (skIsSaving) return;
+
+    const s1Input = document.getElementById('skScore1');
+    const s2Input = document.getElementById('skScore2');
+    const errorBox = document.getElementById('skErrorBox');
+    const saveBtn = document.getElementById('skSaveBtn');
+
+    if (!s1Input || !s2Input) return;
+
+    skIsSaving = true;
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = '0.6';
+      saveBtn.innerHTML = '<span>⏳</span> Saving...';
+    }
+
+    const res = saveTournamentScore(skSelectedMatchCode, s1Input.value, s2Input.value, skIsEditing);
+
+    if (res.ok) {
+      // Show Success Banner
+      const successArea = document.getElementById('skSuccessArea');
+      if (successArea) {
+        successArea.innerHTML = `
+          <div class="sk-success-box">
+            <div class="sk-success-title">✓ ${res.matchCode} SAVED</div>
+            <div class="sk-success-summary">
+              <div><strong>${res.t1}</strong>: ${res.score1}</div>
+              <div><strong>${res.t2}</strong>: ${res.score2}</div>
+            </div>
+            <div class="sk-success-court">Court ${res.court}</div>
+            <button type="button" class="btn-primary" onclick="resetScorekeeperForm()" style="margin-top:12px; width:100%; padding:10px; font-weight:800;">
+              ENTER NEXT SCORE &rarr;
+            </button>
+          </div>
+        `;
+      }
+      skSelectedMatchCode = "";
+      skIsEditing = false;
+      populateScorekeeperMatchSelect();
+      renderScorekeeperRecentEntries();
+      renderScorekeeperMatchDetail("");
+      showToast(`✅ Match ${res.matchCode} score saved!`);
+    } else {
+      if (errorBox) {
+        errorBox.textContent = res.error || "Failed to save score.";
+        errorBox.style.display = "block";
+      }
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+        saveBtn.innerHTML = `<span>💾</span> ${skIsEditing ? 'SAVE EDITED SCORE' : 'SAVE SCORE'}`;
+      }
+    }
+
+    skIsSaving = false;
+  }
+  window.handleScorekeeperSave = handleScorekeeperSave;
+
+  function enterScorekeeperEditMode() {
+    skIsEditing = true;
+    renderScorekeeperMatchDetail(skSelectedMatchCode);
+  }
+  window.enterScorekeeperEditMode = enterScorekeeperEditMode;
+
+  function cancelScorekeeperEditMode() {
+    skIsEditing = false;
+    renderScorekeeperMatchDetail(skSelectedMatchCode);
+  }
+  window.cancelScorekeeperEditMode = cancelScorekeeperEditMode;
+
+  function resetScorekeeperForm() {
+    skSelectedMatchCode = "";
+    skIsEditing = false;
+    const successArea = document.getElementById('skSuccessArea');
+    if (successArea) successArea.innerHTML = "";
+    populateScorekeeperMatchSelect();
+    renderScorekeeperMatchDetail("");
+  }
+  window.resetScorekeeperForm = resetScorekeeperForm;
+
+  function renderScorekeeperRecentEntries() {
+    const list = document.getElementById('skRecentEntriesList');
+    if (!list) return;
+
+    if (!skRecentEntries || skRecentEntries.length === 0) {
+      list.innerHTML = `<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:12px;">No recent scores recorded on this device yet.</div>`;
+      return;
+    }
+
+    list.innerHTML = skRecentEntries.map(item => {
+      const timeStr = item.savedAt ? new Date(item.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      return `
+        <div class="sk-recent-item">
+          <div class="sk-recent-item-left">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="sk-recent-badge">✓ ${item.matchCode}</span>
+              <span class="sk-recent-score">${item.score}</span>
+              <span class="sk-recent-court">Court ${item.court}</span>
+              ${item.action === 'EDIT' ? '<span style="font-size:0.68rem; font-weight:800; background:rgba(245,158,11,0.2); color:var(--gold); padding:2px 6px; border-radius:4px;">EDITED</span>' : ''}
+              <span style="font-size:0.72rem; color:var(--text-muted);">${timeStr}</span>
+            </div>
+            <div class="sk-recent-teams" style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+              ${item.t1} vs ${item.t2}
+            </div>
+          </div>
+          <div class="sk-recent-item-right">
+            <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="loadScorekeeperMatchForEdit('${item.matchCode}')">
+              View / Edit
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  window.renderScorekeeperRecentEntries = renderScorekeeperRecentEntries;
+
+  function loadScorekeeperMatchForEdit(matchCode) {
+    skSelectedMatchCode = matchCode;
+    const select = document.getElementById('skMatchSelect');
+    if (select) select.value = matchCode;
+    skIsEditing = true;
+    renderScorekeeperMatchDetail(matchCode);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  window.loadScorekeeperMatchForEdit = loadScorekeeperMatchForEdit;
+  window.getSkRecentEntries = function () { return skRecentEntries; };
+  window.setSkRecentEntries = function (arr) { skRecentEntries = arr; };
 
   window.printTournament = function () {
     window.print();
