@@ -4912,7 +4912,7 @@ const ROSTER = [
                 </tr>
               </thead>
               <tbody>
-                ${pool.matches.map((m, mIdx) => {
+                ${getFinalsMatches(pool.key).map((m, mIdx) => {
                   const s1 = (m.s1 != null && m.s1 !== "") ? Number(m.s1) : null;
                   const s2 = (m.s2 != null && m.s2 !== "") ? Number(m.s2) : null;
                   const hasScores = s1 != null && s2 != null;
