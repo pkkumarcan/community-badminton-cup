@@ -1109,6 +1109,82 @@ const ROSTER = [
   };
   window.RECORDED_STAGE1_SCORES = RECORDED_STAGE1_SCORES;
 
+  const RECORDED_FINALS_POOLS = [
+    {
+      key: "gold",
+      label: "Gold Championship (Court 1)",
+      courtNum: 1,
+      cls: "tier-gold",
+      teams: [
+        ["Ranjeet", "Naresh"],
+        ["Partab", "Rajesh M."],
+        ["Wijai", "Ajeet"]
+      ],
+      matches: [
+        { id: "G1", matchCode: "G1", poolKey: "gold", court: 1, t1: ["Ranjeet", "Naresh"], t2: ["Partab", "Rajesh M."], refs: ["Wijai", "Ajeet"], t1Id: "A", t2Id: "B", refId: "C" },
+        { id: "G2", matchCode: "G2", poolKey: "gold", court: 1, t1: ["Ranjeet", "Naresh"], t2: ["Wijai", "Ajeet"], refs: ["Partab", "Rajesh M."], t1Id: "A", t2Id: "C", refId: "B" },
+        { id: "G3", matchCode: "G3", poolKey: "gold", court: 1, t1: ["Partab", "Rajesh M."], t2: ["Wijai", "Ajeet"], refs: ["Ranjeet", "Naresh"], t1Id: "B", t2Id: "C", refId: "A" }
+      ]
+    },
+    {
+      key: "silver",
+      label: "Silver Plate (Court 2)",
+      courtNum: 2,
+      cls: "tier-silver",
+      teams: [
+        ["Hrithik", "Rakesh"],
+        ["Sunny", "Manoj"],
+        ["Sarwan", "Deepak"]
+      ],
+      matches: [
+        { id: "S1", matchCode: "S1", poolKey: "silver", court: 2, t1: ["Hrithik", "Rakesh"], t2: ["Sunny", "Manoj"], refs: ["Sarwan", "Deepak"], t1Id: "A", t2Id: "B", refId: "C" },
+        { id: "S2", matchCode: "S2", poolKey: "silver", court: 2, t1: ["Hrithik", "Rakesh"], t2: ["Sarwan", "Deepak"], refs: ["Sunny", "Manoj"], t1Id: "A", t2Id: "C", refId: "B" },
+        { id: "S3", matchCode: "S3", poolKey: "silver", court: 2, t1: ["Sunny", "Manoj"], t2: ["Sarwan", "Deepak"], refs: ["Hrithik", "Rakesh"], t1Id: "B", t2Id: "C", refId: "A" }
+      ]
+    },
+    {
+      key: "bronze",
+      label: "Bronze Shield (Court 3)",
+      courtNum: 3,
+      cls: "tier-bronze",
+      teams: [
+        ["Sanjay", "Rohit"],
+        ["Pardeep", "Honey"],
+        ["Om", "Raja"]
+      ],
+      matches: [
+        { id: "B1", matchCode: "B1", poolKey: "bronze", court: 3, t1: ["Sanjay", "Rohit"], t2: ["Pardeep", "Honey"], refs: ["Om", "Raja"], t1Id: "A", t2Id: "B", refId: "C" },
+        { id: "B2", matchCode: "B2", poolKey: "bronze", court: 3, t1: ["Sanjay", "Rohit"], t2: ["Om", "Raja"], refs: ["Pardeep", "Honey"], t1Id: "A", t2Id: "C", refId: "B" },
+        { id: "B3", matchCode: "B3", poolKey: "bronze", court: 3, t1: ["Pardeep", "Honey"], t2: ["Om", "Raja"], refs: ["Sanjay", "Rohit"], t1Id: "B", t2Id: "C", refId: "A" }
+      ]
+    },
+    {
+      key: "copper",
+      label: "Copper Cup (Court 8)",
+      courtNum: 8,
+      cls: "tier-copper",
+      teams: [
+        ["Amit", "Rajesh N."],
+        ["Vinod", "Shashi"],
+        ["Hira", "Vijay"]
+      ],
+      matches: [
+        { id: "C1", matchCode: "C1", poolKey: "copper", court: 8, t1: ["Amit", "Rajesh N."], t2: ["Vinod", "Shashi"], refs: ["Hira", "Vijay"], t1Id: "A", t2Id: "B", refId: "C" },
+        { id: "C2", matchCode: "C2", poolKey: "copper", court: 8, t1: ["Amit", "Rajesh N."], t2: ["Hira", "Vijay"], refs: ["Vinod", "Shashi"], t1Id: "A", t2Id: "C", refId: "B" },
+        { id: "C3", matchCode: "C3", poolKey: "copper", court: 8, t1: ["Vinod", "Shashi"], t2: ["Hira", "Vijay"], refs: ["Amit", "Rajesh N."], t1Id: "B", t2Id: "C", refId: "A" }
+      ]
+    }
+  ];
+  window.RECORDED_FINALS_POOLS = RECORDED_FINALS_POOLS;
+
+  const RECORDED_FINALS_SCORES = {
+    gold:   [ { s1: 12, s2: 21 }, { s1: 11, s2: 21 }, { s1: 9, s2: 21 } ],
+    silver: [ { s1: 21, s2: 5 },  { s1: 21, s2: 11 }, { s1: 13, s2: 21 } ],
+    bronze: [ { s1: 21, s2: 19 }, { s1: 21, s2: 17 }, { s1: 21, s2: 20 } ],
+    copper: [ { s1: 21, s2: 12 }, { s1: 21, s2: 8 },  { s1: 21, s2: 15 } ]
+  };
+  window.RECORDED_FINALS_SCORES = RECORDED_FINALS_SCORES;
+
   // Deep clone to avoid mutating baseline
   let fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
 
@@ -1333,7 +1409,8 @@ const ROSTER = [
   window.applyCloudTournamentState = applyCloudTournamentState;
 
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v10';
+  const STORAGE_KEY = 'badminton_cup_portal_data_v11';
+  const LEGACY_STORAGE_KEY_V10 = 'badminton_cup_portal_data_v10';
   const LEGACY_STORAGE_KEY_V9 = 'badminton_cup_portal_data_v9';
   const LEGACY_STORAGE_KEY_V8 = 'badminton_cup_portal_data_v8';
   const PLAYER_IDENTITY_KEY = 'badminton_player_identity';
@@ -1404,14 +1481,7 @@ const ROSTER = [
     try {
       let raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        // Check for v8 data to migrate
-        const v8Raw = localStorage.getItem(LEGACY_STORAGE_KEY_V8);
-        if (v8Raw) {
-          raw = v8Raw;
-        }
-      }
-
-      if (!raw) {
+        // Initial clean load of official completed tournament data (Stage 1 + Stage 2 Finals)
         fixtures.forEach(f => {
           if (typeof RECORDED_STAGE1_SCORES !== 'undefined' && RECORDED_STAGE1_SCORES[f.m]) {
             f.s1 = RECORDED_STAGE1_SCORES[f.m][0];
@@ -1420,7 +1490,16 @@ const ROSTER = [
             f.updatedAt = new Date().toISOString();
           }
         });
-        saveState(); // Ensure initial state is written immediately
+        stage1Locked = true;
+        stage1LockedAt = new Date().toISOString();
+        officialStage1Rankings = computeLeaderboard();
+        if (typeof RECORDED_FINALS_POOLS !== 'undefined') {
+          officialFinalsPools = JSON.parse(JSON.stringify(RECORDED_FINALS_POOLS));
+        }
+        if (typeof RECORDED_FINALS_SCORES !== 'undefined') {
+          finalsScores = JSON.parse(JSON.stringify(RECORDED_FINALS_SCORES));
+        }
+        saveState(); // Ensure initial complete state is written immediately
         return;
       }
       const data = JSON.parse(raw);
@@ -5391,6 +5470,33 @@ const ROSTER = [
     renderScorekeeperView();
     closeOrganizerModal();
     showToast("📋 48 Recorded Stage 1 scores loaded! Review standings before locking.");
+  };
+
+  window.loadRecordedFinalsScores = function (skipConfirm = false) {
+    if (!skipConfirm && !confirm("Load official Stage 2 Finals match results and declare division champions?")) return;
+
+    // Ensure Stage 1 is locked with recorded scores
+    if (!stage1Locked) {
+      loadRecordedStage1Scores(true);
+      confirmStage1Lock();
+    }
+
+    if (typeof RECORDED_FINALS_POOLS !== 'undefined') {
+      officialFinalsPools = JSON.parse(JSON.stringify(RECORDED_FINALS_POOLS));
+    }
+    if (typeof RECORDED_FINALS_SCORES !== 'undefined') {
+      finalsScores = JSON.parse(JSON.stringify(RECORDED_FINALS_SCORES));
+    }
+
+    saveState();
+    renderFinals();
+    renderLeaderboard();
+    renderSchedule();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+    closeOrganizerModal();
+    showToast("🏆 Official Stage 2 Finals scores loaded and Champions declared!");
   };
 
   window.loadDemoData = function (skipConfirm = false) {
