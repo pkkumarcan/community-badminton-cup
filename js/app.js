@@ -1453,7 +1453,8 @@ const ROSTER = [
   window.applyCloudTournamentState = applyCloudTournamentState;
 
   // ---------- PERSISTENCE & SAFE MIGRATION ----------
-  const STORAGE_KEY = 'badminton_cup_portal_data_v11';
+  const STORAGE_KEY = 'badminton_cup_portal_data_v20';
+  const LEGACY_STORAGE_KEY_V11 = 'badminton_cup_portal_data_v11';
   const LEGACY_STORAGE_KEY_V10 = 'badminton_cup_portal_data_v10';
   const LEGACY_STORAGE_KEY_V9 = 'badminton_cup_portal_data_v9';
   const LEGACY_STORAGE_KEY_V8 = 'badminton_cup_portal_data_v8';
@@ -1523,6 +1524,14 @@ const ROSTER = [
 
   function loadState() {
     try {
+      try {
+        localStorage.removeItem(LEGACY_STORAGE_KEY_V11);
+        localStorage.removeItem(LEGACY_STORAGE_KEY_V10);
+        localStorage.removeItem(LEGACY_STORAGE_KEY_V9);
+        localStorage.removeItem(LEGACY_STORAGE_KEY_V8);
+        localStorage.removeItem('badminton_cached_cloud_state');
+      } catch (e) {}
+
       let raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
         // Default clean blank tournament
