@@ -514,6 +514,9 @@ check('getTraditionalLeaderboard() places Qualified players first, followed by W
 });
 
 check('renderLeaderboard() injects full standings table with formatters', () => {
+  if (typeof SeasonApp.setLeaderboardView === 'function') {
+    SeasonApp.setLeaderboardView('TRADITIONAL');
+  }
   SeasonApp.setLeaderboardMode('DOUBLES');
   SeasonApp.renderLeaderboard();
   const lbHtml = domElements.seasonLeaderboardContainer.innerHTML;

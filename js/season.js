@@ -64,6 +64,13 @@
     playerStatusFilter: 'active', // 'active' | 'inactive' | 'all'
     matchHistoryFilter: 'ALL', // 'ALL' | 'DOUBLES' | 'SINGLES'
     matchHistorySearch: '',
+    leaderboardView: 'ELO', // 'ELO' | 'TRADITIONAL'
+    leaderboardMode: 'DOUBLES', // 'DOUBLES' | 'SINGLES' | 'COMBINED'
+    elo: {
+      ratings: {},
+      histories: {},
+      matchDeltas: {}
+    },
     matchEntry: {
       matchType: 'DOUBLES', // 'DOUBLES' | 'SINGLES'
       player1: '',
@@ -150,6 +157,7 @@
         SeasonState.players = data;
         SeasonState.playersSubscribed = true;
         recalculatePlayerStats();
+        recalculateElo();
 
         if (SeasonState.activeTab === 'players') {
           renderPlayers();
@@ -634,6 +642,17 @@
       topWinStr = `${topWin.name} (${topWin.combined.winPct.toFixed(1)}% Prov.)`;
     }
 
+    let topDoublesEloStr = 'No qualified players yet';
+    let topSinglesEloStr = 'No qualified players yet';
+    const dLeaders = getEloLeaderboard('DOUBLES').filter(e => e.qualified);
+    if (dLeaders.length > 0) {
+      topDoublesEloStr = `${dLeaders[0].name} — ${formatElo(dLeaders[0].elo)}`;
+    }
+    const sLeaders = getEloLeaderboard('SINGLES').filter(e => e.qualified);
+    if (sLeaders.length > 0) {
+      topSinglesEloStr = `${sLeaders[0].name} — ${formatElo(sLeaders[0].elo)}`;
+    }
+
     container.innerHTML = `
       <div class="season-hero-card">
         <div class="season-hero-header">
@@ -656,15 +675,16 @@
             <div class="season-stat-lbl">DOUBLES / SINGLES</div>
           </div>
           <div class="season-stat-box">
-            <div class="season-stat-val">1500</div>
-            <div class="season-stat-lbl">BASE ELO (K = 32)</div>
+            <div class="season-stat-val">${SEASON_CONFIG.startingElo || 1500}</div>
+            <div class="season-stat-lbl">BASE ELO (K = ${SEASON_CONFIG.kFactor || 32})</div>
           </div>
         </div>
 
         ${allMatches.length > 0 ? `
           <div class="season-home-highlights-bar">
+            <span>👥 <strong>Top Doubles:</strong> ${topDoublesEloStr}</span>
+            <span>👤 <strong>Top Singles:</strong> ${topSinglesEloStr}</span>
             <span>🔥 <strong>Most Active:</strong> ${mostActiveStr}</span>
-            <span>🎯 <strong>Top Win %:</strong> ${topWinStr}</span>
           </div>
         ` : ''}
 
@@ -1180,6 +1200,7 @@
         SeasonState.matches = data;
         SeasonState.matchesSubscribed = true;
         recalculatePlayerStats();
+        recalculateElo();
 
         if (SeasonState.activeTab === 'history') {
           renderMatchHistory();
@@ -1369,6 +1390,33 @@
       metadataPills.push(`<span class="season-tag-pill">📝 ${match.notes.trim()}</span>`);
     }
 
+    const eloDeltaInfo = (SeasonState.elo && SeasonState.elo.matchDeltas) ? SeasonState.elo.matchDeltas[match.id] : null;
+    let deltaPillA = '';
+    let deltaPillB = '';
+    if (eloDeltaInfo && eloDeltaInfo.deltas) {
+      if (isDoubles) {
+        const p1 = match.teamA ? match.teamA.player1 : null;
+        const d1 = p1 ? eloDeltaInfo.deltas[p1] : null;
+        if (typeof d1 === 'number') {
+          deltaPillA = `<span class="season-delta-tag ${d1 >= 0 ? 'pos' : 'neg'}">${formatEloDelta(d1)} Elo</span>`;
+        }
+        const p3 = match.teamB ? match.teamB.player1 : null;
+        const d3 = p3 ? eloDeltaInfo.deltas[p3] : null;
+        if (typeof d3 === 'number') {
+          deltaPillB = `<span class="season-delta-tag ${d3 >= 0 ? 'pos' : 'neg'}">${formatEloDelta(d3)} Elo</span>`;
+        }
+      } else {
+        const dA = match.playerA ? eloDeltaInfo.deltas[match.playerA] : null;
+        if (typeof dA === 'number') {
+          deltaPillA = `<span class="season-delta-tag ${dA >= 0 ? 'pos' : 'neg'}">${formatEloDelta(dA)} Elo</span>`;
+        }
+        const dB = match.playerB ? eloDeltaInfo.deltas[match.playerB] : null;
+        if (typeof dB === 'number') {
+          deltaPillB = `<span class="season-delta-tag ${dB >= 0 ? 'pos' : 'neg'}">${formatEloDelta(dB)} Elo</span>`;
+        }
+      }
+    }
+
     return `
       <div class="season-match-card ${isDoubles ? 'is-doubles' : 'is-singles'}" data-match-id="${match.id}">
         <div class="season-match-card-header">
@@ -1397,7 +1445,10 @@
                 </div>
                 <div class="season-team-names-wrap">
                   <div class="season-team-display-name">${teamAName}</div>
-                  ${isWinnerA ? '<span class="season-winner-label">WINNER</span>' : ''}
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    ${isWinnerA ? '<span class="season-winner-label">WINNER</span>' : ''}
+                    ${deltaPillA}
+                  </div>
                 </div>
               </div>
               <div class="season-team-score ${isWinnerA ? 'score-win' : 'score-loss'}">
@@ -1413,7 +1464,10 @@
                 </div>
                 <div class="season-team-names-wrap">
                   <div class="season-team-display-name">${teamBName}</div>
-                  ${isWinnerB ? '<span class="season-winner-label">WINNER</span>' : ''}
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    ${isWinnerB ? '<span class="season-winner-label">WINNER</span>' : ''}
+                    ${deltaPillB}
+                  </div>
                 </div>
               </div>
               <div class="season-team-score ${isWinnerB ? 'score-win' : 'score-loss'}">
@@ -1860,24 +1914,659 @@
     renderLeaderboard();
   }
 
+  function setLeaderboardView(view) {
+    const valid = view === 'TRADITIONAL' ? 'TRADITIONAL' : 'ELO';
+    SeasonState.leaderboardView = valid;
+    renderLeaderboard();
+  }
+
+  // 17. Deterministic Elo Engine (Phase 6)
+  function getStartingElo() {
+    return (SeasonState.config && typeof SeasonState.config.startingElo === 'number')
+      ? SeasonState.config.startingElo
+      : 1500;
+  }
+
+  function getKFactor() {
+    return (SeasonState.config && typeof SeasonState.config.kFactor === 'number')
+      ? SeasonState.config.kFactor
+      : 32;
+  }
+
+  function calculateExpectedScore(ratingA, ratingB) {
+    const rA = typeof ratingA === 'number' && !isNaN(ratingA) ? ratingA : 1500;
+    const rB = typeof ratingB === 'number' && !isNaN(ratingB) ? ratingB : 1500;
+    return 1 / (1 + Math.pow(10, (rB - rA) / 400));
+  }
+
+  function calculateEloDelta(expected, actual, kFactor) {
+    const k = typeof kFactor === 'number' && !isNaN(kFactor) ? kFactor : getKFactor();
+    const exp = typeof expected === 'number' && !isNaN(expected) ? expected : 0.5;
+    const act = typeof actual === 'number' && !isNaN(actual) ? actual : 0;
+    return k * (act - exp);
+  }
+
+  function createInitialEloState(playersMap = {}, config = {}) {
+    const startElo = (config && typeof config.startingElo === 'number') ? config.startingElo : getStartingElo();
+    const ratings = {};
+    const histories = {};
+
+    Object.values(playersMap || {}).forEach(player => {
+      if (player && player.id) {
+        ratings[player.id] = {
+          playerId: player.id,
+          name: player.name || 'Unknown Player',
+          active: player.active !== false,
+          doublesElo: startElo,
+          singlesElo: startElo
+        };
+        histories[player.id] = {
+          doubles: [],
+          singles: []
+        };
+      }
+    });
+
+    return {
+      ratings,
+      histories,
+      matchDeltas: {}
+    };
+  }
+
+  function isValidEloMatch(match, playersMap = {}) {
+    if (!match || typeof match !== 'object') return false;
+    if (!match.id || typeof match.id !== 'string') return false;
+    if (typeof match.scoreA !== 'number' || typeof match.scoreB !== 'number') return false;
+    if (match.scoreA === match.scoreB) return false;
+    if (match.scoreA < 0 || match.scoreB < 0) return false;
+    if (match.winner !== 'A' && match.winner !== 'B') return false;
+
+    const hasPlayersMap = playersMap && Object.keys(playersMap).length > 0;
+
+    if (match.matchType === 'DOUBLES') {
+      const p1 = match.teamA ? match.teamA.player1 : null;
+      const p2 = match.teamA ? match.teamA.player2 : null;
+      const p3 = match.teamB ? match.teamB.player1 : null;
+      const p4 = match.teamB ? match.teamB.player2 : null;
+
+      if (!p1 || !p2 || !p3 || !p4) return false;
+      const unique = new Set([p1, p2, p3, p4]);
+      if (unique.size !== 4) return false;
+
+      if (hasPlayersMap) {
+        if (!playersMap[p1] || !playersMap[p2] || !playersMap[p3] || !playersMap[p4]) {
+          return false;
+        }
+      }
+      return true;
+    } else if (match.matchType === 'SINGLES') {
+      const pA = match.playerA;
+      const pB = match.playerB;
+
+      if (!pA || !pB || pA === pB) return false;
+      if (hasPlayersMap) {
+        if (!playersMap[pA] || !playersMap[pB]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function calculateEloRatings(playersMap = {}, matchesMap = {}, config = SeasonState.config) {
+    const kFactor = (config && typeof config.kFactor === 'number') ? config.kFactor : getKFactor();
+
+    // 1. Initialize ratings and histories for all registered players
+    const state = createInitialEloState(playersMap, config);
+    const ratings = state.ratings;
+    const histories = state.histories;
+    const matchDeltas = {};
+
+    // 2. Filter & Sort valid matches chronologically (createdAt ASC, id ASC)
+    const validMatches = Object.values(matchesMap || {}).filter(m => isValidEloMatch(m, playersMap));
+    validMatches.sort((a, b) => {
+      const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+      const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+
+    // 3. Process matches in canonical order
+    validMatches.forEach(m => {
+      const isWinnerA = m.winner === 'A';
+      const actualA = isWinnerA ? 1 : 0;
+      const actualB = 1 - actualA;
+      const createdAt = typeof m.createdAt === 'number' ? m.createdAt : 0;
+
+      if (m.matchType === 'DOUBLES') {
+        const p1 = m.teamA.player1;
+        const p2 = m.teamA.player2;
+        const p3 = m.teamB.player1;
+        const p4 = m.teamB.player2;
+
+        if (!ratings[p1] || !ratings[p2] || !ratings[p3] || !ratings[p4]) return;
+
+        const r1 = ratings[p1].doublesElo;
+        const r2 = ratings[p2].doublesElo;
+        const r3 = ratings[p3].doublesElo;
+        const r4 = ratings[p4].doublesElo;
+
+        const teamARating = (r1 + r2) / 2;
+        const teamBRating = (r3 + r4) / 2;
+
+        const ea = calculateExpectedScore(teamARating, teamBRating);
+        const eb = 1 - ea;
+
+        const deltaA = calculateEloDelta(ea, actualA, kFactor);
+        const deltaB = -deltaA;
+
+        const postR1 = r1 + deltaA;
+        const postR2 = r2 + deltaA;
+        const postR3 = r3 + deltaB;
+        const postR4 = r4 + deltaB;
+
+        ratings[p1].doublesElo = postR1;
+        ratings[p2].doublesElo = postR2;
+        ratings[p3].doublesElo = postR3;
+        ratings[p4].doublesElo = postR4;
+
+        histories[p1].doubles.push({
+          matchId: m.id,
+          createdAt: createdAt,
+          before: r1,
+          delta: deltaA,
+          after: postR1
+        });
+        histories[p2].doubles.push({
+          matchId: m.id,
+          createdAt: createdAt,
+          before: r2,
+          delta: deltaA,
+          after: postR2
+        });
+        histories[p3].doubles.push({
+          matchId: m.id,
+          createdAt: createdAt,
+          before: r3,
+          delta: deltaB,
+          after: postR3
+        });
+        histories[p4].doubles.push({
+          matchId: m.id,
+          createdAt: createdAt,
+          before: r4,
+          delta: deltaB,
+          after: postR4
+        });
+
+        matchDeltas[m.id] = {
+          matchId: m.id,
+          matchType: 'DOUBLES',
+          createdAt: createdAt,
+          preRatings: {
+            [p1]: r1,
+            [p2]: r2,
+            [p3]: r3,
+            [p4]: r4
+          },
+          expected: {
+            teamA: ea,
+            teamB: eb
+          },
+          deltas: {
+            [p1]: deltaA,
+            [p2]: deltaA,
+            [p3]: deltaB,
+            [p4]: deltaB
+          },
+          postRatings: {
+            [p1]: postR1,
+            [p2]: postR2,
+            [p3]: postR3,
+            [p4]: postR4
+          }
+        };
+      } else if (m.matchType === 'SINGLES') {
+        const pA = m.playerA;
+        const pB = m.playerB;
+
+        if (!ratings[pA] || !ratings[pB]) return;
+
+        const rA = ratings[pA].singlesElo;
+        const rB = ratings[pB].singlesElo;
+
+        const ea = calculateExpectedScore(rA, rB);
+        const eb = 1 - ea;
+
+        const deltaA = calculateEloDelta(ea, actualA, kFactor);
+        const deltaB = -deltaA;
+
+        const postRA = rA + deltaA;
+        const postRB = rB + deltaB;
+
+        ratings[pA].singlesElo = postRA;
+        ratings[pB].singlesElo = postRB;
+
+        histories[pA].singles.push({
+          matchId: m.id,
+          createdAt: createdAt,
+          before: rA,
+          delta: deltaA,
+          after: postRA
+        });
+        histories[pB].singles.push({
+          matchId: m.id,
+          createdAt: createdAt,
+          before: rB,
+          delta: deltaB,
+          after: postRB
+        });
+
+        matchDeltas[m.id] = {
+          matchId: m.id,
+          matchType: 'SINGLES',
+          createdAt: createdAt,
+          preRatings: {
+            [pA]: rA,
+            [pB]: rB
+          },
+          expected: {
+            playerA: ea,
+            playerB: eb
+          },
+          deltas: {
+            [pA]: deltaA,
+            [pB]: deltaB
+          },
+          postRatings: {
+            [pA]: postRA,
+            [pB]: postRB
+          }
+        };
+      }
+    });
+
+    return {
+      ratings,
+      histories,
+      matchDeltas
+    };
+  }
+
+  function recalculateElo() {
+    const result = calculateEloRatings(SeasonState.players, SeasonState.matches, SeasonState.config);
+    SeasonState.elo = result;
+    SeasonState.computed.doublesElo = {};
+    SeasonState.computed.singlesElo = {};
+
+    Object.keys(result.ratings).forEach(pId => {
+      SeasonState.computed.doublesElo[pId] = result.ratings[pId].doublesElo;
+      SeasonState.computed.singlesElo[pId] = result.ratings[pId].singlesElo;
+    });
+
+    if (SeasonState.activeTab === 'leaderboard') {
+      renderLeaderboard();
+    }
+    if (SeasonState.activeTab === 'home') {
+      renderSeasonHome();
+    }
+    if (SeasonState.activeTab === 'history') {
+      renderMatchHistory();
+    }
+    return result;
+  }
+
+  function getPlayerElo(playerId, mode = 'DOUBLES') {
+    if (!playerId) return null;
+    const startElo = getStartingElo();
+    if (!SeasonState.elo || !SeasonState.elo.ratings || !SeasonState.elo.ratings[playerId]) {
+      return startElo;
+    }
+    const cat = (mode || 'DOUBLES').toUpperCase();
+    if (cat === 'SINGLES') {
+      return SeasonState.elo.ratings[playerId].singlesElo;
+    }
+    if (cat === 'DOUBLES') {
+      return SeasonState.elo.ratings[playerId].doublesElo;
+    }
+    return null;
+  }
+
+  function formatElo(value) {
+    if (typeof value !== 'number' || isNaN(value)) return '1500';
+    return `${Math.round(value)}`;
+  }
+
+  function formatEloDelta(value) {
+    if (typeof value !== 'number' || isNaN(value)) return '0';
+    const rounded = Math.round(value);
+    return rounded > 0 ? `+${rounded}` : `${rounded}`;
+  }
+
+  function getEloLeaderboard(mode = 'DOUBLES') {
+    const cat = (mode || 'DOUBLES').toUpperCase();
+    const minRequired = (SeasonState.config && SeasonState.config.minGamesQualified) || 15;
+    const startElo = getStartingElo();
+
+    if (cat === 'COMBINED') {
+      const entries = Object.values(SeasonState.players || {}).map(player => {
+        const pId = player.id;
+        const pStats = (SeasonState.playerStats && SeasonState.playerStats[pId]) || null;
+        const combinedBucket = pStats ? pStats.combined : createEmptyStatBucket();
+        const doublesRating = (SeasonState.elo && SeasonState.elo.ratings && SeasonState.elo.ratings[pId]) ? SeasonState.elo.ratings[pId].doublesElo : startElo;
+        const singlesRating = (SeasonState.elo && SeasonState.elo.ratings && SeasonState.elo.ratings[pId]) ? SeasonState.elo.ratings[pId].singlesElo : startElo;
+
+        return {
+          playerId: pId,
+          name: player.name || 'Unknown Player',
+          active: player.active !== false,
+          doublesElo: doublesRating,
+          singlesElo: singlesRating,
+          gp: combinedBucket.gp,
+          wins: combinedBucket.wins,
+          losses: combinedBucket.losses,
+          winPct: combinedBucket.winPct,
+          rank: '—'
+        };
+      });
+
+      entries.sort((a, b) => {
+        if (a.gp !== b.gp) return b.gp - a.gp;
+        return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+      });
+
+      return entries;
+    }
+
+    const isSingles = cat === 'SINGLES';
+    const statKey = isSingles ? 'singles' : 'doubles';
+    const eloKey = isSingles ? 'singlesElo' : 'doublesElo';
+
+    const allPlayers = Object.values(SeasonState.players || {});
+    const entries = allPlayers.map(player => {
+      const pId = player.id;
+      const pStats = (SeasonState.playerStats && SeasonState.playerStats[pId]) || null;
+      const bucket = pStats ? pStats[statKey] : createEmptyStatBucket();
+      const elo = (SeasonState.elo && SeasonState.elo.ratings && SeasonState.elo.ratings[pId]) ? SeasonState.elo.ratings[pId][eloKey] : startElo;
+      const isQual = bucket.gp >= minRequired;
+
+      return {
+        playerId: pId,
+        name: player.name || 'Unknown Player',
+        active: player.active !== false,
+        elo: elo,
+        gp: bucket.gp,
+        wins: bucket.wins,
+        losses: bucket.losses,
+        winPct: bucket.winPct,
+        qualified: isQual,
+        status: isQual ? 'QUALIFIED' : 'PROVISIONAL'
+      };
+    });
+
+    entries.sort((a, b) => {
+      if (a.qualified !== b.qualified) {
+        return a.qualified ? -1 : 1;
+      }
+      if (Math.abs(a.elo - b.elo) > 0.0001) {
+        return b.elo - a.elo;
+      }
+      if (a.gp !== b.gp) {
+        return b.gp - a.gp;
+      }
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    });
+
+    let qualRank = 1;
+    return entries.map(entry => {
+      const rank = entry.qualified ? qualRank++ : '—';
+      return {
+        rank,
+        ...entry
+      };
+    });
+  }
+
+  // 18. Leaderboard View Renderer (Elo & Traditional)
   function renderLeaderboard() {
     const container = document.getElementById('seasonLeaderboardContainer');
     if (!container) return;
 
+    const view = SeasonState.leaderboardView || 'ELO';
     const mode = SeasonState.leaderboardMode || 'DOUBLES';
-    const entries = getTraditionalLeaderboard(mode);
     const minRequired = SeasonState.config.minGamesQualified || 15;
 
-    const qualifiedCount = entries.filter(e => e.qualified).length;
-    const provisionalCount = entries.filter(e => !e.qualified).length;
+    if (view === 'TRADITIONAL') {
+      const entries = getTraditionalLeaderboard(mode);
+      const qualifiedCount = entries.filter(e => e.qualified).length;
+      const provisionalCount = entries.filter(e => !e.qualified).length;
+
+      container.innerHTML = `
+        <div class="season-lb-wrap">
+          <div class="season-lb-header">
+            <div class="season-lb-title-area">
+              <h2>🏆 Season Traditional Standings</h2>
+              <p class="season-lb-subtitle">
+                Pure In-Memory Standings &bull; Ranked by: Qualification &rarr; Win % &rarr; GP &rarr; +/- &rarr; PF
+              </p>
+            </div>
+            <div class="season-lb-rule-badge">
+              <span>🎯 ${minRequired} Games to Qualify</span>
+            </div>
+          </div>
+
+          <div class="season-lb-top-controls">
+            <div class="season-lb-view-toggle" role="tablist">
+              <button type="button" class="season-lb-view-btn ${view === 'ELO' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardView('ELO')">
+                <span>⭐</span> <span>Elo Ratings</span>
+              </button>
+              <button type="button" class="season-lb-view-btn ${view === 'TRADITIONAL' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardView('TRADITIONAL')">
+                <span>📊</span> <span>Traditional Standings</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="season-lb-toolbar">
+            <div class="season-filter-segmented" role="tablist">
+              <button type="button" class="season-filter-btn ${mode === 'DOUBLES' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('DOUBLES')">
+                👥 Doubles
+              </button>
+              <button type="button" class="season-filter-btn ${mode === 'SINGLES' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('SINGLES')">
+                👤 Singles
+              </button>
+              <button type="button" class="season-filter-btn ${mode === 'COMBINED' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('COMBINED')">
+                🌐 Combined
+              </button>
+            </div>
+            <div class="season-lb-count-info">
+              <span class="season-count-chip active-chip">${qualifiedCount} Qualified</span>
+              <span class="season-count-chip">${provisionalCount} Provisional</span>
+            </div>
+          </div>
+
+          <div class="season-lb-table-card">
+            <div class="season-lb-table-responsive">
+              <table class="season-lb-table">
+                <thead>
+                  <tr>
+                    <th style="width:44px; text-align:center;">#</th>
+                    <th>PLAYER</th>
+                    <th>STATUS</th>
+                    <th style="text-align:center;">GP</th>
+                    <th style="text-align:center;">W</th>
+                    <th style="text-align:center;">L</th>
+                    <th style="text-align:right;">WIN %</th>
+                    <th style="text-align:right;">PF</th>
+                    <th style="text-align:right;">PA</th>
+                    <th style="text-align:right;">+/-</th>
+                    <th style="text-align:right;">AVG +/-</th>
+                    <th style="text-align:center;">FORM (L5)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${entries.length > 0 ? entries.map(e => `
+                    <tr class="${e.qualified ? 'row-qualified' : 'row-provisional'}">
+                      <td style="text-align:center; font-weight:800; color:var(--text-secondary);">${e.rank}</td>
+                      <td>
+                        <div style="font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                          <span>${e.name}</span>
+                          ${!e.active ? '<span class="season-tag-pill" style="font-size:0.6rem; padding:1px 4px;">Inactive</span>' : ''}
+                        </div>
+                      </td>
+                      <td>
+                        <span class="season-status-pill ${e.qualified ? 'qualified' : 'provisional'}">
+                          ${e.qualified ? 'QUALIFIED' : 'PROVISIONAL'}
+                        </span>
+                      </td>
+                      <td style="text-align:center; font-weight:700;">${e.gp}</td>
+                      <td style="text-align:center; color:var(--win-color, #059669); font-weight:700;">${e.wins}</td>
+                      <td style="text-align:center; color:var(--text-muted);">${e.losses}</td>
+                      <td style="text-align:right; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                        ${formatWinPct(e.winPct)}
+                      </td>
+                      <td style="text-align:right; color:var(--text-secondary);">${e.pf}</td>
+                      <td style="text-align:right; color:var(--text-secondary);">${e.pa}</td>
+                      <td style="text-align:right; font-weight:700; color:${e.pointDiff > 0 ? 'var(--win-color, #059669)' : (e.pointDiff < 0 ? '#dc2626' : 'var(--text-muted)')};">
+                        ${formatPointDiff(e.pointDiff)}
+                      </td>
+                      <td style="text-align:right; font-weight:600; color:var(--text-secondary);">
+                        ${formatAvgPointDiff(e.avgPointDiff)}
+                      </td>
+                      <td style="text-align:center; white-space:nowrap;">
+                        ${formatForm(e.last5)}
+                      </td>
+                    </tr>
+                  `).join('') : `
+                    <tr>
+                      <td colspan="12" style="text-align:center; padding:32px; color:var(--text-muted);">
+                        No players registered yet.
+                      </td>
+                    </tr>
+                  `}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // ELO VIEW
+    const eloEntries = getEloLeaderboard(mode);
+    const isCombined = mode === 'COMBINED';
+
+    if (isCombined) {
+      container.innerHTML = `
+        <div class="season-lb-wrap">
+          <div class="season-lb-header">
+            <div class="season-lb-title-area">
+              <h2>⭐ Season Elo Ratings</h2>
+              <p class="season-lb-subtitle">
+                Combined Overview &bull; Independent Doubles &amp; Singles Elo displayed side-by-side
+              </p>
+            </div>
+            <div class="season-lb-rule-badge">
+              <span>🎯 ${minRequired} Games to Qualify</span>
+            </div>
+          </div>
+
+          <div class="season-lb-top-controls">
+            <div class="season-lb-view-toggle" role="tablist">
+              <button type="button" class="season-lb-view-btn ${view === 'ELO' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardView('ELO')">
+                <span>⭐</span> <span>Elo Ratings</span>
+              </button>
+              <button type="button" class="season-lb-view-btn ${view === 'TRADITIONAL' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardView('TRADITIONAL')">
+                <span>📊</span> <span>Traditional Standings</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="season-lb-toolbar">
+            <div class="season-filter-segmented" role="tablist">
+              <button type="button" class="season-filter-btn ${mode === 'DOUBLES' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('DOUBLES')">
+                👥 Doubles
+              </button>
+              <button type="button" class="season-filter-btn ${mode === 'SINGLES' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('SINGLES')">
+                👤 Singles
+              </button>
+              <button type="button" class="season-filter-btn ${mode === 'COMBINED' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('COMBINED')">
+                🌐 Combined
+              </button>
+            </div>
+            <div class="season-lb-count-info">
+              <span class="season-count-chip">${eloEntries.length} Players</span>
+            </div>
+          </div>
+
+          <div class="season-lb-notice">
+            🌐 <strong>Combined Overview:</strong> Displays independent Doubles and Singles Elo side-by-side. Elo ratings are never averaged or combined into a synthetic composite rank.
+          </div>
+
+          <div class="season-lb-table-card">
+            <div class="season-lb-table-responsive">
+              <table class="season-lb-table">
+                <thead>
+                  <tr>
+                    <th>PLAYER</th>
+                    <th style="text-align:right;">DOUBLES ELO</th>
+                    <th style="text-align:right;">SINGLES ELO</th>
+                    <th style="text-align:center;">COMBINED GP</th>
+                    <th style="text-align:center;">W - L</th>
+                    <th style="text-align:right;">WIN %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${eloEntries.length > 0 ? eloEntries.map(e => `
+                    <tr>
+                      <td>
+                        <div style="font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                          <span>${e.name}</span>
+                          ${!e.active ? '<span class="season-tag-pill" style="font-size:0.6rem; padding:1px 4px;">Inactive</span>' : ''}
+                        </div>
+                      </td>
+                      <td style="text-align:right;">
+                        <span class="season-elo-pill doubles">${formatElo(e.doublesElo)}</span>
+                      </td>
+                      <td style="text-align:right;">
+                        <span class="season-elo-pill singles">${formatElo(e.singlesElo)}</span>
+                      </td>
+                      <td style="text-align:center; font-weight:700;">${e.gp}</td>
+                      <td style="text-align:center; color:var(--text-secondary);">${e.wins}–${e.losses}</td>
+                      <td style="text-align:right; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                        ${formatWinPct(e.winPct)}
+                      </td>
+                    </tr>
+                  `).join('') : `
+                    <tr>
+                      <td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted);">
+                        No players registered yet.
+                      </td>
+                    </tr>
+                  `}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // DOUBLES or SINGLES ELO
+    const qualifiedEntries = eloEntries.filter(e => e.qualified);
+    const provisionalEntries = eloEntries.filter(e => !e.qualified);
+    const modeLabel = mode === 'SINGLES' ? 'Singles' : 'Doubles';
 
     container.innerHTML = `
       <div class="season-lb-wrap">
         <div class="season-lb-header">
           <div class="season-lb-title-area">
-            <h2>🏆 Season Traditional Standings</h2>
+            <h2>⭐ Season ${modeLabel} Elo Ratings</h2>
             <p class="season-lb-subtitle">
-              Pure In-Memory Standings &bull; Ranked by: Qualification &rarr; Win % &rarr; GP &rarr; +/- &rarr; PF
+              Deterministic Replay &bull; Ranked by: Qualified First &rarr; Elo Rating &rarr; GP &rarr; Name
             </p>
           </div>
           <div class="season-lb-rule-badge">
@@ -1885,8 +2574,15 @@
           </div>
         </div>
 
-        <div class="season-lb-notice">
-          ℹ️ <strong>Phase 5 Active:</strong> Traditional Win % standings. Independent Singles &amp; Doubles Elo ratings will activate in <strong>Phase 6</strong>.
+        <div class="season-lb-top-controls">
+          <div class="season-lb-view-toggle" role="tablist">
+            <button type="button" class="season-lb-view-btn ${view === 'ELO' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardView('ELO')">
+              <span>⭐</span> <span>Elo Ratings</span>
+            </button>
+            <button type="button" class="season-lb-view-btn ${view === 'TRADITIONAL' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardView('TRADITIONAL')">
+              <span>📊</span> <span>Traditional Standings</span>
+            </button>
+          </div>
         </div>
 
         <div class="season-lb-toolbar">
@@ -1902,8 +2598,8 @@
             </button>
           </div>
           <div class="season-lb-count-info">
-            <span class="season-count-chip active-chip">${qualifiedCount} Qualified</span>
-            <span class="season-count-chip">${provisionalCount} Provisional</span>
+            <span class="season-count-chip active-chip">${qualifiedEntries.length} Qualified</span>
+            <span class="season-count-chip">${provisionalEntries.length} Provisional</span>
           </div>
         </div>
 
@@ -1914,21 +2610,16 @@
                 <tr>
                   <th style="width:44px; text-align:center;">#</th>
                   <th>PLAYER</th>
-                  <th>STATUS</th>
+                  <th style="text-align:right;">ELO RATING</th>
                   <th style="text-align:center;">GP</th>
-                  <th style="text-align:center;">W</th>
-                  <th style="text-align:center;">L</th>
+                  <th style="text-align:center;">W - L</th>
                   <th style="text-align:right;">WIN %</th>
-                  <th style="text-align:right;">PF</th>
-                  <th style="text-align:right;">PA</th>
-                  <th style="text-align:right;">+/-</th>
-                  <th style="text-align:right;">AVG +/-</th>
-                  <th style="text-align:center;">FORM (L5)</th>
+                  <th>STATUS</th>
                 </tr>
               </thead>
               <tbody>
-                ${entries.length > 0 ? entries.map(e => `
-                  <tr class="${e.qualified ? 'row-qualified' : 'row-provisional'}">
+                ${qualifiedEntries.length > 0 ? qualifiedEntries.map(e => `
+                  <tr class="row-qualified">
                     <td style="text-align:center; font-weight:800; color:var(--text-secondary);">${e.rank}</td>
                     <td>
                       <div style="font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
@@ -1936,36 +2627,57 @@
                         ${!e.active ? '<span class="season-tag-pill" style="font-size:0.6rem; padding:1px 4px;">Inactive</span>' : ''}
                       </div>
                     </td>
-                    <td>
-                      <span class="season-status-pill ${e.qualified ? 'qualified' : 'provisional'}">
-                        ${e.qualified ? 'QUALIFIED' : 'PROVISIONAL'}
-                      </span>
+                    <td style="text-align:right;">
+                      <span class="season-elo-pill ${mode === 'SINGLES' ? 'singles' : 'doubles'}">${formatElo(e.elo)}</span>
                     </td>
                     <td style="text-align:center; font-weight:700;">${e.gp}</td>
-                    <td style="text-align:center; color:var(--win-color, #059669); font-weight:700;">${e.wins}</td>
-                    <td style="text-align:center; color:var(--text-muted);">${e.losses}</td>
+                    <td style="text-align:center; color:var(--text-secondary);">${e.wins}–${e.losses}</td>
                     <td style="text-align:right; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
                       ${formatWinPct(e.winPct)}
                     </td>
-                    <td style="text-align:right; color:var(--text-secondary);">${e.pf}</td>
-                    <td style="text-align:right; color:var(--text-secondary);">${e.pa}</td>
-                    <td style="text-align:right; font-weight:700; color:${e.pointDiff > 0 ? 'var(--win-color, #059669)' : (e.pointDiff < 0 ? '#dc2626' : 'var(--text-muted)')};">
-                      ${formatPointDiff(e.pointDiff)}
-                    </td>
-                    <td style="text-align:right; font-weight:600; color:var(--text-secondary);">
-                      ${formatAvgPointDiff(e.avgPointDiff)}
-                    </td>
-                    <td style="text-align:center; white-space:nowrap;">
-                      ${formatForm(e.last5)}
+                    <td>
+                      <span class="season-status-pill qualified">QUALIFIED</span>
                     </td>
                   </tr>
                 `).join('') : `
                   <tr>
-                    <td colspan="12" style="text-align:center; padding:32px; color:var(--text-muted);">
-                      No players registered yet.
+                    <td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">
+                      No qualified players yet (minimum ${minRequired} games required).
                     </td>
                   </tr>
                 `}
+
+                ${provisionalEntries.length > 0 ? `
+                  <tr class="season-provisional-divider-row">
+                    <td colspan="7">
+                      <div class="season-provisional-divider-content">
+                        <span>— PROVISIONAL PLAYERS (Needs ${minRequired} GP) —</span>
+                      </div>
+                    </td>
+                  </tr>
+                  ${provisionalEntries.map(e => `
+                    <tr class="row-provisional">
+                      <td style="text-align:center; font-weight:700; color:var(--text-muted);">${e.rank}</td>
+                      <td>
+                        <div style="font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                          <span>${e.name}</span>
+                          ${!e.active ? '<span class="season-tag-pill" style="font-size:0.6rem; padding:1px 4px;">Inactive</span>' : ''}
+                        </div>
+                      </td>
+                      <td style="text-align:right;">
+                        <span class="season-elo-pill provisional">${formatElo(e.elo)}</span>
+                      </td>
+                      <td style="text-align:center; font-weight:700;">${e.gp}</td>
+                      <td style="text-align:center; color:var(--text-muted);">${e.wins}–${e.losses}</td>
+                      <td style="text-align:right; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                        ${formatWinPct(e.winPct)}
+                      </td>
+                      <td>
+                        <span class="season-status-pill provisional">PROVISIONAL</span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                ` : ''}
               </tbody>
             </table>
           </div>
@@ -1974,7 +2686,7 @@
     `;
   }
 
-  // 17. Initialization
+  // 19. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
@@ -1982,6 +2694,7 @@
     subscribeToPlayers();
     subscribeToMatches();
     recalculatePlayerStats();
+    recalculateElo();
     switchSeasonTab(SeasonState.activeTab);
   }
 
@@ -2089,7 +2802,22 @@
     formatWinPct,
     formatPointDiff,
     formatAvgPointDiff,
-    formatForm
+    formatForm,
+
+    // Phase 6 Deterministic Elo Engine API
+    getStartingElo,
+    getKFactor,
+    calculateExpectedScore,
+    calculateEloDelta,
+    createInitialEloState,
+    isValidEloMatch,
+    calculateEloRatings,
+    recalculateElo,
+    getPlayerElo,
+    getEloLeaderboard,
+    formatElo,
+    formatEloDelta,
+    setLeaderboardView
   };
 
   // Global helper aliases for HTML onclick handlers
