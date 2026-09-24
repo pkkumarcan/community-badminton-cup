@@ -18,7 +18,8 @@
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css?v=9.1">
+  <link rel="stylesheet" href="css/style.css?v=32">
+  <link rel="stylesheet" href="css/season.css?v=32">
   <style>
     .app-wrapper {
       max-width: 1540px !important;
@@ -54,6 +55,18 @@
           <p class="portal-subtitle">Live Mixer Fixtures &bull; Standings &bull; Dynamic Finals</p>
         </div>
         <div class="header-actions">
+          <!-- Top-Level Mode Switcher (Phase 1) -->
+          <div class="portal-mode-switcher" id="portalModeSwitcher" role="tablist" aria-label="Portal Mode">
+            <button type="button" class="mode-switch-btn active" id="modeBtnTournament" onclick="setPortalMode('tournament')" role="tab" aria-selected="true" title="Switch to Tournament Mode">
+              <span class="mode-icon">🏆</span>
+              <span class="mode-label">Tournament</span>
+            </button>
+            <button type="button" class="mode-switch-btn" id="modeBtnSeason" onclick="setPortalMode('season')" role="tab" aria-selected="false" title="Switch to 12-Week Season League Mode">
+              <span class="mode-icon">📅</span>
+              <span class="mode-label">Season</span>
+            </button>
+          </div>
+
           <button type="button" id="organizerAuthBtn" class="header-pill-btn auth-pill-btn" onclick="handleOrganizerAuthClick()" title="Sign in as Authorized Scorekeeper / Organizer">
             <span>🔑</span> <span>Sign In</span>
           </button>
@@ -74,7 +87,11 @@
       </div>
     </header>
 
-    <!-- Navigation Tabs -->
+    <!-- ================================================================= -->
+    <!-- TOURNAMENT MODE CONTAINER (Production Complete) -->
+    <!-- ================================================================= -->
+    <div id="tournamentContainer">
+      <!-- Navigation Tabs -->
     <nav class="tabs-container" aria-label="Tournament Views">
       <button type="button" class="tab-btn active" id="tabBtn-home" onclick="switchTab('home')">
         <span>🏠</span> My Tournament
@@ -400,6 +417,141 @@
       <p>🏸 Sindhi Boys Badminton Cup &bull; Optimized for Mobile &amp; GitHub Pages</p>
       <p style="margin-top:4px; font-size:0.74rem;">Scores persist automatically in your browser's local storage.</p>
     </footer>
+    </div> <!-- /#tournamentContainer -->
+
+    <!-- ================================================================= -->
+    <!-- SEASON MODE CONTAINER (Phase 1 Foundation) -->
+    <!-- ================================================================= -->
+    <div id="seasonApp" class="season-mode hidden" style="display:none;">
+      
+      <!-- Season Navigation Sub-Bar -->
+      <nav class="season-subnav-container" aria-label="Season Views" role="tablist">
+        <button type="button" class="season-tab-btn active" id="seasonTabBtn-home" onclick="SeasonApp.switchTab('home')" role="tab" aria-selected="true">
+          <span>🏠</span> <span>Home</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-record" onclick="SeasonApp.switchTab('record')" role="tab" aria-selected="false">
+          <span>➕</span> <span>Record Match</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-leaderboard" onclick="SeasonApp.switchTab('leaderboard')" role="tab" aria-selected="false">
+          <span>🏆</span> <span>Leaderboard</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-players" onclick="SeasonApp.switchTab('players')" role="tab" aria-selected="false">
+          <span>👤</span> <span>Players</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-history" onclick="SeasonApp.switchTab('history')" role="tab" aria-selected="false">
+          <span>📊</span> <span>Match History</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-weekly" onclick="SeasonApp.switchTab('weekly')" role="tab" aria-selected="false">
+          <span>📈</span> <span>Weekly Insights</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-admin" onclick="SeasonApp.switchTab('admin')" role="tab" aria-selected="false">
+          <span>⚙️</span> <span>Season Admin</span>
+        </button>
+        <button type="button" class="season-tab-btn" id="seasonTabBtn-seeding" onclick="SeasonApp.switchTab('seeding')" role="tab" aria-selected="false">
+          <span>🏸</span> <span>Tournament Seeding</span>
+        </button>
+      </nav>
+
+      <!-- Main Season Panes -->
+      <main class="season-main-content">
+        
+        <!-- PANE 1: SEASON HOME -->
+        <section id="seasonPane-home" class="season-pane" role="tabpanel">
+          <div id="seasonHomeContainer"></div>
+        </section>
+
+        <!-- PANE 2: RECORD MATCH PLACEHOLDER -->
+        <section id="seasonPane-record" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">➕</div>
+            <h3 class="season-placeholder-title">Record Season Match</h3>
+            <p class="season-placeholder-desc">
+              Fast score entry for Doubles (2v2) &amp; Singles (1v1) matches with full deuce support will be activated in <strong>Phase 3</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 3</span>
+          </div>
+        </section>
+
+        <!-- PANE 3: LEADERBOARD PLACEHOLDER -->
+        <section id="seasonPane-leaderboard" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">🏆</div>
+            <h3 class="season-placeholder-title">Season Leaderboard &amp; Standings</h3>
+            <p class="season-placeholder-desc">
+              Live Doubles Elo, Singles Elo, and Traditional Win % standings with Qualified badges will be activated in <strong>Phase 4 &amp; 5</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 4 &amp; 5</span>
+          </div>
+        </section>
+
+        <!-- PANE 4: PLAYERS PLACEHOLDER -->
+        <section id="seasonPane-players" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">👤</div>
+            <h3 class="season-placeholder-title">Live Player Roster &amp; Profiles</h3>
+            <p class="season-placeholder-desc">
+              Firebase player roster management, partner synergy matrices, and head-to-head rivalry records will be activated in <strong>Phase 2 &amp; 7</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 2</span>
+          </div>
+        </section>
+
+        <!-- PANE 5: MATCH HISTORY PLACEHOLDER -->
+        <section id="seasonPane-history" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">📊</div>
+            <h3 class="season-placeholder-title">Season Match History Ledger</h3>
+            <p class="season-placeholder-desc">
+              Real-time chronological match ledger with search and filters will be activated in <strong>Phase 4</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 4</span>
+          </div>
+        </section>
+
+        <!-- PANE 6: WEEKLY INSIGHTS PLACEHOLDER -->
+        <section id="seasonPane-weekly" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">📈</div>
+            <h3 class="season-placeholder-title">12-Week Insights &amp; Milestones</h3>
+            <p class="season-placeholder-desc">
+              Week-by-week match breakdown, most active players, top win streaks, and rating climbers will be activated in <strong>Phase 9</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 9</span>
+          </div>
+        </section>
+
+        <!-- PANE 7: SEASON ADMIN PLACEHOLDER -->
+        <section id="seasonPane-admin" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">⚙️</div>
+            <h3 class="season-placeholder-title">Season Administration &amp; Audit</h3>
+            <p class="season-placeholder-desc">
+              Score corrections, full deterministic season recalculation, and database season freeze controls will be activated in <strong>Phase 8</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 8</span>
+          </div>
+        </section>
+
+        <!-- PANE 8: TOURNAMENT SEEDING PLACEHOLDER -->
+        <section id="seasonPane-seeding" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div class="season-placeholder-pane">
+            <div class="season-placeholder-icon">🏸</div>
+            <h3 class="season-placeholder-title">Tournament Seeding Bridge</h3>
+            <p class="season-placeholder-desc">
+              End-of-season freeze and automatic Level 1 / Level 2 / Level 3 seeding tier export for future tournaments will be activated in <strong>Phase 10</strong>.
+            </p>
+            <span class="season-placeholder-badge">COMING IN PHASE 10</span>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Season Footer -->
+      <footer style="margin-top:30px; text-align:center; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border-subtle); padding-top:16px;">
+        <p>📅 Sindhi Boys Badminton Season &bull; Fall 2026 League</p>
+        <p style="margin-top:4px; font-size:0.74rem;">Single source of truth match ledger powered by Firebase Realtime Database.</p>
+      </footer>
+    </div>
   </div>
 
   <!-- AI ASSISTANT CHAT DRAWER -->
@@ -691,10 +843,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
   <!-- Firebase Adapter Configuration (Phase 8) -->
-  <script src="js/firebase-config.js?v=31"></script>
+  <script src="js/firebase-config.js?v=32"></script>
 
-  <!-- Application Script -->
-  <script src="js/app.js?v=31"></script>
+  <!-- Application Script (Tournament Mode) -->
+  <script src="js/app.js?v=32"></script>
+
+  <!-- Season Mode Engine (Phase 1 Foundation) -->
+  <script src="js/season.js?v=32"></script>
 
   <!-- PHASE 6: STAGE 1 LOCK BLOCKED MODAL (incomplete matches) -->
   <div id="stage1LockBlockedModal" class="modal-overlay" onclick="if(event.target===this) closeLockBlockedModal()">
