@@ -6618,6 +6618,18 @@ const ROSTER = [
   window.exportScoreLogCSV = exportScoreLogCSV;
 
   // ---------- PHASE 8: AUTHENTICATION & CLOUD MODALS ----------
+  function handleOrganizerAuthClick() {
+    const user = (typeof TournamentFirebase !== 'undefined') ? TournamentFirebase.getUser() : null;
+    if (user && TournamentFirebase.isAuthorized()) {
+      if (confirm("Sign out of organizer scorekeeping account?")) {
+        TournamentFirebase.signOutOrganizer();
+      }
+    } else {
+      openAuthModal();
+    }
+  }
+  window.handleOrganizerAuthClick = handleOrganizerAuthClick;
+
   function openAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) {
@@ -6627,7 +6639,10 @@ const ROSTER = [
         errBox.style.display = 'none';
       }
       modal.classList.add('open');
-      setTimeout(() => document.getElementById('authEmail')?.focus(), 50);
+      setTimeout(() => {
+        const emailEl = document.getElementById('authEmailInput') || document.getElementById('authEmail');
+        emailEl?.focus();
+      }, 50);
     }
   }
   window.openAuthModal = openAuthModal;
@@ -6640,12 +6655,15 @@ const ROSTER = [
 
   async function handleOrganizerSignInSubmit(e) {
     if (e) e.preventDefault();
-    const emailInput = document.getElementById('authEmail');
-    const passInput = document.getElementById('authPassword');
+    const emailInput = document.getElementById('authEmailInput') || document.getElementById('authEmail');
+    const passInput = document.getElementById('authPasswordInput') || document.getElementById('authPassword');
     const errBox = document.getElementById('authErrorBox');
     const submitBtn = document.getElementById('authSubmitBtn');
 
-    if (!emailInput || !passInput) return;
+    if (!emailInput || !passInput) {
+      console.error('[Auth] Inputs not found in DOM');
+      return;
+    }
     const email = emailInput.value.trim();
     const password = passInput.value;
 
@@ -6676,16 +6694,21 @@ const ROSTER = [
             errBox.style.display = 'block';
           }
         }
+      } else {
+        alert('TournamentFirebase adapter is not loaded.');
       }
     } catch (err) {
+      console.error('[Auth Error]', err);
       if (errBox) {
         errBox.textContent = err.message || 'Authentication error.';
         errBox.style.display = 'block';
+      } else {
+        alert('Sign-in error: ' + err.message);
       }
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span>🔑</span> Sign In';
+        submitBtn.innerHTML = '<span>🔑</span> Sign In &rarr;';
       }
     }
   }
@@ -6701,7 +6724,7 @@ const ROSTER = [
   }
   window.closeInitCloudModal = closeInitCloudModal;
 
-  async function initializeCloudTournament() {
+  async function initializeCloudTournament(fromLocalState) {
     const btn = document.getElementById('initCloudBtn');
     if (btn) {
       btn.disabled = true;
@@ -6723,12 +6746,22 @@ const ROSTER = [
       // Build initial stage 1 scores payload
       const stage1Scores = {};
       BASE_FIXTURES.forEach(f => {
-        stage1Scores[f.m] = {
-          s1: null,
-          s2: null,
-          revision: 0,
-          updatedAt: null
-        };
+        const localScore = (fromLocalState && tournamentData && tournamentData[f.m]) ? tournamentData[f.m] : null;
+        if (localScore && localScore.s1 !== null && localScore.s2 !== null) {
+          stage1Scores[f.m] = {
+            s1: Number(localScore.s1),
+            s2: Number(localScore.s2),
+            revision: 1,
+            updatedAt: localScore.updatedAt || isoNow
+          };
+        } else {
+          stage1Scores[f.m] = {
+            s1: null,
+            s2: null,
+            revision: 0,
+            updatedAt: null
+          };
+        }
       });
 
       const initialPayload = {
@@ -6740,20 +6773,26 @@ const ROSTER = [
           rules: "Sudden Death 15 pts (Stage 1) / 21 pts (Finals)"
         },
         stage1Scores: stage1Scores,
-        stage1Lock: {
+        stage1Lock: isStage1Locked ? {
+          locked: true,
+          lockedAt: stage1LockMetadata?.lockedAt || isoNow,
+          officialStage1Rankings: stage1OfficialRankings || null,
+          officialFinalsPools: stage1OfficialFinalsPools || null,
+          tieResolutions: stage1TieResolutions || {}
+        } : {
           locked: false,
           lockedAt: null,
           rankings: null,
           finalsPools: null,
           tieResolutions: {}
         },
-        finalsScores: {
+        finalsScores: finalsPoolScores || {
           gold: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }],
           silver: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }],
           bronze: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }],
           copper: [{ s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }]
         },
-        finalsPlayoffs: {
+        finalsPlayoffs: finalsPlayoffs || {
           gold: [],
           silver: [],
           bronze: [],
@@ -6764,7 +6803,7 @@ const ROSTER = [
             id: pushId,
             timestamp: isoNow,
             serverTimestamp: TournamentFirebase.getServerTimestamp(),
-            action: 'INITIALIZE_TOURNAMENT',
+            action: fromLocalState ? 'INITIALIZE_FROM_LOCAL' : 'INITIALIZE_BLANK_TOURNAMENT',
             stage: 'SETUP',
             enteredBy: userLabel
           }
@@ -6787,7 +6826,7 @@ const ROSTER = [
       await tRef.update(updates);
       closeInitCloudModal();
       sessionStorage.setItem('badminton_cloud_init_dismissed', 'true');
-      showToast('🚀 Cloud tournament initialized with standard 48-match schedule!');
+      showToast(fromLocalState ? '🚀 Cloud tournament initialized from local scores!' : '🚀 Blank cloud tournament initialized!');
     } catch (err) {
       alert('Failed to initialize cloud tournament: ' + err.message);
     } finally {
