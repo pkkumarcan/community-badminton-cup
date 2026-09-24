@@ -6006,6 +6006,27 @@ const ROSTER = [
   // ---------- SCOREKEEPER MODE UI HELPERS ----------
 
   function renderScorekeeperView() {
+    const badge = document.getElementById('skStatusBadge');
+    const subInst = document.getElementById('skSubInstruction');
+    const isLive = typeof TournamentFirebase !== 'undefined' && TournamentFirebase.getConnectionState() === 'LIVE';
+    const isOrg = typeof TournamentFirebase !== 'undefined' && TournamentFirebase.isAuthorized();
+
+    if (badge && subInst) {
+      if (isLive && isOrg) {
+        badge.className = 'sk-test-badge sk-live-badge';
+        badge.textContent = '☁️ LIVE CLOUD SYNC';
+        subInst.textContent = 'Live Cloud Mode: Scores are saved directly to Firebase and synced instantly to all devices.';
+      } else if (isLive) {
+        badge.className = 'sk-test-badge sk-live-badge';
+        badge.textContent = '☁️ LIVE (READ ONLY)';
+        subInst.textContent = 'Live Cloud Mode: Scores stream in real time. Sign in as Organizer to submit scores.';
+      } else {
+        badge.className = 'sk-test-badge';
+        badge.textContent = '🧪 LOCAL ONLY';
+        subInst.textContent = 'Offline Mode: Scores are saved to this browser locally until cloud reconnected.';
+      }
+    }
+
     populateScorekeeperMatchSelect();
     renderScorekeeperRecentEntries();
     renderScorekeeperMatchDetail(skSelectedMatchCode);

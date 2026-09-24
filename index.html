@@ -277,11 +277,11 @@
           <div class="sk-top-bar">
             <div class="sk-title-row">
               <h2><span>📱</span> SCOREKEEPER MODE</h2>
-              <span class="sk-test-badge">🧪 TEST MODE (Local Only)</span>
+              <span id="skStatusBadge" class="sk-test-badge">🧪 TEST MODE (Local Only)</span>
             </div>
-            <p class="sk-instruction">
+            <p id="skInstructionText" class="sk-instruction">
               Select match &rarr; verify players &rarr; enter score &rarr; save.<br>
-              <span style="font-size:0.75rem; color:var(--text-muted);">Note: In this test version, scores are stored on this device only.</span>
+              <span id="skSubInstruction" style="font-size:0.75rem; color:var(--text-muted);">Note: In this test version, scores are stored on this device only.</span>
             </p>
           </div>
 
@@ -688,10 +688,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
   <!-- Firebase Adapter Configuration (Phase 8) -->
-  <script src="js/firebase-config.js?v=25"></script>
+  <script src="js/firebase-config.js?v=26"></script>
 
   <!-- Application Script -->
-  <script src="js/app.js?v=25"></script>
+  <script src="js/app.js?v=26"></script>
 
   <!-- PHASE 6: STAGE 1 LOCK BLOCKED MODAL (incomplete matches) -->
   <div id="stage1LockBlockedModal" class="modal-overlay" onclick="if(event.target===this) closeLockBlockedModal()">

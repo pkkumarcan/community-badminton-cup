@@ -3913,6 +3913,17 @@ body {
   color: #fbbf24;
 }
 
+.sk-live-badge {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #059669 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+[data-theme="dark"] .sk-live-badge {
+  background: rgba(16, 185, 129, 0.25) !important;
+  color: #34d399 !important;
+}
+
 .sk-instruction {
   font-size: 0.82rem;
   color: var(--text-muted);
