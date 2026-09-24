@@ -377,6 +377,10 @@
 
 [data-theme="dark"] .season-placeholder-badge {
   background: rgba(37, 99, 235, 0.2);
+  color: #93c5fd;
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
 /* --------------------------------------------------------------------------
    Season Players Roster & Management
    -------------------------------------------------------------------------- */
@@ -663,6 +667,257 @@
   font-weight: 700;
   margin-top: 6px;
   min-height: 18px;
+}
+
+/* --------------------------------------------------------------------------
+   Season Record Match Screen Styles
+   -------------------------------------------------------------------------- */
+.season-record-container {
+  max-width: 680px;
+  margin: 0 auto 24px auto;
+}
+
+.season-match-type-toggle {
+  display: flex;
+  background: var(--bg-card-hover, #f1f5f9);
+  padding: 4px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  margin-bottom: 20px;
+  gap: 6px;
+}
+
+[data-theme="dark"] .season-match-type-toggle {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-type-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-secondary, #475569);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.season-type-btn.active {
+  background: var(--bg-card, #ffffff);
+  color: var(--primary, #2563eb);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .season-type-btn.active {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+}
+
+.season-match-form-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  box-shadow: var(--shadow-md, 0 4px 6px rgba(0, 0, 0, 0.05));
+  margin-bottom: 20px;
+}
+
+[data-theme="dark"] .season-match-form-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+.season-match-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.season-team-box {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+[data-theme="dark"] .season-team-box {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-team-header {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--primary, #2563eb);
+}
+
+.season-select-styled {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-card, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  cursor: pointer;
+  transition: var(--transition, all 0.2s ease);
+}
+
+.season-select-styled:focus {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.season-score-input-wrap {
+  margin-top: 4px;
+}
+
+.season-score-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  font-size: 2rem;
+  font-weight: 800;
+  text-align: center;
+  font-family: 'Outfit', sans-serif;
+  border-radius: var(--radius-md, 10px);
+  border: 2px solid var(--border-card, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.season-score-input:focus {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+
+.season-vs-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--text-muted, #64748b);
+  font-family: 'Outfit', sans-serif;
+  padding: 0 4px;
+}
+
+.season-accordion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  cursor: pointer;
+  padding: 6px 0;
+  margin-bottom: 12px;
+}
+
+.season-accordion-toggle:hover {
+  color: var(--primary, #2563eb);
+}
+
+.season-optional-fields {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  padding: 14px;
+  margin-bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+[data-theme="dark"] .season-optional-fields {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-field-group label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #475569);
+  margin-bottom: 4px;
+}
+
+.season-btn-save-match {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md, 10px);
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: var(--transition, all 0.2s ease);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.season-btn-save-match:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+}
+
+.season-btn-save-match:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.season-repeat-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.season-post-save-banner {
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  border-radius: var(--radius-md, 10px);
+  padding: 14px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  animation: seasonFadeIn 0.2s ease-in-out;
+}
+
+.season-post-save-text {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--win-color, #059669);
 }
 
 /* --------------------------------------------------------------------------
