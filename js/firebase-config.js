@@ -9,13 +9,14 @@
 
   // 1. Firebase Web Client Configuration (Safe for public client distribution)
   const firebaseConfig = {
-    apiKey: "AIzaSyD-COMMUNITY-BADMINTON-CUP-2026",
-    authDomain: "community-badminton-cup.firebaseapp.com",
-    databaseURL: "https://community-badminton-cup-default-rtdb.firebaseio.com",
-    projectId: "community-badminton-cup",
-    storageBucket: "community-badminton-cup.appspot.com",
-    messagingSenderId: "109876543210",
-    appId: "1:109876543210:web:abcdef1234567890"
+    apiKey: "AIzaSyCXqWRWvucHn9WyI0jxvnzUg9kSbV6ZPhM",
+    authDomain: "badminton20sep.firebaseapp.com",
+    databaseURL: "https://badminton20sep-default-rtdb.firebaseio.com",
+    projectId: "badminton20sep",
+    storageBucket: "badminton20sep.firebasestorage.app",
+    messagingSenderId: "837407990639",
+    appId: "1:837407990639:web:4a879785059e3465d9be9a",
+    measurementId: "G-Z6G61SX7R6"
   };
 
   // 2. Tournament Namespace (Default to test namespace for safety; switches to production when set)
