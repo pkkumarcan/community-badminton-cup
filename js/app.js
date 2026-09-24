@@ -5564,10 +5564,10 @@ const ROSTER = [
 
     // 2. Reset Finals scores
     finalsScores = {
-      gold:   [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-      silver: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-      bronze: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ],
-      copper: [ { s1: null, s2: null }, { s1: null, s2: null }, { s1: null, s2: null } ]
+      gold:   [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+      silver: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+      bronze: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+      copper: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ]
     };
 
     // 3. Reset Finals playoffs
@@ -5632,7 +5632,12 @@ const ROSTER = [
           finalsPools: null,
           tieResolutions: {}
         };
-        tRefResetTourn.update(updates).catch(err => console.warn('Cloud resetTournament error:', err));
+        tRefResetTourn.update(updates).then(() => {
+          showToast('☁️ Cloud tournament wiped clean on all devices!');
+        }).catch(err => {
+          console.error('Cloud resetTournament error:', err);
+          alert('Cloud sync reset failed: ' + err.message);
+        });
       } catch (e) {
         console.warn('Cloud reset error:', e);
       }
