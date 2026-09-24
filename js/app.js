@@ -1525,25 +1525,32 @@ const ROSTER = [
     try {
       let raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        // Initial clean load of official completed tournament data (Stage 1 + Stage 2 Finals)
+        // Default clean blank tournament
+        fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
         fixtures.forEach(f => {
-          if (typeof RECORDED_STAGE1_SCORES !== 'undefined' && RECORDED_STAGE1_SCORES[f.m]) {
-            f.s1 = RECORDED_STAGE1_SCORES[f.m][0];
-            f.s2 = RECORDED_STAGE1_SCORES[f.m][1];
-            f.revision = 1;
-            f.updatedAt = new Date().toISOString();
-          }
+          f.s1 = null;
+          f.s2 = null;
+          f.revision = 0;
+          f.updatedAt = null;
         });
-        stage1Locked = true;
-        stage1LockedAt = new Date().toISOString();
-        officialStage1Rankings = computeLeaderboard();
-        if (typeof RECORDED_FINALS_POOLS !== 'undefined') {
-          officialFinalsPools = JSON.parse(JSON.stringify(RECORDED_FINALS_POOLS));
-        }
-        if (typeof RECORDED_FINALS_SCORES !== 'undefined') {
-          finalsScores = JSON.parse(JSON.stringify(RECORDED_FINALS_SCORES));
-        }
-        saveState(); // Ensure initial complete state is written immediately
+        stage1Locked = false;
+        stage1LockedAt = null;
+        officialStage1Rankings = null;
+        officialFinalsPools = null;
+        tieResolutions = {};
+        finalsScores = {
+          gold:   [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+          silver: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+          bronze: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+          copper: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ]
+        };
+        finalsPlayoffs = {
+          gold: [],
+          silver: [],
+          bronze: [],
+          copper: []
+        };
+        scoreActivityLog = [];
         return;
       }
       const data = JSON.parse(raw);
