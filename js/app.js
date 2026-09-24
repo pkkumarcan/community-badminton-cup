@@ -1252,6 +1252,49 @@ const ROSTER = [
   let isFirebaseSyncActive = false;
   let skLoadedRevision = 0;
 
+  function resetTournamentLocalState() {
+    fixtures = JSON.parse(JSON.stringify(BASE_FIXTURES));
+    fixtures.forEach((f) => {
+      f.s1 = null;
+      f.s2 = null;
+      f.revision = 0;
+      f.updatedAt = null;
+    });
+    finalsScores = {
+      gold:   [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+      silver: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+      bronze: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ],
+      copper: [ { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 }, { s1: null, s2: null, revision: 0 } ]
+    };
+    finalsPlayoffs = { gold: [], silver: [], bronze: [], copper: [] };
+    stage1Locked = false;
+    stage1LockedAt = null;
+    officialStage1Rankings = null;
+    tieResolutions = {};
+    officialFinalsPools = null;
+    skRecentEntries = [];
+    skSelectedMatchCode = "";
+    skIsEditing = false;
+    scoreActivityLog = [];
+
+    try {
+      localStorage.removeItem('badminton_cup_portal_data_v11');
+      localStorage.removeItem('badminton_cup_portal_data_v10');
+      localStorage.removeItem('badminton_cup_portal_data_v9');
+      localStorage.removeItem('badminton_cup_portal_data_v8');
+      localStorage.removeItem('badminton_cached_cloud_state');
+    } catch (e) {}
+
+    renderSchedule();
+    renderLeaderboard();
+    renderFinals();
+    renderHomeDashboard();
+    renderMyMatches();
+    renderCourtView();
+    renderScorekeeperView();
+  }
+  window.resetTournamentLocalState = resetTournamentLocalState;
+
   function initFirebaseSync() {
     if (typeof TournamentFirebase === 'undefined') return;
 
@@ -1281,7 +1324,8 @@ const ROSTER = [
       TournamentFirebase.markInitialSnapshotReceived();
 
       if (!data) {
-        // Cloud tournament node is completely empty
+        // Cloud tournament node is completely empty / fresh
+        resetTournamentLocalState();
         if (TournamentFirebase.isAuthorized()) {
           const initModal = document.getElementById('initCloudModal');
           if (initModal && !sessionStorage.getItem('badminton_cloud_init_dismissed')) {
