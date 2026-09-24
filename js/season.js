@@ -149,6 +149,7 @@
         const data = snapshot.val() || {};
         SeasonState.players = data;
         SeasonState.playersSubscribed = true;
+        recalculatePlayerStats();
 
         if (SeasonState.activeTab === 'players') {
           renderPlayers();
@@ -158,6 +159,9 @@
         }
         if (SeasonState.activeTab === 'history') {
           renderMatchHistory();
+        }
+        if (SeasonState.activeTab === 'leaderboard') {
+          renderLeaderboard();
         }
         if (SeasonState.activeTab === 'home') {
           renderSeasonHome();
@@ -609,6 +613,27 @@
     const doublesMatches = allMatches.filter(m => m.matchType === 'DOUBLES');
     const singlesMatches = allMatches.filter(m => m.matchType === 'SINGLES');
 
+    const statsList = Object.values(SeasonState.playerStats || {});
+    const activeStats = statsList.filter(s => s.combined && s.combined.gp > 0);
+    
+    let mostActiveStr = '—';
+    if (activeStats.length > 0) {
+      const topGp = [...activeStats].sort((a, b) => b.combined.gp - a.combined.gp)[0];
+      if (topGp && topGp.combined.gp > 0) {
+        mostActiveStr = `${topGp.name} (${topGp.combined.gp} GP)`;
+      }
+    }
+
+    let topWinStr = '—';
+    const qualifiedStats = activeStats.filter(s => s.combined.gp >= (SEASON_CONFIG.minGamesQualified || 15));
+    if (qualifiedStats.length > 0) {
+      const topWin = [...qualifiedStats].sort((a, b) => b.combined.winPct - a.combined.winPct || b.combined.gp - a.combined.gp)[0];
+      topWinStr = `${topWin.name} (${topWin.combined.winPct.toFixed(1)}%)`;
+    } else if (activeStats.length > 0) {
+      const topWin = [...activeStats].sort((a, b) => b.combined.winPct - a.combined.winPct || b.combined.gp - a.combined.gp)[0];
+      topWinStr = `${topWin.name} (${topWin.combined.winPct.toFixed(1)}% Prov.)`;
+    }
+
     container.innerHTML = `
       <div class="season-hero-card">
         <div class="season-hero-header">
@@ -635,6 +660,13 @@
             <div class="season-stat-lbl">BASE ELO (K = 32)</div>
           </div>
         </div>
+
+        ${allMatches.length > 0 ? `
+          <div class="season-home-highlights-bar">
+            <span>🔥 <strong>Most Active:</strong> ${mostActiveStr}</span>
+            <span>🎯 <strong>Top Win %:</strong> ${topWinStr}</span>
+          </div>
+        ` : ''}
 
         <div class="season-hero-actions">
           <button type="button" class="season-primary-btn" onclick="SeasonApp.switchTab('record')">
@@ -1147,9 +1179,13 @@
         const data = snapshot.val() || {};
         SeasonState.matches = data;
         SeasonState.matchesSubscribed = true;
+        recalculatePlayerStats();
 
         if (SeasonState.activeTab === 'history') {
           renderMatchHistory();
+        }
+        if (SeasonState.activeTab === 'leaderboard') {
+          renderLeaderboard();
         }
         if (SeasonState.activeTab === 'home') {
           renderSeasonHome();
@@ -1591,13 +1627,361 @@
     renderMatchHistory();
   }
 
-  // 16. Initialization
+  // 16. Pure In-Memory Statistics Engine (Phase 5)
+  function createEmptyStatBucket() {
+    return {
+      gp: 0,
+      wins: 0,
+      losses: 0,
+      pf: 0,
+      pa: 0,
+      pointDiff: 0,
+      winPct: 0,
+      avgPointDiff: 0,
+      currentWinStreak: 0,
+      bestWinStreak: 0,
+      last5: []
+    };
+  }
+
+  function createEmptyPlayerStats(player) {
+    return {
+      playerId: player.id,
+      name: player.name || 'Unknown Player',
+      active: player.active !== false,
+      combined: createEmptyStatBucket(),
+      doubles: createEmptyStatBucket(),
+      singles: createEmptyStatBucket(),
+      _rawSeq: {
+        combined: [],
+        doubles: [],
+        singles: []
+      }
+    };
+  }
+
+  function calculatePlayerStats(playersMap = {}, matchesMap = {}) {
+    const stats = {};
+
+    // 1. Initialize stats buckets for all registered players
+    Object.values(playersMap || {}).forEach(player => {
+      if (player && player.id) {
+        stats[player.id] = createEmptyPlayerStats(player);
+      }
+    });
+
+    // 2. Sort valid matches in canonical chronological order (createdAt ASC, id ASC)
+    const validMatches = Object.values(matchesMap || {}).filter(isRenderableMatch);
+    validMatches.sort((a, b) => {
+      const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+      const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+
+    // Helper to apply match result to player stats
+    function applyPlayerMatch(pId, category, isWin, pf, pa) {
+      if (!pId) return;
+      const pStats = stats[pId];
+      if (!pStats) return; // Skip unknown player reference safely
+
+      const categories = [category, 'combined'];
+      categories.forEach(cat => {
+        const bucket = pStats[cat];
+        bucket.gp += 1;
+        bucket.pf += pf;
+        bucket.pa += pa;
+
+        if (isWin) {
+          bucket.wins += 1;
+          bucket.currentWinStreak += 1;
+          if (bucket.currentWinStreak > bucket.bestWinStreak) {
+            bucket.bestWinStreak = bucket.currentWinStreak;
+          }
+          pStats._rawSeq[cat].push('W');
+        } else {
+          bucket.losses += 1;
+          bucket.currentWinStreak = 0;
+          pStats._rawSeq[cat].push('L');
+        }
+      });
+    }
+
+    // 3. Process matches chronologically
+    validMatches.forEach(m => {
+      const isWinnerA = m.winner === 'A';
+      if (m.matchType === 'DOUBLES') {
+        const p1 = m.teamA ? m.teamA.player1 : null;
+        const p2 = m.teamA ? m.teamA.player2 : null;
+        const p3 = m.teamB ? m.teamB.player1 : null;
+        const p4 = m.teamB ? m.teamB.player2 : null;
+
+        applyPlayerMatch(p1, 'doubles', isWinnerA, m.scoreA, m.scoreB);
+        applyPlayerMatch(p2, 'doubles', isWinnerA, m.scoreA, m.scoreB);
+        applyPlayerMatch(p3, 'doubles', !isWinnerA, m.scoreB, m.scoreA);
+        applyPlayerMatch(p4, 'doubles', !isWinnerA, m.scoreB, m.scoreA);
+      } else if (m.matchType === 'SINGLES') {
+        applyPlayerMatch(m.playerA, 'singles', isWinnerA, m.scoreA, m.scoreB);
+        applyPlayerMatch(m.playerB, 'singles', !isWinnerA, m.scoreB, m.scoreA);
+      }
+    });
+
+    // 4. Finalize derived fields (pointDiff, winPct, avgPointDiff, last5)
+    Object.values(stats).forEach(pStats => {
+      ['combined', 'doubles', 'singles'].forEach(cat => {
+        const b = pStats[cat];
+        b.pointDiff = b.pf - b.pa;
+        b.winPct = b.gp > 0 ? (b.wins / b.gp) * 100 : 0;
+        b.avgPointDiff = b.gp > 0 ? b.pointDiff / b.gp : 0;
+        b.last5 = pStats._rawSeq[cat].slice(-5);
+      });
+      delete pStats._rawSeq;
+    });
+
+    return stats;
+  }
+
+  function recalculatePlayerStats() {
+    const newStats = calculatePlayerStats(SeasonState.players, SeasonState.matches);
+    SeasonState.playerStats = newStats;
+    SeasonState.computed.playerStats = newStats;
+
+    if (SeasonState.activeTab === 'leaderboard') {
+      renderLeaderboard();
+    }
+    if (SeasonState.activeTab === 'home') {
+      renderSeasonHome();
+    }
+    return newStats;
+  }
+
+  function getPlayerStats(playerId, mode = 'DOUBLES') {
+    if (!playerId) return null;
+    const pStats = SeasonState.playerStats[playerId];
+    if (!pStats) return null;
+
+    const cat = (mode || 'DOUBLES').toLowerCase();
+    if (cat === 'singles') return pStats.singles;
+    if (cat === 'combined') return pStats.combined;
+    return pStats.doubles;
+  }
+
+  function getQualificationStatus(playerId, mode = 'DOUBLES') {
+    const cat = (mode || 'DOUBLES').toLowerCase();
+    const validCat = (cat === 'singles' || cat === 'combined') ? cat : 'doubles';
+    const minRequired = SeasonState.config.minGamesQualified || 15;
+
+    const pStats = SeasonState.playerStats[playerId];
+    const gp = pStats && pStats[validCat] ? pStats[validCat].gp : 0;
+    const qualified = gp >= minRequired;
+
+    return {
+      qualified,
+      status: qualified ? 'QUALIFIED' : 'PROVISIONAL',
+      gamesPlayed: gp,
+      minimumRequired: minRequired,
+      gamesRemaining: Math.max(0, minRequired - gp)
+    };
+  }
+
+  function getTraditionalLeaderboard(mode = 'DOUBLES') {
+    const cat = (mode || 'DOUBLES').toLowerCase();
+    const validCat = (cat === 'singles' || cat === 'combined') ? cat : 'doubles';
+    const minRequired = SeasonState.config.minGamesQualified || 15;
+
+    const entries = Object.values(SeasonState.playerStats).map(p => {
+      const b = p[validCat] || createEmptyStatBucket();
+      const isQual = b.gp >= minRequired;
+      return {
+        playerId: p.playerId,
+        name: p.name,
+        active: p.active,
+        qualified: isQual,
+        status: isQual ? 'QUALIFIED' : 'PROVISIONAL',
+        ...b
+      };
+    });
+
+    // Sort order:
+    // 1. Qualified first, Provisional second
+    // 2. Win % DESC
+    // 3. GP DESC
+    // 4. Point Diff DESC
+    // 5. PF DESC
+    // 6. Name ASC
+    entries.sort((a, b) => {
+      if (a.qualified !== b.qualified) {
+        return a.qualified ? -1 : 1;
+      }
+      if (Math.abs(a.winPct - b.winPct) > 0.0001) {
+        return b.winPct - a.winPct;
+      }
+      if (a.gp !== b.gp) {
+        return b.gp - a.gp;
+      }
+      if (a.pointDiff !== b.pointDiff) {
+        return b.pointDiff - a.pointDiff;
+      }
+      if (a.pf !== b.pf) {
+        return b.pf - a.pf;
+      }
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    });
+
+    return entries.map((entry, idx) => ({
+      rank: idx + 1,
+      ...entry
+    }));
+  }
+
+  function formatWinPct(value) {
+    if (typeof value !== 'number' || isNaN(value)) return '0.0%';
+    return `${value.toFixed(1)}%`;
+  }
+
+  function formatPointDiff(value) {
+    if (typeof value !== 'number' || isNaN(value) || value === 0) return '0';
+    return value > 0 ? `+${value}` : `${value}`;
+  }
+
+  function formatAvgPointDiff(value) {
+    if (typeof value !== 'number' || isNaN(value) || value === 0) return '0.00';
+    return value > 0 ? `+${value.toFixed(2)}` : `${value.toFixed(2)}`;
+  }
+
+  function formatForm(last5) {
+    if (!Array.isArray(last5) || last5.length === 0) return '<span style="color:var(--text-muted);">—</span>';
+    return last5.map(res => `<span class="season-form-badge ${res === 'W' ? 'win' : 'loss'}">${res}</span>`).join(' ');
+  }
+
+  function setLeaderboardMode(mode) {
+    const valid = (mode === 'SINGLES' || mode === 'COMBINED') ? mode : 'DOUBLES';
+    SeasonState.leaderboardMode = valid;
+    renderLeaderboard();
+  }
+
+  function renderLeaderboard() {
+    const container = document.getElementById('seasonLeaderboardContainer');
+    if (!container) return;
+
+    const mode = SeasonState.leaderboardMode || 'DOUBLES';
+    const entries = getTraditionalLeaderboard(mode);
+    const minRequired = SeasonState.config.minGamesQualified || 15;
+
+    const qualifiedCount = entries.filter(e => e.qualified).length;
+    const provisionalCount = entries.filter(e => !e.qualified).length;
+
+    container.innerHTML = `
+      <div class="season-lb-wrap">
+        <div class="season-lb-header">
+          <div class="season-lb-title-area">
+            <h2>🏆 Season Traditional Standings</h2>
+            <p class="season-lb-subtitle">
+              Pure In-Memory Standings &bull; Ranked by: Qualification &rarr; Win % &rarr; GP &rarr; +/- &rarr; PF
+            </p>
+          </div>
+          <div class="season-lb-rule-badge">
+            <span>🎯 ${minRequired} Games to Qualify</span>
+          </div>
+        </div>
+
+        <div class="season-lb-notice">
+          ℹ️ <strong>Phase 5 Active:</strong> Traditional Win % standings. Independent Singles &amp; Doubles Elo ratings will activate in <strong>Phase 6</strong>.
+        </div>
+
+        <div class="season-lb-toolbar">
+          <div class="season-filter-segmented" role="tablist">
+            <button type="button" class="season-filter-btn ${mode === 'DOUBLES' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('DOUBLES')">
+              👥 Doubles
+            </button>
+            <button type="button" class="season-filter-btn ${mode === 'SINGLES' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('SINGLES')">
+              👤 Singles
+            </button>
+            <button type="button" class="season-filter-btn ${mode === 'COMBINED' ? 'active' : ''}" onclick="SeasonApp.setLeaderboardMode('COMBINED')">
+              🌐 Combined
+            </button>
+          </div>
+          <div class="season-lb-count-info">
+            <span class="season-count-chip active-chip">${qualifiedCount} Qualified</span>
+            <span class="season-count-chip">${provisionalCount} Provisional</span>
+          </div>
+        </div>
+
+        <div class="season-lb-table-card">
+          <div class="season-lb-table-responsive">
+            <table class="season-lb-table">
+              <thead>
+                <tr>
+                  <th style="width:44px; text-align:center;">#</th>
+                  <th>PLAYER</th>
+                  <th>STATUS</th>
+                  <th style="text-align:center;">GP</th>
+                  <th style="text-align:center;">W</th>
+                  <th style="text-align:center;">L</th>
+                  <th style="text-align:right;">WIN %</th>
+                  <th style="text-align:right;">PF</th>
+                  <th style="text-align:right;">PA</th>
+                  <th style="text-align:right;">+/-</th>
+                  <th style="text-align:right;">AVG +/-</th>
+                  <th style="text-align:center;">FORM (L5)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${entries.length > 0 ? entries.map(e => `
+                  <tr class="${e.qualified ? 'row-qualified' : 'row-provisional'}">
+                    <td style="text-align:center; font-weight:800; color:var(--text-secondary);">${e.rank}</td>
+                    <td>
+                      <div style="font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                        <span>${e.name}</span>
+                        ${!e.active ? '<span class="season-tag-pill" style="font-size:0.6rem; padding:1px 4px;">Inactive</span>' : ''}
+                      </div>
+                    </td>
+                    <td>
+                      <span class="season-status-pill ${e.qualified ? 'qualified' : 'provisional'}">
+                        ${e.qualified ? 'QUALIFIED' : 'PROVISIONAL'}
+                      </span>
+                    </td>
+                    <td style="text-align:center; font-weight:700;">${e.gp}</td>
+                    <td style="text-align:center; color:var(--win-color, #059669); font-weight:700;">${e.wins}</td>
+                    <td style="text-align:center; color:var(--text-muted);">${e.losses}</td>
+                    <td style="text-align:right; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                      ${formatWinPct(e.winPct)}
+                    </td>
+                    <td style="text-align:right; color:var(--text-secondary);">${e.pf}</td>
+                    <td style="text-align:right; color:var(--text-secondary);">${e.pa}</td>
+                    <td style="text-align:right; font-weight:700; color:${e.pointDiff > 0 ? 'var(--win-color, #059669)' : (e.pointDiff < 0 ? '#dc2626' : 'var(--text-muted)')};">
+                      ${formatPointDiff(e.pointDiff)}
+                    </td>
+                    <td style="text-align:right; font-weight:600; color:var(--text-secondary);">
+                      ${formatAvgPointDiff(e.avgPointDiff)}
+                    </td>
+                    <td style="text-align:center; white-space:nowrap;">
+                      ${formatForm(e.last5)}
+                    </td>
+                  </tr>
+                `).join('') : `
+                  <tr>
+                    <td colspan="12" style="text-align:center; padding:32px; color:var(--text-muted);">
+                      No players registered yet.
+                    </td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 17. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
 
     subscribeToPlayers();
     subscribeToMatches();
+    recalculatePlayerStats();
     switchSeasonTab(SeasonState.activeTab);
   }
 
@@ -1612,6 +1996,9 @@
         }
         if (SeasonState.activeTab === 'history') {
           renderMatchHistory();
+        }
+        if (SeasonState.activeTab === 'leaderboard') {
+          renderLeaderboard();
         }
       });
     }
@@ -1687,7 +2074,22 @@
     formatMatchDate,
     formatMatchTime,
     setMatchHistoryFilter,
-    setMatchHistorySearch
+    setMatchHistorySearch,
+
+    // Phase 5 Pure In-Memory Statistics Engine API
+    createEmptyStatBucket,
+    createEmptyPlayerStats,
+    calculatePlayerStats,
+    recalculatePlayerStats,
+    getPlayerStats,
+    getQualificationStatus,
+    getTraditionalLeaderboard,
+    renderLeaderboard,
+    setLeaderboardMode,
+    formatWinPct,
+    formatPointDiff,
+    formatAvgPointDiff,
+    formatForm
   };
 
   // Global helper aliases for HTML onclick handlers
