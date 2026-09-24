@@ -39,6 +39,31 @@
           }
         }
       }
+    },
+    "seasons": {
+      "$seasonId": {
+        ".read": true,
+        "config": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true"
+        },
+        "players": {
+          "$playerId": {
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+            ".validate": "newData.hasChildren(['id', 'name', 'normalizedName', 'active', 'createdByUid']) && newData.child('id').val() === $playerId && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('normalizedName').isString() && newData.child('active').isBoolean()"
+          }
+        },
+        "matches": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true"
+        },
+        "audit": {
+          "$pushId": {
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && !data.exists() && newData.exists()"
+          }
+        },
+        "computed": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true"
+        }
+      }
     }
   }
 }

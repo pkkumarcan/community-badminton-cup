@@ -484,15 +484,10 @@
           </div>
         </section>
 
-        <!-- PANE 4: PLAYERS PLACEHOLDER -->
+        <!-- PANE 4: SEASON PLAYERS (Phase 2) -->
         <section id="seasonPane-players" class="season-pane hidden" style="display:none;" role="tabpanel">
-          <div class="season-placeholder-pane">
-            <div class="season-placeholder-icon">👤</div>
-            <h3 class="season-placeholder-title">Live Player Roster &amp; Profiles</h3>
-            <p class="season-placeholder-desc">
-              Firebase player roster management, partner synergy matrices, and head-to-head rivalry records will be activated in <strong>Phase 2 &amp; 7</strong>.
-            </p>
-            <span class="season-placeholder-badge">COMING IN PHASE 2</span>
+          <div id="seasonPlayersContainer">
+            <!-- Injected by SeasonApp.renderPlayers() -->
           </div>
         </section>
 
@@ -1028,6 +1023,33 @@
       <div class="modal-btn-row" style="margin-top:14px;">
         <button type="button" class="btn-secondary" onclick="closeInitCloudModal()" style="width:100%;">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- PHASE 2: SEASON ADD PLAYER MODAL -->
+  <div id="seasonAddPlayerModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeAddPlayerModal()">
+    <div class="season-modal-card">
+      <div class="season-modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.4rem;">➕</span>
+          <h3 class="season-modal-title">Add Player to Season</h3>
+        </div>
+        <button type="button" class="ai-close-btn" onclick="SeasonApp.closeAddPlayerModal()" style="font-size:1.2rem; cursor:pointer;" aria-label="Close">✕</button>
+      </div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px;">
+        Add a player to the Fall 2026 Season. The player will immediately become available in all live roster and match dropdowns.
+      </p>
+      <form onsubmit="SeasonApp.handleAddPlayerSubmit(event)">
+        <div style="margin-bottom:12px;">
+          <label for="seasonPlayerNameInput" style="display:block; font-size:0.75rem; font-weight:800; color:var(--text-secondary); margin-bottom:4px;">PLAYER FULL NAME</label>
+          <input type="text" id="seasonPlayerNameInput" class="season-search-input" placeholder="e.g. Pardeep Kumar" required autocomplete="off" oninput="SeasonApp.checkDuplicateNameOnInput(this.value)">
+          <div id="seasonPlayerNameWarn" class="season-modal-warn"></div>
+        </div>
+        <div class="modal-btn-row">
+          <button type="button" class="btn-secondary" onclick="SeasonApp.closeAddPlayerModal()">Cancel</button>
+          <button type="submit" id="seasonAddPlayerSubmitBtn" class="btn-primary" style="flex:2;">➕ Add Player</button>
+        </div>
+      </form>
     </div>
   </div>
 

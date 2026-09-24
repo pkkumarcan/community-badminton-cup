@@ -377,8 +377,292 @@
 
 [data-theme="dark"] .season-placeholder-badge {
   background: rgba(37, 99, 235, 0.2);
-  color: #93c5fd;
-  border-color: rgba(37, 99, 235, 0.4);
+/* --------------------------------------------------------------------------
+   Season Players Roster & Management
+   -------------------------------------------------------------------------- */
+.season-roster-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.season-roster-title-area h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 4px 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-roster-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.season-count-chip {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--text-secondary, #475569);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.season-count-chip.active-chip {
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--win-color, #059669);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+.season-count-chip.inactive-chip {
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--text-muted, #64748b);
+}
+
+.season-roster-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.season-search-input-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+
+.season-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px 10px 36px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-card, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font-size: 0.88rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: var(--transition, all 0.2s ease);
+}
+
+.season-search-input:focus {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.season-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.95rem;
+  color: var(--text-muted, #64748b);
+  pointer-events: none;
+}
+
+.season-filter-segmented {
+  display: inline-flex;
+  background: var(--bg-card-hover, #f1f5f9);
+  padding: 3px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.season-filter-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm, 6px);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #475569);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.season-filter-btn.active {
+  background: var(--bg-card, #ffffff);
+  color: var(--primary, #2563eb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .season-filter-btn.active {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+}
+
+.season-players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.season-player-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  transition: var(--transition, all 0.2s ease);
+}
+
+[data-theme="dark"] .season-player-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-player-card:hover {
+  border-color: var(--primary-border, #bfdbfe);
+  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.04));
+}
+
+.season-player-card.is-inactive {
+  opacity: 0.6;
+  background: var(--bg-card-hover, #f8fafc);
+}
+
+[data-theme="dark"] .season-player-card.is-inactive {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.season-player-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.season-player-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full, 9999px);
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.05rem;
+  font-family: 'Outfit', sans-serif;
+  flex-shrink: 0;
+}
+
+.season-player-card.is-inactive .season-player-avatar {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+
+.season-player-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary, #0f172a);
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-player-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.season-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--win-color, #059669);
+}
+
+.season-status-dot.inactive {
+  background: #94a3b8;
+}
+
+.season-player-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.season-btn-sm {
+  padding: 5px 10px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid var(--border-card, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-secondary, #475569);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.season-btn-sm:hover {
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+}
+
+.season-btn-deactivate:hover {
+  border-color: rgba(220, 38, 38, 0.4);
+  color: var(--loss-color, #dc2626);
+  background: var(--loss-bg, #fef2f2);
+}
+
+.season-btn-reactivate:hover {
+  border-color: rgba(5, 150, 105, 0.4);
+  color: var(--win-color, #059669);
+  background: var(--win-bg, #ecfdf5);
+}
+
+/* --------------------------------------------------------------------------
+   Season Modal Styles
+   -------------------------------------------------------------------------- */
+.season-modal-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  width: 92%;
+  max-width: 440px;
+  box-shadow: var(--shadow-lg, 0 10px 15px rgba(0, 0, 0, 0.1));
+}
+
+[data-theme="dark"] .season-modal-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+.season-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.season-modal-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-modal-warn {
+  color: var(--loss-color, #dc2626);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 6px;
+  min-height: 18px;
 }
 
 /* --------------------------------------------------------------------------
