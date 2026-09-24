@@ -18,8 +18,8 @@
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css?v=32">
-  <link rel="stylesheet" href="css/season.css?v=32">
+  <link rel="stylesheet" href="css/style.css?v=33">
+  <link rel="stylesheet" href="css/season.css?v=33">
   <style>
     .app-wrapper {
       max-width: 1540px !important;
@@ -486,15 +486,10 @@
           </div>
         </section>
 
-        <!-- PANE 5: MATCH HISTORY PLACEHOLDER -->
+        <!-- PANE 5: MATCH HISTORY (Phase 4) -->
         <section id="seasonPane-history" class="season-pane hidden" style="display:none;" role="tabpanel">
-          <div class="season-placeholder-pane">
-            <div class="season-placeholder-icon">📊</div>
-            <h3 class="season-placeholder-title">Season Match History Ledger</h3>
-            <p class="season-placeholder-desc">
-              Real-time chronological match ledger with search and filters will be activated in <strong>Phase 4</strong>.
-            </p>
-            <span class="season-placeholder-badge">COMING IN PHASE 4</span>
+          <div id="seasonHistoryContainer" class="season-history-container">
+            <!-- Injected dynamically by SeasonApp.renderMatchHistory() -->
           </div>
         </section>
 
@@ -833,13 +828,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
   <!-- Firebase Adapter Configuration (Phase 8) -->
-  <script src="js/firebase-config.js?v=32"></script>
+  <script src="js/firebase-config.js?v=33"></script>
 
   <!-- Application Script (Tournament Mode) -->
-  <script src="js/app.js?v=32"></script>
+  <script src="js/app.js?v=33"></script>
 
-  <!-- Season Mode Engine (Phase 1 Foundation) -->
-  <script src="js/season.js?v=32"></script>
+  <!-- Season Mode Engine (Phase 4 Live Ledger) -->
+  <script src="js/season.js?v=33"></script>
 
   <!-- PHASE 6: STAGE 1 LOCK BLOCKED MODAL (incomplete matches) -->
   <div id="stage1LockBlockedModal" class="modal-overlay" onclick="if(event.target===this) closeLockBlockedModal()">

@@ -921,6 +921,460 @@
 }
 
 /* --------------------------------------------------------------------------
+   Match History Screen & Feed Components (Phase 4)
+   -------------------------------------------------------------------------- */
+.season-history-header-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.season-history-title-area h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 6px 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-history-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.season-count-chip.total-chip {
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+  border-color: var(--border-card, #cbd5e1);
+}
+
+.season-count-chip.doubles-chip {
+  background: var(--primary-light, #eff6ff);
+  color: var(--primary, #2563eb);
+  border-color: var(--primary-border, #bfdbfe);
+}
+
+.season-count-chip.singles-chip {
+  background: rgba(124, 58, 237, 0.08);
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+[data-theme="dark"] .season-count-chip.singles-chip {
+  background: rgba(124, 58, 237, 0.2);
+  color: #c4b5fd;
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+.season-history-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.season-history-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Date Grouping */
+.season-date-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.season-date-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.season-date-group-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle, #e2e8f0);
+}
+
+.season-date-group-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #475569);
+  font-family: 'Outfit', sans-serif;
+  text-transform: uppercase;
+}
+
+.season-date-group-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  background: var(--bg-card-hover, #f1f5f9);
+  padding: 2px 8px;
+  border-radius: var(--radius-full, 9999px);
+}
+
+[data-theme="dark"] .season-date-group-count {
+  background: rgba(30, 41, 59, 0.7);
+}
+
+.season-date-group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+/* Match Card Component */
+.season-match-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-md, 12px);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.season-match-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md, 0 4px 8px rgba(0, 0, 0, 0.08));
+}
+
+[data-theme="dark"] .season-match-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-match-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+
+.season-match-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.season-match-type-pill {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: var(--radius-full, 9999px);
+}
+
+.season-match-type-pill.doubles {
+  background: var(--primary-light, #eff6ff);
+  color: var(--primary, #2563eb);
+}
+
+[data-theme="dark"] .season-match-type-pill.doubles {
+  background: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+}
+
+.season-match-type-pill.singles {
+  background: rgba(124, 58, 237, 0.08);
+  color: #7c3aed;
+}
+
+[data-theme="dark"] .season-match-type-pill.singles {
+  background: rgba(124, 58, 237, 0.25);
+  color: #c4b5fd;
+}
+
+.season-date-pill {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: var(--radius-full, 9999px);
+}
+
+.season-date-pill.today {
+  background: rgba(5, 150, 105, 0.12);
+  color: var(--win-color, #059669);
+}
+
+.season-date-pill.yesterday {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.season-match-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted, #64748b);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.season-played-date {
+  color: var(--text-secondary, #475569);
+}
+
+/* Match Teams & Score Rows */
+.season-match-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.season-match-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.season-match-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+[data-theme="dark"] .season-match-team-row {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.season-match-team-row.is-winner {
+  background: linear-gradient(90deg, rgba(5, 150, 105, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+[data-theme="dark"] .season-match-team-row.is-winner {
+  background: linear-gradient(90deg, rgba(5, 150, 105, 0.2) 0%, rgba(5, 150, 105, 0.05) 100%);
+  border-color: rgba(5, 150, 105, 0.4);
+}
+
+.season-team-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.season-winner-marker {
+  width: 18px;
+  font-size: 0.95rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.season-team-names-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.season-team-display-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.is-winner .season-team-display-name {
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+}
+
+.is-loser .season-team-display-name {
+  color: var(--text-secondary, #475569);
+  font-weight: 500;
+}
+
+.season-winner-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--win-color, #059669);
+  color: #ffffff;
+}
+
+.season-team-score {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  min-width: 34px;
+  text-align: right;
+}
+
+.season-team-score.score-win {
+  color: var(--win-color, #059669);
+}
+
+.season-team-score.score-loss {
+  color: var(--text-muted, #64748b);
+}
+
+/* Match Footer & Metadata Tags */
+.season-match-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle, #e2e8f0);
+}
+
+[data-theme="dark"] .season-match-footer {
+  border-top-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-match-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.season-tag-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  background: var(--bg-card-hover, #f1f5f9);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+[data-theme="dark"] .season-tag-pill {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-match-author {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+  margin-left: auto;
+}
+
+/* Recent Matches Feed on Season Home */
+.season-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.season-recent-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-theme="dark"] .season-recent-item {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.35);
+}
+
+.season-recent-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.season-match-pill-sm {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: var(--radius-full, 9999px);
+}
+
+.season-match-pill-sm.doubles {
+  background: var(--primary-light, #eff6ff);
+  color: var(--primary, #2563eb);
+}
+
+.season-match-pill-sm.singles {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+}
+
+.season-recent-time {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+}
+
+.season-recent-scoreline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.season-recent-team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.season-recent-team.is-winner {
+  font-weight: 800;
+  color: var(--win-color, #059669);
+  background: rgba(5, 150, 105, 0.08);
+}
+
+.season-recent-name {
+  font-size: 0.84rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.season-recent-pts {
+  font-size: 1rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-recent-vs {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-muted, #64748b);
+  padding: 0 2px;
+}
+
+.season-winner-crown {
+  font-size: 0.8rem;
+}
+
+/* --------------------------------------------------------------------------
    Mobile Responsiveness
    -------------------------------------------------------------------------- */
 body.season-active .mobile-bottom-nav {
@@ -947,5 +1401,20 @@ body.season-active .mobile-bottom-nav {
   }
   .season-quick-stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .season-date-group-cards {
+    grid-template-columns: 1fr;
+  }
+  .season-history-toolbar {
+    flex-direction: column;
+  }
+  .season-history-toolbar .season-filter-segmented {
+    width: 100%;
+  }
+  .season-history-toolbar .season-filter-btn {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 0.78rem;
   }
 }

@@ -62,6 +62,8 @@
     matches: {},
     playerSearchQuery: '',
     playerStatusFilter: 'active', // 'active' | 'inactive' | 'all'
+    matchHistoryFilter: 'ALL', // 'ALL' | 'DOUBLES' | 'SINGLES'
+    matchHistorySearch: '',
     matchEntry: {
       matchType: 'DOUBLES', // 'DOUBLES' | 'SINGLES'
       player1: '',
@@ -87,7 +89,8 @@
       weekly: {}
     },
     initialized: false,
-    playersSubscribed: false
+    playersSubscribed: false,
+    matchesSubscribed: false
   };
 
   // 4. Pure Player Normalization & ID Generators
@@ -152,6 +155,9 @@
         }
         if (SeasonState.activeTab === 'record') {
           renderRecordMatch();
+        }
+        if (SeasonState.activeTab === 'history') {
+          renderMatchHistory();
         }
         if (SeasonState.activeTab === 'home') {
           renderSeasonHome();
@@ -577,6 +583,8 @@
       renderRecordMatch();
     } else if (tabName === 'players') {
       renderPlayers();
+    } else if (tabName === 'history') {
+      renderMatchHistory();
     }
   }
 
@@ -597,6 +605,9 @@
 
     const allPlayers = Object.values(SeasonState.players);
     const activePlayers = allPlayers.filter(p => p.active !== false);
+    const allMatches = getSortedMatches('DESC');
+    const doublesMatches = allMatches.filter(m => m.matchType === 'DOUBLES');
+    const singlesMatches = allMatches.filter(m => m.matchType === 'SINGLES');
 
     container.innerHTML = `
       <div class="season-hero-card">
@@ -612,16 +623,16 @@
             <div class="season-stat-lbl">ACTIVE PLAYERS</div>
           </div>
           <div class="season-stat-box">
+            <div class="season-stat-val">${allMatches.length}</div>
+            <div class="season-stat-lbl">MATCHES RECORDED</div>
+          </div>
+          <div class="season-stat-box">
+            <div class="season-stat-val">${doublesMatches.length} / ${singlesMatches.length}</div>
+            <div class="season-stat-lbl">DOUBLES / SINGLES</div>
+          </div>
+          <div class="season-stat-box">
             <div class="season-stat-val">1500</div>
-            <div class="season-stat-lbl">BASE ELO RATING</div>
-          </div>
-          <div class="season-stat-box">
-            <div class="season-stat-val">15</div>
-            <div class="season-stat-lbl">MIN GAMES QUALIFIED</div>
-          </div>
-          <div class="season-stat-box">
-            <div class="season-stat-val">2v2 &amp; 1v1</div>
-            <div class="season-stat-lbl">DOUBLES &amp; SINGLES</div>
+            <div class="season-stat-lbl">BASE ELO (K = 32)</div>
           </div>
         </div>
 
@@ -629,11 +640,14 @@
           <button type="button" class="season-primary-btn" onclick="SeasonApp.switchTab('record')">
             <span>➕</span> <span>Record Match</span>
           </button>
-          <button type="button" class="season-secondary-btn" onclick="SeasonApp.switchTab('leaderboard')">
-            <span>🏆</span> <span>Leaderboard</span>
+          <button type="button" class="season-secondary-btn" onclick="SeasonApp.switchTab('history')">
+            <span>📊</span> <span>Match History (${allMatches.length})</span>
           </button>
           <button type="button" class="season-secondary-btn" onclick="SeasonApp.switchTab('players')">
             <span>👥</span> <span>Players (${activePlayers.length})</span>
+          </button>
+          <button type="button" class="season-secondary-btn" onclick="SeasonApp.switchTab('leaderboard')">
+            <span>🏆</span> <span>Leaderboard</span>
           </button>
         </div>
       </div>
@@ -648,25 +662,20 @@
               Play and record games anytime throughout the 12-week season. Every Doubles and Singles game updates live Elo ratings, partner synergies, and rivalry head-to-head records.
             </p>
             <ul class="season-feature-list">
-              <li><strong>Doubles (2v2) &amp; Singles (1v1):</strong> Record any social or weekly club game with deuce support.</li>
-              <li><strong>Dynamic Elo Ratings:</strong> Independent ratings for Singles and Doubles tracking performance.</li>
+              <li><strong>Doubles (2v2) &amp; Singles (1v1):</strong> Record any social or weekly club game with open deuce scores.</li>
+              <li><strong>Deterministic Ledger:</strong> The Firebase match ledger is the sole source of truth for all historical stats.</li>
               <li><strong>Tournament Seeding Bridge:</strong> Final season Elo seeds Level 1 / Level 2 / Level 3 tiers for the next tournament.</li>
             </ul>
           </div>
         </div>
 
         <div class="season-card">
-          <div class="season-card-header">
-            <h3>⚡ Quick Status &amp; Recent Activity</h3>
+          <div class="season-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>⚡ Recent Matches (${allMatches.length})</h3>
+            ${allMatches.length > 0 ? `<button type="button" class="season-btn-sm" onclick="SeasonApp.switchTab('history')">View All &rarr;</button>` : ''}
           </div>
           <div class="season-card-body" id="seasonRecentFeed">
-            <div class="season-empty-state">
-              <span style="font-size:2rem;">🏸</span>
-              <p style="font-weight:700; margin:6px 0 2px;">Season Ready</p>
-              <p style="font-size:0.8rem; color:var(--text-muted);">
-                ${activePlayers.length} active players registered. Matches recorded in Season Mode will appear here in real-time.
-              </p>
-            </div>
+            ${renderRecentMatchesHtml(allMatches.slice(0, 5))}
           </div>
         </div>
       </div>
@@ -1121,12 +1130,474 @@
     }
   }
 
-  // 15. Initialization
+  // 15. Live Match Ledger & Real-Time Sync Gate (Phase 4)
+  function subscribeToMatches() {
+    if (SeasonState.matchesSubscribed) return;
+
+    if (typeof firebase === 'undefined' || !firebase.database) {
+      console.warn('[SeasonApp] Firebase Database not available for match sync');
+      return;
+    }
+
+    try {
+      const db = firebase.database();
+      const matchesRef = db.ref(getSeasonMatchesPath());
+
+      matchesRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        SeasonState.matches = data;
+        SeasonState.matchesSubscribed = true;
+
+        if (SeasonState.activeTab === 'history') {
+          renderMatchHistory();
+        }
+        if (SeasonState.activeTab === 'home') {
+          renderSeasonHome();
+        }
+      }, (error) => {
+        console.error('[SeasonApp] Real-time matches listener error:', error);
+      });
+    } catch (e) {
+      console.warn('[SeasonApp] Failed to subscribe to Firebase matches:', e);
+    }
+  }
+
+  function getMatches() {
+    return Object.values(SeasonState.matches);
+  }
+
+  function isRenderableMatch(match) {
+    if (!match || typeof match !== 'object') return false;
+    if (!match.id || typeof match.id !== 'string') return false;
+    if (match.matchType !== 'DOUBLES' && match.matchType !== 'SINGLES') return false;
+    if (typeof match.scoreA !== 'number' || typeof match.scoreB !== 'number') return false;
+    return true;
+  }
+
+  function getSortedMatches(direction = 'ASC') {
+    const list = Object.values(SeasonState.matches).filter(isRenderableMatch);
+    const isAsc = direction === 'ASC';
+
+    return list.sort((a, b) => {
+      const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+      const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+
+      if (timeA !== timeB) {
+        return isAsc ? timeA - timeB : timeB - timeA;
+      }
+      const idA = a.id || '';
+      const idB = b.id || '';
+      return isAsc ? idA.localeCompare(idB) : idB.localeCompare(idA);
+    });
+  }
+
+  function getPlayerDisplayName(playerId) {
+    if (!playerId) return 'Unknown Player';
+    const player = SeasonState.players[playerId];
+    if (player && player.name) {
+      return player.name;
+    }
+    return 'Unknown Player';
+  }
+
+  function matchContainsPlayerSearch(match, query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return true;
+
+    const playerIds = [];
+    if (match.matchType === 'SINGLES') {
+      if (match.playerA) playerIds.push(match.playerA);
+      if (match.playerB) playerIds.push(match.playerB);
+    } else {
+      if (match.teamA) {
+        if (match.teamA.player1) playerIds.push(match.teamA.player1);
+        if (match.teamA.player2) playerIds.push(match.teamA.player2);
+      }
+      if (match.teamB) {
+        if (match.teamB.player1) playerIds.push(match.teamB.player1);
+        if (match.teamB.player2) playerIds.push(match.teamB.player2);
+      }
+    }
+
+    for (const pId of playerIds) {
+      if (pId.toLowerCase().includes(q)) return true;
+      const displayName = getPlayerDisplayName(pId);
+      if (displayName.toLowerCase().includes(q)) return true;
+    }
+
+    if (match.court && match.court.toLowerCase().includes(q)) return true;
+    if (match.session && match.session.toLowerCase().includes(q)) return true;
+    if (match.notes && match.notes.toLowerCase().includes(q)) return true;
+    if (match.enteredByName && match.enteredByName.toLowerCase().includes(q)) return true;
+
+    return false;
+  }
+
+  function getFilteredMatches() {
+    const allSorted = getSortedMatches('DESC');
+    const filter = SeasonState.matchHistoryFilter || 'ALL';
+    const query = SeasonState.matchHistorySearch || '';
+
+    return allSorted.filter(m => {
+      if (filter === 'DOUBLES' && m.matchType !== 'DOUBLES') return false;
+      if (filter === 'SINGLES' && m.matchType !== 'SINGLES') return false;
+      return matchContainsPlayerSearch(m, query);
+    });
+  }
+
+  function formatMatchDate(dateStr, createdAt) {
+    if (!dateStr && createdAt) {
+      const d = new Date(createdAt);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      dateStr = `${yyyy}-${mm}-${dd}`;
+    }
+    if (!dateStr) return 'RECENT';
+
+    const todayStr = getTodayDateString();
+    if (dateStr === todayStr) return 'TODAY';
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yYyyy = yesterday.getFullYear();
+    const yMm = String(yesterday.getMonth() + 1).padStart(2, '0');
+    const yDd = String(yesterday.getDate()).padStart(2, '0');
+    const yesterdayStr = `${yYyyy}-${yMm}-${yDd}`;
+    if (dateStr === yesterdayStr) return 'YESTERDAY';
+
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(year, month, day);
+      if (!isNaN(dateObj.getTime())) {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${monthNames[month]} ${day}, ${year}`;
+      }
+    }
+    return dateStr;
+  }
+
+  function formatMatchTime(createdAt) {
+    if (!createdAt || typeof createdAt !== 'number') return '';
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function renderMatchCard(match) {
+    if (!isRenderableMatch(match)) {
+      return `
+        <div class="season-match-card error-card">
+          <div style="padding:12px; font-size:0.85rem; color:#dc2626;">
+            ⚠️ Unable to display malformed match record (ID: ${match && match.id ? match.id : 'unknown'}).
+          </div>
+        </div>
+      `;
+    }
+
+    const isDoubles = match.matchType === 'DOUBLES';
+    const isWinnerA = match.winner === 'A';
+    const isWinnerB = match.winner === 'B';
+
+    let teamAName = '';
+    let teamBName = '';
+
+    if (isDoubles) {
+      const p1 = getPlayerDisplayName(match.teamA ? match.teamA.player1 : '');
+      const p2 = getPlayerDisplayName(match.teamA ? match.teamA.player2 : '');
+      const p3 = getPlayerDisplayName(match.teamB ? match.teamB.player1 : '');
+      const p4 = getPlayerDisplayName(match.teamB ? match.teamB.player2 : '');
+      teamAName = `${p1} + ${p2}`;
+      teamBName = `${p3} + ${p4}`;
+    } else {
+      teamAName = getPlayerDisplayName(match.playerA);
+      teamBName = getPlayerDisplayName(match.playerB);
+    }
+
+    const playedDate = match.matchDate ? match.matchDate : '';
+    const formattedDate = formatMatchDate(match.matchDate, match.createdAt);
+    const timeFormatted = formatMatchTime(match.createdAt);
+    const authorName = match.enteredByName || 'Organizer';
+
+    const metadataPills = [];
+    if (match.court && match.court.trim()) {
+      metadataPills.push(`<span class="season-tag-pill">🏟️ ${match.court.trim()}</span>`);
+    }
+    if (match.session && match.session.trim()) {
+      metadataPills.push(`<span class="season-tag-pill">⏰ ${match.session.trim()}</span>`);
+    }
+    if (match.notes && match.notes.trim()) {
+      metadataPills.push(`<span class="season-tag-pill">📝 ${match.notes.trim()}</span>`);
+    }
+
+    return `
+      <div class="season-match-card ${isDoubles ? 'is-doubles' : 'is-singles'}" data-match-id="${match.id}">
+        <div class="season-match-card-header">
+          <div class="season-match-badges">
+            <span class="season-match-type-pill ${isDoubles ? 'doubles' : 'singles'}">
+              ${isDoubles ? '👥 DOUBLES' : '👤 SINGLES'}
+            </span>
+            ${formattedDate === 'TODAY' || formattedDate === 'YESTERDAY' ? `
+              <span class="season-date-pill ${formattedDate === 'TODAY' ? 'today' : 'yesterday'}">${formattedDate}</span>
+            ` : ''}
+          </div>
+          <div class="season-match-time">
+            ${timeFormatted ? `<span>⏱️ ${timeFormatted}</span>` : ''}
+            ${playedDate ? `<span class="season-played-date" title="Logical Match Date">📅 ${playedDate}</span>` : ''}
+          </div>
+        </div>
+
+        <div class="season-match-body">
+          <div class="season-match-teams">
+            
+            <!-- TEAM A -->
+            <div class="season-match-team-row ${isWinnerA ? 'is-winner' : 'is-loser'}">
+              <div class="season-team-identity">
+                <div class="season-winner-marker" aria-label="${isWinnerA ? 'Winner' : ''}">
+                  ${isWinnerA ? '🏆' : ''}
+                </div>
+                <div class="season-team-names-wrap">
+                  <div class="season-team-display-name">${teamAName}</div>
+                  ${isWinnerA ? '<span class="season-winner-label">WINNER</span>' : ''}
+                </div>
+              </div>
+              <div class="season-team-score ${isWinnerA ? 'score-win' : 'score-loss'}">
+                ${match.scoreA}
+              </div>
+            </div>
+
+            <!-- TEAM B -->
+            <div class="season-match-team-row ${isWinnerB ? 'is-winner' : 'is-loser'}">
+              <div class="season-team-identity">
+                <div class="season-winner-marker" aria-label="${isWinnerB ? 'Winner' : ''}">
+                  ${isWinnerB ? '🏆' : ''}
+                </div>
+                <div class="season-team-names-wrap">
+                  <div class="season-team-display-name">${teamBName}</div>
+                  ${isWinnerB ? '<span class="season-winner-label">WINNER</span>' : ''}
+                </div>
+              </div>
+              <div class="season-team-score ${isWinnerB ? 'score-win' : 'score-loss'}">
+                ${match.scoreB}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="season-match-footer">
+          <div class="season-match-tags">
+            ${metadataPills.join('')}
+          </div>
+          <div class="season-match-author">
+            <span>Entered by ${authorName}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRecentMatchesHtml(matches) {
+    if (!matches || matches.length === 0) {
+      const activePlayers = getActivePlayers();
+      return `
+        <div class="season-empty-state">
+          <span style="font-size:2rem;">🏸</span>
+          <p style="font-weight:700; margin:6px 0 2px;">No matches recorded yet</p>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
+            ${activePlayers.length} active players registered. Once matches are recorded, they will appear here in real-time.
+          </p>
+          <button type="button" class="season-primary-btn" onclick="SeasonApp.switchTab('record')" style="padding:6px 14px; font-size:0.82rem;">
+            ➕ Record First Match
+          </button>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="season-recent-list">
+        ${matches.map(m => {
+          const isDoubles = m.matchType === 'DOUBLES';
+          const isWinnerA = m.winner === 'A';
+          const isWinnerB = m.winner === 'B';
+          
+          let teamAName = '';
+          let teamBName = '';
+          if (isDoubles) {
+            const p1 = getPlayerDisplayName(m.teamA ? m.teamA.player1 : '');
+            const p2 = getPlayerDisplayName(m.teamA ? m.teamA.player2 : '');
+            const p3 = getPlayerDisplayName(m.teamB ? m.teamB.player1 : '');
+            const p4 = getPlayerDisplayName(m.teamB ? m.teamB.player2 : '');
+            teamAName = `${p1} + ${p2}`;
+            teamBName = `${p3} + ${p4}`;
+          } else {
+            teamAName = getPlayerDisplayName(m.playerA);
+            teamBName = getPlayerDisplayName(m.playerB);
+          }
+
+          const dateLabel = formatMatchDate(m.matchDate, m.createdAt);
+          const timeLabel = formatMatchTime(m.createdAt);
+
+          return `
+            <div class="season-recent-item">
+              <div class="season-recent-meta">
+                <span class="season-match-pill-sm ${isDoubles ? 'doubles' : 'singles'}">${isDoubles ? '👥 Doubles' : '👤 Singles'}</span>
+                <span class="season-recent-time">${dateLabel}${timeLabel ? ` • ${timeLabel}` : ''}</span>
+              </div>
+              <div class="season-recent-scoreline">
+                <div class="season-recent-team ${isWinnerA ? 'is-winner' : ''}">
+                  ${isWinnerA ? '<span class="season-winner-crown">🏆</span>' : ''}
+                  <span class="season-recent-name">${teamAName}</span>
+                  <span class="season-recent-pts">${m.scoreA}</span>
+                </div>
+                <div class="season-recent-vs">vs</div>
+                <div class="season-recent-team ${isWinnerB ? 'is-winner' : ''}">
+                  ${isWinnerB ? '<span class="season-winner-crown">🏆</span>' : ''}
+                  <span class="season-recent-name">${teamBName}</span>
+                  <span class="season-recent-pts">${m.scoreB}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <div style="margin-top:14px; text-align:center;">
+        <button type="button" class="season-secondary-btn" onclick="SeasonApp.switchTab('history')" style="width:100%; justify-content:center; padding:8px 14px; font-size:0.85rem;">
+          📊 View All Match History &rarr;
+        </button>
+      </div>
+    `;
+  }
+
+  function renderMatchHistory() {
+    const container = document.getElementById('seasonHistoryContainer');
+    if (!container) return;
+
+    const allMatches = getSortedMatches('DESC');
+    const totalCount = allMatches.length;
+    const doublesCount = allMatches.filter(m => m.matchType === 'DOUBLES').length;
+    const singlesCount = allMatches.filter(m => m.matchType === 'SINGLES').length;
+
+    const filteredMatches = getFilteredMatches();
+    const currentFilter = SeasonState.matchHistoryFilter || 'ALL';
+    const currentSearch = SeasonState.matchHistorySearch || '';
+    const isAuthorized = isUserAuthorized();
+
+    const grouped = {};
+    filteredMatches.forEach(m => {
+      const header = formatMatchDate(m.matchDate, m.createdAt);
+      if (!grouped[header]) {
+        grouped[header] = [];
+      }
+      grouped[header].push(m);
+    });
+
+    let actionBtnHtml = '';
+    if (isAuthorized) {
+      actionBtnHtml = `
+        <button type="button" class="season-primary-btn" onclick="SeasonApp.switchTab('record')">
+          <span>➕</span> <span>Record Match</span>
+        </button>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="season-history-header-wrap">
+        <div class="season-history-title-area">
+          <h2>📊 Season Match History</h2>
+          <div class="season-history-chips">
+            <span class="season-count-chip total-chip">${totalCount} Total</span>
+            <span class="season-count-chip doubles-chip">${doublesCount} Doubles</span>
+            <span class="season-count-chip singles-chip">${singlesCount} Singles</span>
+          </div>
+        </div>
+        <div>
+          ${actionBtnHtml}
+        </div>
+      </div>
+
+      <div class="season-history-toolbar">
+        <div class="season-search-input-wrap">
+          <span class="season-search-icon">🔍</span>
+          <input type="text" id="seasonMatchSearchInput" class="season-search-input" placeholder="Search player, court, notes..." value="${currentSearch}" oninput="SeasonApp.setMatchHistorySearch(this.value)">
+        </div>
+
+        <div class="season-filter-segmented" role="tablist">
+          <button type="button" class="season-filter-btn ${currentFilter === 'ALL' ? 'active' : ''}" onclick="SeasonApp.setMatchHistoryFilter('ALL')">
+            All (${totalCount})
+          </button>
+          <button type="button" class="season-filter-btn ${currentFilter === 'DOUBLES' ? 'active' : ''}" onclick="SeasonApp.setMatchHistoryFilter('DOUBLES')">
+            👥 Doubles (${doublesCount})
+          </button>
+          <button type="button" class="season-filter-btn ${currentFilter === 'SINGLES' ? 'active' : ''}" onclick="SeasonApp.setMatchHistoryFilter('SINGLES')">
+            👤 Singles (${singlesCount})
+          </button>
+        </div>
+      </div>
+
+      <div class="season-history-feed">
+        ${totalCount === 0 ? `
+          <div class="season-empty-state" style="padding:48px 24px;">
+            <span style="font-size:3rem;">🏸</span>
+            <p style="font-size:1.1rem; font-weight:800; margin:12px 0 4px;">No season matches recorded yet</p>
+            <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:18px; max-width:420px; margin-left:auto; margin-right:auto;">
+              Once a game is saved, it will appear here in real-time across all connected devices.
+            </p>
+            ${isAuthorized ? `
+              <button type="button" class="season-primary-btn" onclick="SeasonApp.switchTab('record')">
+                <span>➕</span> <span>Record First Match</span>
+              </button>
+            ` : ''}
+          </div>
+        ` : (filteredMatches.length === 0 ? `
+          <div class="season-empty-state" style="padding:36px 20px;">
+            <span style="font-size:2.5rem;">🔍</span>
+            <p style="font-size:1rem; font-weight:800; margin:8px 0 4px;">No matching matches found</p>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">
+              ${currentSearch ? `No matches found matching "${currentSearch}".` : 'No matches for the selected filter.'}
+            </p>
+            <button type="button" class="season-secondary-btn" onclick="SeasonApp.setMatchHistorySearch(''); SeasonApp.setMatchHistoryFilter('ALL');">
+              Reset Filters
+            </button>
+          </div>
+        ` : Object.keys(grouped).map(dateHeader => `
+          <div class="season-date-group">
+            <div class="season-date-group-header">
+              <span class="season-date-group-line"></span>
+              <span class="season-date-group-title">📅 ${dateHeader}</span>
+              <span class="season-date-group-count">${grouped[dateHeader].length} ${grouped[dateHeader].length === 1 ? 'match' : 'matches'}</span>
+              <span class="season-date-group-line"></span>
+            </div>
+            <div class="season-date-group-cards">
+              ${grouped[dateHeader].map(m => renderMatchCard(m)).join('')}
+            </div>
+          </div>
+        `).join(''))}
+      </div>
+    `;
+  }
+
+  function setMatchHistoryFilter(filter) {
+    const valid = (filter === 'DOUBLES' || filter === 'SINGLES') ? filter : 'ALL';
+    SeasonState.matchHistoryFilter = valid;
+    renderMatchHistory();
+  }
+
+  function setMatchHistorySearch(search) {
+    SeasonState.matchHistorySearch = search || '';
+    renderMatchHistory();
+  }
+
+  // 16. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
 
     subscribeToPlayers();
+    subscribeToMatches();
     switchSeasonTab(SeasonState.activeTab);
   }
 
@@ -1138,6 +1609,9 @@
         }
         if (SeasonState.activeTab === 'record') {
           renderRecordMatch();
+        }
+        if (SeasonState.activeTab === 'history') {
+          renderMatchHistory();
         }
       });
     }
@@ -1197,7 +1671,23 @@
     onMatchPlayerChange,
     onMatchScoreChange,
     toggleOptionalMatchFields,
-    handleMatchFormSubmit
+    handleMatchFormSubmit,
+
+    // Phase 4 Match History & Live Ledger API
+    subscribeToMatches,
+    getMatches,
+    getSortedMatches,
+    getFilteredMatches,
+    getPlayerDisplayName,
+    matchContainsPlayerSearch,
+    isRenderableMatch,
+    renderMatchCard,
+    renderMatchHistory,
+    renderRecentMatches: () => renderRecentMatchesHtml(getSortedMatches('DESC').slice(0, 5)),
+    formatMatchDate,
+    formatMatchTime,
+    setMatchHistoryFilter,
+    setMatchHistorySearch
   };
 
   // Global helper aliases for HTML onclick handlers
