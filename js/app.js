@@ -7271,12 +7271,7 @@ Try asking:<br>
 
     // Check player identity and set initial view mode
     const savedIdentity = getStoredPlayerIdentity();
-    if (savedIdentity) {
-      switchTab('home');
-    } else {
-      switchTab('home');
-      document.getElementById('playerOnboardingModal')?.classList.add('open');
-    }
+    switchTab('home');
   });
 
 })();
