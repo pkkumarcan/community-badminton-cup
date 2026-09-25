@@ -863,27 +863,54 @@
     }
   }
 
-  // 11. Season Tab Navigation
+  // 11. Season Tab Navigation & Mobile Bottom Navigation (Phase B)
   const SEASON_TABS = [
     'home',
     'record',
     'leaderboard',
+    'rankings',
     'players',
     'history',
+    'matches',
     'weekly',
     'admin',
-    'seeding'
+    'seeding',
+    'me'
   ];
 
-  function switchSeasonTab(tabName) {
-    if (!SEASON_TABS.includes(tabName)) tabName = 'home';
-    SeasonState.activeTab = tabName;
+  const TAB_CANONICAL_MAP = {
+    'matches': 'history',
+    'history': 'history',
+    'rankings': 'leaderboard',
+    'leaderboard': 'leaderboard',
+    'players': 'players',
+    'me': 'me',
+    'home': 'home',
+    'record': 'record',
+    'weekly': 'weekly',
+    'admin': 'admin',
+    'seeding': 'seeding'
+  };
 
-    SEASON_TABS.forEach(t => {
+  function switchSeasonTab(tabName) {
+    const rawTab = (tabName || 'home').toString().trim().toLowerCase();
+    const canonical = TAB_CANONICAL_MAP[rawTab] || (SEASON_TABS.includes(rawTab) ? rawTab : 'home');
+    SeasonState.activeTab = canonical;
+
+    // Update URL hash without causing page jump/reload
+    try {
+      if (window.location && window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', '#season/' + canonical);
+      }
+    } catch (e) {}
+
+    // Synchronize Top/Desktop tabs and Legacy Tab Buttons
+    const allKnownButtons = ['home', 'record', 'leaderboard', 'rankings', 'players', 'history', 'matches', 'weekly', 'admin', 'seeding', 'me'];
+    allKnownButtons.forEach(t => {
       const btn = document.getElementById(`seasonTabBtn-${t}`);
-      const pane = document.getElementById(`seasonPane-${t}`);
       if (btn) {
-        if (t === tabName) {
+        const isSelected = (t === canonical) || (TAB_CANONICAL_MAP[t] === canonical);
+        if (isSelected) {
           btn.classList.add('active');
           btn.setAttribute('aria-selected', 'true');
         } else {
@@ -891,33 +918,462 @@
           btn.setAttribute('aria-selected', 'false');
         }
       }
-      if (pane) {
-        if (t === tabName) {
-          pane.classList.remove('hidden');
-          pane.style.display = 'block';
+    });
+
+    // Synchronize Mobile Bottom Nav items (Phase B — 5 Tabs)
+    const bottomNavItems = [
+      { id: 'seasonNav-home', canonical: 'home' },
+      { id: 'seasonNav-matches', canonical: 'history' },
+      { id: 'seasonNav-record', canonical: 'record' },
+      { id: 'seasonNav-rankings', canonical: 'leaderboard' },
+      { id: 'seasonNav-me', canonical: 'me' }
+    ];
+
+    bottomNavItems.forEach(item => {
+      const el = document.getElementById(item.id);
+      if (el) {
+        const isMatch = item.canonical === canonical;
+        if (isMatch) {
+          el.classList.add('active');
+          el.setAttribute('aria-selected', 'true');
+          el.setAttribute('aria-current', 'page');
         } else {
-          pane.classList.add('hidden');
-          pane.style.display = 'none';
+          el.classList.remove('active');
+          el.setAttribute('aria-selected', 'false');
+          el.removeAttribute('aria-current');
         }
       }
     });
 
-    if (tabName === 'home') {
+    // Toggle Panes Visibility
+    const allPanes = ['home', 'record', 'leaderboard', 'players', 'history', 'weekly', 'admin', 'seeding', 'me'];
+    allPanes.forEach(p => {
+      const paneEl = document.getElementById(`seasonPane-${p}`);
+      if (paneEl) {
+        if (p === canonical) {
+          paneEl.classList.remove('hidden');
+          paneEl.style.display = 'block';
+        } else {
+          paneEl.classList.add('hidden');
+          paneEl.style.display = 'none';
+        }
+      }
+    });
+
+    // Render corresponding view
+    if (canonical === 'home') {
       renderSeasonHome();
-    } else if (tabName === 'record') {
+    } else if (canonical === 'record') {
       renderRecordMatch();
-    } else if (tabName === 'players') {
+    } else if (canonical === 'players') {
       renderPlayers();
-    } else if (tabName === 'history') {
+    } else if (canonical === 'history') {
       renderMatchHistory();
-    } else if (tabName === 'leaderboard') {
+    } else if (canonical === 'leaderboard') {
       renderLeaderboard();
-    } else if (tabName === 'weekly') {
+    } else if (canonical === 'me') {
+      renderMeView();
+    } else if (canonical === 'weekly') {
       renderWeeklyInsights();
-    } else if (tabName === 'admin') {
+    } else if (canonical === 'admin') {
       renderSeasonAdmin();
-    } else if (tabName === 'seeding') {
+    } else if (canonical === 'seeding') {
       renderTournamentSeeding();
+    }
+  }
+
+  // Season Header Tools Modal Drawer (Phase B)
+  function openToolsMenu() {
+    const modal = document.getElementById('seasonToolsModal');
+    if (modal) {
+      modal.classList.add('active');
+    }
+  }
+
+  function closeToolsMenu() {
+    const modal = document.getElementById('seasonToolsModal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+  }
+
+  // Me / Personal Player Profile View Logic (Phase B)
+  function selectMyPlayer(playerId) {
+    if (!playerId) return;
+    SeasonState.selectedPlayerId = playerId;
+    SeasonState.currentUserPlayerId = playerId;
+    const player = SeasonState.players[playerId];
+    try {
+      localStorage.setItem('season_player_identity', playerId);
+      if (player && player.name) {
+        localStorage.setItem('badminton_player_identity', player.name);
+      }
+    } catch (e) {}
+    renderMeView();
+  }
+
+  function clearMyPlayer() {
+    SeasonState.currentUserPlayerId = null;
+    try {
+      localStorage.removeItem('season_player_identity');
+    } catch (e) {}
+    renderMeView();
+  }
+
+  function filterMePlayerSelector(query) {
+    const q = (query || '').trim().toLowerCase();
+    const grid = document.getElementById('seasonMePickerGrid');
+    if (!grid) return;
+    const chips = grid.querySelectorAll('.season-me-player-chip');
+    chips.forEach(chip => {
+      const text = chip.textContent.toLowerCase();
+      chip.style.display = text.includes(q) ? 'flex' : 'none';
+    });
+  }
+
+  function renderMeView() {
+    const container = document.getElementById('seasonMeContainer');
+    if (!container) return;
+
+    // Resolve player identity
+    let playerId = SeasonState.currentUserPlayerId || SeasonState.selectedPlayerId;
+    if (!playerId || !SeasonState.players[playerId]) {
+      const stored = localStorage.getItem('season_player_identity') || localStorage.getItem('badminton_player_identity');
+      if (stored) {
+        const pObj = Object.values(SeasonState.players).find(p => p.id === stored || (p.name && p.name.toLowerCase() === stored.toLowerCase()));
+        if (pObj) {
+          playerId = pObj.id;
+          SeasonState.selectedPlayerId = playerId;
+          SeasonState.currentUserPlayerId = playerId;
+        }
+      }
+    }
+
+    if (!playerId || !SeasonState.players[playerId]) {
+      const activePlayers = getActivePlayers();
+      container.innerHTML = `
+        <div class="season-me-selector-card">
+          <div style="font-size:2.4rem; margin-bottom:8px;">👤</div>
+          <h2 style="font-size:1.3rem; font-weight:800; font-family:'Outfit',sans-serif; margin:0 0 6px 0;">Select Your Player Profile</h2>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin:0 0 16px 0; max-width:440px; margin-inline:auto;">
+            Choose your name to view your personal Season dashboard, Elo evolution chart, partner synergy, and match history.
+          </p>
+          <div style="max-width:320px; margin:0 auto 14px;">
+            <input type="text" class="season-search-input" placeholder="Search your name..." oninput="SeasonApp.filterMePlayerSelector(this.value)" id="seasonMeSearchInput">
+          </div>
+          <div class="season-me-picker-grid" id="seasonMePickerGrid">
+            ${activePlayers.map(p => `
+              <button type="button" class="season-me-player-chip" onclick="SeasonApp.selectMyPlayer('${p.id}')">
+                <span style="font-weight:800; background:var(--primary, #2563eb); color:#fff; width:26px; height:26px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem;">${(p.name||'?').charAt(0)}</span>
+                <span>${p.name}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const player = SeasonState.players[playerId];
+    const initial = (player.name || '?').charAt(0).toUpperCase();
+    const isActive = player.active !== false;
+    const profMode = SeasonState.playerProfileMode || 'COMBINED';
+    const pStats = (SeasonState.playerStats && SeasonState.playerStats[playerId]) || createEmptyPlayerStats(player);
+    const modeBucket = pStats[profMode.toLowerCase()] || createEmptyStatBucket();
+    const qualStatus = getQualificationStatus(playerId, profMode);
+
+    const doublesElo = getPlayerElo(playerId, 'DOUBLES');
+    const singlesElo = getPlayerElo(playerId, 'SINGLES');
+    const doublesSummary = getEloSummary(playerId, 'DOUBLES');
+    const singlesSummary = getEloSummary(playerId, 'SINGLES');
+
+    const partners = getPartnerStats(playerId);
+    const rivals = getHeadToHeadStats(playerId, profMode);
+    const recentMatches = getPlayerRecentMatches(playerId, 10);
+
+    let bestPartnerHtml = '';
+    const qualifiedPartners = partners.filter(p => p.gp >= 3);
+    if (qualifiedPartners.length > 0) {
+      const topPartner = [...qualifiedPartners].sort((a, b) => (b.winPct - a.winPct) || (b.gp - a.gp) || (b.pointDiff - a.pointDiff))[0];
+      bestPartnerHtml = `
+        <div class="season-partner-highlight-badge">
+          <span>🤝 <strong>Top Synergy:</strong> ${topPartner.partnerName} (${topPartner.wins}–${topPartner.losses}, ${formatWinPct(topPartner.winPct)})</span>
+        </div>
+      `;
+    }
+
+    let mostPlayedOpponentHtml = '';
+    if (rivals.length > 0) {
+      const topRival = rivals[0];
+      mostPlayedOpponentHtml = `
+        <div class="season-partner-highlight-badge" style="border-color:rgba(124, 58, 237, 0.3); background:rgba(124, 58, 237, 0.08);">
+          <span>⚔️ <strong>Most Played Opponent:</strong> ${topRival.opponentName} (${topRival.gp} matches)</span>
+        </div>
+      `;
+    }
+
+    const doublesHistory = (SeasonState.elo && SeasonState.elo.histories && SeasonState.elo.histories[playerId] && SeasonState.elo.histories[playerId].doubles)
+      ? SeasonState.elo.histories[playerId].doubles
+      : [];
+
+    const singlesHistory = (SeasonState.elo && SeasonState.elo.histories && SeasonState.elo.histories[playerId] && SeasonState.elo.histories[playerId].singles)
+      ? SeasonState.elo.histories[playerId].singles
+      : [];
+
+    container.innerHTML = `
+      <div class="season-profile-wrap">
+        
+        <!-- Me Switch Profile Bar -->
+        <div class="season-me-switch-bar">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.1rem;">👤</span>
+            <span style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">Viewing Profile: <strong>${player.name}</strong></span>
+          </div>
+          <button type="button" class="season-btn-sm" onclick="SeasonApp.clearMyPlayer()" style="padding:4px 10px; font-size:0.75rem;">
+            Switch Player
+          </button>
+        </div>
+
+        <!-- Profile Hero Card -->
+        <div class="season-profile-hero">
+          <div class="season-profile-header-row">
+            <div class="season-profile-identity">
+              <div class="season-profile-avatar">${initial}</div>
+              <div>
+                <h2 class="season-profile-name">${player.name}</h2>
+                <div class="season-profile-badges">
+                  <span class="season-status-pill ${isActive ? 'qualified' : 'provisional'}">
+                    ${isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </span>
+                  <span class="season-status-pill ${qualStatus.qualified ? 'qualified' : 'provisional'}">
+                    ${qualStatus.status} ${qualStatus.qualified ? '' : `(${qualStatus.gamesRemaining} GP to Qualify)`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Elo Overview Badges -->
+            <div class="season-profile-elo-stack">
+              <div class="season-profile-elo-box">
+                <span class="season-profile-elo-lbl">👥 DOUBLES ELO</span>
+                <span class="season-elo-pill doubles" style="font-size:1.1rem; padding:4px 10px;">${formatElo(doublesElo)}</span>
+              </div>
+              <div class="season-profile-elo-box">
+                <span class="season-profile-elo-lbl">👤 SINGLES ELO</span>
+                <span class="season-elo-pill singles" style="font-size:1.1rem; padding:4px 10px;">${formatElo(singlesElo)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode Segmented Switcher -->
+          <div class="season-profile-mode-bar">
+            <div class="season-filter-segmented" role="tablist">
+              <button type="button" class="season-filter-btn ${profMode === 'COMBINED' ? 'active' : ''}" onclick="SeasonApp.setPlayerProfileMode('COMBINED'); SeasonApp.renderMeView();">
+                🌐 Combined
+              </button>
+              <button type="button" class="season-filter-btn ${profMode === 'DOUBLES' ? 'active' : ''}" onclick="SeasonApp.setPlayerProfileMode('DOUBLES'); SeasonApp.renderMeView();">
+                👥 Doubles
+              </button>
+              <button type="button" class="season-filter-btn ${profMode === 'SINGLES' ? 'active' : ''}" onclick="SeasonApp.setPlayerProfileMode('SINGLES'); SeasonApp.renderMeView();">
+                👤 Singles
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Stats Grid for Selected Mode -->
+          <div class="season-profile-stats-grid">
+            <div class="season-stat-box">
+              <div class="season-stat-val">${modeBucket.gp}</div>
+              <div class="season-stat-lbl">GAMES PLAYED</div>
+            </div>
+            <div class="season-stat-box">
+              <div class="season-stat-val" style="color:var(--win-color, #059669);">${modeBucket.wins} – ${modeBucket.losses}</div>
+              <div class="season-stat-lbl">WINS – LOSSES</div>
+            </div>
+            <div class="season-stat-box">
+              <div class="season-stat-val">${formatWinPct(modeBucket.winPct)}</div>
+              <div class="season-stat-lbl">WIN PERCENTAGE</div>
+            </div>
+            <div class="season-stat-box">
+              <div class="season-stat-val" style="color:${modeBucket.pointDiff > 0 ? 'var(--win-color, #059669)' : (modeBucket.pointDiff < 0 ? '#dc2626' : 'inherit')};">${formatPointDiff(modeBucket.pointDiff)}</div>
+              <div class="season-stat-lbl">POINT DIFF (${formatAvgPointDiff(modeBucket.avgPointDiff)}/G)</div>
+            </div>
+          </div>
+
+          <!-- Form & Streaks Bar -->
+          <div class="season-profile-form-bar">
+            <div class="season-profile-form-col">
+              <span class="season-profile-section-lbl">RECENT FORM (LAST 5)</span>
+              <div>${formatForm(modeBucket.last5)}</div>
+            </div>
+            <div class="season-profile-form-col">
+              <span class="season-profile-section-lbl">CURRENT WIN STREAK</span>
+              <span style="font-weight:800; font-family:'Outfit',sans-serif; color:var(--win-color, #059669);">${modeBucket.currentWinStreak}W</span>
+            </div>
+            <div class="season-profile-form-col">
+              <span class="season-profile-section-lbl">BEST WIN STREAK</span>
+              <span style="font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">${modeBucket.bestWinStreak}W</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Elo Progression Chart Section -->
+        <div class="season-card" style="margin-bottom:20px;">
+          <div class="season-card-header">
+            <h3>📈 Elo Evolution &amp; Progression</h3>
+          </div>
+          <div class="season-card-body">
+            ${profMode === 'SINGLES' ? `
+              <div class="season-elo-summary-row">
+                <div class="season-stat-mini"><span>Start:</span> <strong>${formatElo(singlesSummary.start)}</strong></div>
+                <div class="season-stat-mini"><span>Current:</span> <strong>${formatElo(singlesSummary.current)}</strong></div>
+                <div class="season-stat-mini"><span>Peak:</span> <strong>${formatElo(singlesSummary.peak)}</strong></div>
+                <div class="season-stat-mini"><span>Low:</span> <strong>${formatElo(singlesSummary.low)}</strong></div>
+                <div class="season-stat-mini"><span>Net Change:</span> <strong style="color:${singlesSummary.change >= 0 ? 'var(--win-color, #059669)' : '#dc2626'};">${formatEloDelta(singlesSummary.change)}</strong></div>
+                <div class="season-stat-mini"><span>Rated Games:</span> <strong>${singlesSummary.games}</strong></div>
+              </div>
+              <div style="margin-top:16px;">
+                ${renderEloSvgChart(singlesHistory, 'Singles Elo Progression', '#7c3aed')}
+              </div>
+            ` : `
+              <div class="season-elo-summary-row">
+                <div class="season-stat-mini"><span>Start:</span> <strong>${formatElo(doublesSummary.start)}</strong></div>
+                <div class="season-stat-mini"><span>Current:</span> <strong>${formatElo(doublesSummary.current)}</strong></div>
+                <div class="season-stat-mini"><span>Peak:</span> <strong>${formatElo(doublesSummary.peak)}</strong></div>
+                <div class="season-stat-mini"><span>Low:</span> <strong>${formatElo(doublesSummary.low)}</strong></div>
+                <div class="season-stat-mini"><span>Net Change:</span> <strong style="color:${doublesSummary.change >= 0 ? 'var(--win-color, #059669)' : '#dc2626'};">${formatEloDelta(doublesSummary.change)}</strong></div>
+                <div class="season-stat-mini"><span>Rated Games:</span> <strong>${doublesSummary.games}</strong></div>
+              </div>
+              <div style="margin-top:16px;">
+                ${renderEloSvgChart(doublesHistory, 'Doubles Elo Progression', '#2563eb')}
+              </div>
+            `}
+          </div>
+        </div>
+
+        <!-- Partner Synergy & Head-to-Head Section -->
+        <div class="season-analytics-grid">
+          
+          <!-- Partner Synergy Box -->
+          <div class="season-card">
+            <div class="season-card-header">
+              <h3>🤝 Partner Synergy (Doubles)</h3>
+            </div>
+            <div class="season-card-body">
+              ${bestPartnerHtml}
+              ${partners.length === 0 ? `
+                <div class="season-empty-state" style="padding:20px 10px;">
+                  <div class="season-empty-icon">👥</div>
+                  <p>No doubles partner matches recorded yet.</p>
+                </div>
+              ` : `
+                <div class="season-synergy-list">
+                  ${partners.map(p => `
+                    <div class="season-synergy-item">
+                      <div class="season-synergy-partner">
+                        <span class="season-synergy-avatar">${(p.partnerName || '?').charAt(0)}</span>
+                        <div>
+                          <div class="season-synergy-name">${p.partnerName}</div>
+                          <div class="season-synergy-sub">${p.gp} GP • Diff ${formatPointDiff(p.pointDiff)}</div>
+                        </div>
+                      </div>
+                      <div class="season-synergy-stats">
+                        <div class="season-synergy-record">${p.wins}W – ${p.losses}L</div>
+                        <div class="season-synergy-pct ${p.winPct >= 0.5 ? 'win' : 'loss'}">${formatWinPct(p.winPct)}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+          </div>
+
+          <!-- Head-to-Head Box -->
+          <div class="season-card">
+            <div class="season-card-header">
+              <h3>⚔️ Head-to-Head Rivals</h3>
+            </div>
+            <div class="season-card-body">
+              ${mostPlayedOpponentHtml}
+              ${rivals.length === 0 ? `
+                <div class="season-empty-state" style="padding:20px 10px;">
+                  <div class="season-empty-icon">⚔️</div>
+                  <p>No matches against opponents recorded yet.</p>
+                </div>
+              ` : `
+                <div class="season-synergy-list">
+                  ${rivals.map(r => `
+                    <div class="season-synergy-item">
+                      <div class="season-synergy-partner">
+                        <span class="season-synergy-avatar" style="background:#7c3aed;">${(r.opponentName || '?').charAt(0)}</span>
+                        <div>
+                          <div class="season-synergy-name">${r.opponentName}</div>
+                          <div class="season-synergy-sub">${r.gp} Matches Played</div>
+                        </div>
+                      </div>
+                      <div class="season-synergy-stats">
+                        <div class="season-synergy-record">${r.wins}W – ${r.losses}L</div>
+                        <div class="season-synergy-pct ${r.winPct >= 0.5 ? 'win' : 'loss'}">${formatWinPct(r.winPct)}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Recent Matches -->
+        <div class="season-card" style="margin-top:20px;">
+          <div class="season-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>📋 Recent Matches</h3>
+            <button type="button" class="season-btn-sm" onclick="SeasonApp.switchTab('matches')" style="font-weight:700;">
+              Full Match Ledger &rarr;
+            </button>
+          </div>
+          <div class="season-card-body">
+            ${recentMatches.length === 0 ? `
+              <div class="season-empty-state" style="padding:24px 10px;">
+                <p>No matches recorded for this player yet.</p>
+              </div>
+            ` : `
+              <div class="season-history-list">
+                ${recentMatches.map(m => renderMatchCard(m)).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  // Hash Route Restoration Handler (Phase B)
+  function handleRouteFromHash() {
+    const hash = (window.location && window.location.hash) || '';
+    if (hash.startsWith('#season/')) {
+      const tab = hash.replace('#season/', '').trim().toLowerCase();
+      setPortalMode('season', false);
+      switchSeasonTab(tab);
+    } else if (hash === '#season') {
+      setPortalMode('season', false);
+      switchSeasonTab('home');
+    } else if (hash.startsWith('#tournament/') || ['#home', '#mymatches', '#fixtures', '#leaderboard', '#finals', '#scorekeeper', '#rules', '#courts'].includes(hash)) {
+      setPortalMode('tournament', false);
+      const tTab = hash.replace('#tournament/', '').replace('#', '');
+      if (typeof window.switchTab === 'function') {
+        window.switchTab(tTab);
+      }
+    }
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('hashchange', handleRouteFromHash);
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function' && document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', handleRouteFromHash);
+    } else if (typeof setTimeout === 'function') {
+      setTimeout(handleRouteFromHash, 10);
     }
   }
 
@@ -2141,9 +2597,9 @@
   function getQualificationStatus(playerId, mode = 'DOUBLES') {
     const cat = (mode || 'DOUBLES').toLowerCase();
     const validCat = (cat === 'singles' || cat === 'combined') ? cat : 'doubles';
-    const minRequired = SeasonState.config.minGamesQualified || 15;
+    const minRequired = (SeasonState.config && SeasonState.config.minGamesQualified) || 15;
 
-    const pStats = SeasonState.playerStats[playerId];
+    const pStats = (SeasonState.playerStats && SeasonState.playerStats[playerId]) || null;
     const gp = pStats && pStats[validCat] ? pStats[validCat].gp : 0;
     const qualified = gp >= minRequired;
 
@@ -2159,9 +2615,9 @@
   function getTraditionalLeaderboard(mode = 'DOUBLES') {
     const cat = (mode || 'DOUBLES').toLowerCase();
     const validCat = (cat === 'singles' || cat === 'combined') ? cat : 'doubles';
-    const minRequired = SeasonState.config.minGamesQualified || 15;
+    const minRequired = (SeasonState.config && SeasonState.config.minGamesQualified) || 15;
 
-    const entries = Object.values(SeasonState.playerStats).map(p => {
+    const entries = Object.values(SeasonState.playerStats || {}).map(p => {
       const b = p[validCat] || createEmptyStatBucket();
       const isQual = b.gp >= minRequired;
       return {
@@ -5641,7 +6097,7 @@
       };
     });
 
-    const snapshotKey = `seed_${Date.now()}`;
+    const snapshotKey = `seed_${Date.now()}_${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
     const snapshotPayload = {
       snapshotId: snapshotKey,
       seasonId: seasonId,
@@ -7456,7 +7912,16 @@
     scanScoreSheetImage,
     parseScoreSheetText,
     toggleOcrMatchSelected,
-    saveAllOcrMatches
+    saveAllOcrMatches,
+
+    // Phase B Mobile Bottom Navigation & Me View API
+    openToolsMenu,
+    closeToolsMenu,
+    renderMeView,
+    selectMyPlayer,
+    clearMyPlayer,
+    filterMePlayerSelector,
+    handleRouteFromHash
   };
 
   // Global helper aliases for HTML onclick handlers

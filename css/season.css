@@ -78,35 +78,126 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.season-subnav-container {
+/* --------------------------------------------------------------------------
+   Season Header Toolbar & Top Bar (Phase B)
+   -------------------------------------------------------------------------- */
+.season-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0 14px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle, rgba(226, 232, 240, 0.6));
+}
+
+[data-theme="dark"] .season-top-bar {
+  border-bottom-color: rgba(71, 85, 105, 0.35);
+}
+
+.season-top-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.season-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(124, 58, 237, 0.15) 100%);
+  color: var(--primary, #2563eb);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+}
+
+[data-theme="dark"] .season-brand-badge {
+  background: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.season-brand-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+}
+
+.season-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.season-tools-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--border-card, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-secondary, #475569);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+.season-tools-btn:hover {
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+  border-color: var(--primary, #2563eb);
+}
+
+[data-theme="dark"] .season-tools-btn {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.5);
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .season-tools-btn:hover {
+  background: rgba(51, 65, 85, 0.9);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+/* --------------------------------------------------------------------------
+   Desktop vs Mobile Navigation Scaffolding (Phase B)
+   -------------------------------------------------------------------------- */
+.season-desktop-nav {
   display: flex;
   align-items: center;
   gap: 8px;
   overflow-x: auto;
-  padding: 8px 4px 12px;
-  margin-bottom: 16px;
+  padding: 0;
+  margin: 0;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
 }
 
-.season-subnav-container::-webkit-scrollbar {
-  height: 4px;
-}
-.season-subnav-container::-webkit-scrollbar-thumb {
-  background: var(--border-card, #cbd5e1);
-  border-radius: 4px;
+@media (max-width: 767px) {
+  .season-desktop-nav {
+    display: none !important;
+  }
 }
 
 .season-tab-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-radius: var(--radius-md, 10px);
   border: 1px solid var(--border-subtle, #e2e8f0);
   background: var(--bg-card, #ffffff);
   color: var(--text-secondary, #475569);
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: 'Outfit', sans-serif;
   cursor: pointer;
@@ -125,6 +216,398 @@
   color: #ffffff;
   border-color: var(--primary, #2563eb);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+[data-theme="dark"] .season-tab-btn {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .season-tab-btn:hover {
+  background: rgba(51, 65, 85, 0.8);
+  color: #ffffff;
+}
+
+[data-theme="dark"] .season-tab-btn.active {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+   FIXED MOBILE BOTTOM NAVIGATION (Phase B — 5 Tabs)
+   Safe-area supported for iPhone/Android & Non-overlapping layout
+   -------------------------------------------------------------------------- */
+.season-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(62px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+  align-items: center;
+  justify-content: space-around;
+  z-index: 950;
+  user-select: none;
+}
+
+[data-theme="light"] .season-bottom-nav {
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid rgba(203, 213, 225, 0.8);
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 767px) {
+  .season-bottom-nav {
+    display: flex;
+  }
+  
+  .season-main-content {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .season-bottom-nav {
+    display: none !important;
+  }
+}
+
+.season-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 4px 2px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 2px;
+  position: relative;
+}
+
+[data-theme="light"] .season-nav-item {
+  color: #64748b;
+}
+
+.season-nav-item .season-nav-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.season-nav-item .season-nav-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.season-nav-item:active .season-nav-icon {
+  transform: scale(0.88);
+}
+
+.season-nav-item.active {
+  color: #38bdf8;
+}
+
+[data-theme="light"] .season-nav-item.active {
+  color: #2563eb;
+}
+
+.season-nav-item.active .season-nav-icon {
+  transform: scale(1.1);
+  filter: drop-shadow(0 2px 6px rgba(56, 189, 248, 0.45));
+}
+
+.season-nav-item.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  background: #38bdf8;
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 1px 6px rgba(56, 189, 248, 0.6);
+}
+
+[data-theme="light"] .season-nav-item.active::after {
+  background: #2563eb;
+  box-shadow: 0 1px 6px rgba(37, 99, 235, 0.45);
+}
+
+/* Elevated Prominent Center Record Button */
+.season-nav-item.season-nav-record-item {
+  position: relative;
+  overflow: visible;
+}
+
+.season-nav-record-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+  color: #0f172a;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5), 0 0 0 4px rgba(15, 23, 42, 0.95);
+  transform: translateY(-14px);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+[data-theme="light"] .season-nav-record-btn {
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4), 0 0 0 4px #ffffff;
+}
+
+.season-nav-record-btn:active {
+  transform: translateY(-12px) scale(0.92);
+}
+
+.season-nav-item.active .season-nav-record-btn {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.7), 0 0 0 4px rgba(56, 189, 248, 0.5);
+}
+
+.season-nav-record-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.season-nav-record-label {
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   Season Tools Modal Drawer (Phase B)
+   -------------------------------------------------------------------------- */
+.season-tools-card {
+  max-width: 480px;
+  width: 90%;
+  background: var(--bg-card, #ffffff);
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid var(--border-card, #cbd5e1);
+  box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.15));
+  overflow: hidden;
+  animation: seasonModalPop 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .season-tools-card {
+  background: #1e293b;
+  border-color: rgba(71, 85, 105, 0.6);
+}
+
+@keyframes seasonModalPop {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.season-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+[data-theme="dark"] .season-tools-header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-tools-heading {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-primary, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme="dark"] .season-tools-heading {
+  color: #ffffff;
+}
+
+.season-tools-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--text-muted, #94a3b8);
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+.season-tools-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 22px;
+}
+
+.season-tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--bg-card-hover, #f8fafc);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.season-tool-btn:hover {
+  background: var(--primary-light, #eff6ff);
+  border-color: var(--primary, #2563eb);
+  transform: translateX(3px);
+}
+
+[data-theme="dark"] .season-tool-btn {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+[data-theme="dark"] .season-tool-btn:hover {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: #38bdf8;
+}
+
+.season-tool-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.season-tool-title {
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: var(--text-primary, #0f172a);
+  font-family: 'Outfit', sans-serif;
+}
+
+[data-theme="dark"] .season-tool-title {
+  color: #ffffff;
+}
+
+.season-tool-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Me / Personal Player Profile View Styles (Phase B)
+   -------------------------------------------------------------------------- */
+.season-me-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: seasonFadeIn 0.2s ease-in-out;
+}
+
+.season-me-selector-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  text-align: center;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+}
+
+[data-theme="dark"] .season-me-selector-card {
+  background: #1e293b;
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+.season-me-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.season-me-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.season-me-player-chip:hover {
+  background: var(--primary-light, #eff6ff);
+  border-color: var(--primary, #2563eb);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.06));
+}
+
+[data-theme="dark"] .season-me-player-chip {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .season-me-player-chip:hover {
+  background: rgba(37, 99, 235, 0.25);
+  border-color: #38bdf8;
+}
+
+.season-me-switch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card-hover, #f1f5f9);
+  padding: 8px 14px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  margin-bottom: 12px;
+}
+
+[data-theme="dark"] .season-me-switch-bar {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
 }
 
 /* --------------------------------------------------------------------------

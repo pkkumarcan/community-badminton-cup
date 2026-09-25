@@ -425,35 +425,53 @@
     <!-- ================================================================= -->
     <!-- SEASON MODE CONTAINER (Phase 1 Foundation) -->
     <!-- ================================================================= -->
+    <!-- ================================================================= -->
+    <!-- SEASON MODE CONTAINER (Phase 1 Foundation & Phase B Navigation) -->
+    <!-- ================================================================= -->
     <div id="seasonApp" class="season-mode hidden" style="display:none;">
       
-      <!-- Season Navigation Sub-Bar -->
-      <nav class="season-subnav-container" aria-label="Season Views" role="tablist">
-        <button type="button" class="season-tab-btn active" id="seasonTabBtn-home" onclick="SeasonApp.switchTab('home')" role="tab" aria-selected="true">
-          <span>🏠</span> <span>Home</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-record" onclick="SeasonApp.switchTab('record')" role="tab" aria-selected="false">
-          <span>➕</span> <span>Record Match</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-leaderboard" onclick="SeasonApp.switchTab('leaderboard')" role="tab" aria-selected="false">
-          <span>🏆</span> <span>Leaderboard</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-players" onclick="SeasonApp.switchTab('players')" role="tab" aria-selected="false">
-          <span>👤</span> <span>Players</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-history" onclick="SeasonApp.switchTab('history')" role="tab" aria-selected="false">
-          <span>📊</span> <span>Match History</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-weekly" onclick="SeasonApp.switchTab('weekly')" role="tab" aria-selected="false">
-          <span>📈</span> <span>Weekly Insights</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-admin" onclick="SeasonApp.switchTab('admin')" role="tab" aria-selected="false">
-          <span>⚙️</span> <span>Season Admin</span>
-        </button>
-        <button type="button" class="season-tab-btn" id="seasonTabBtn-seeding" onclick="SeasonApp.switchTab('seeding')" role="tab" aria-selected="false">
-          <span>🏸</span> <span>Tournament Seeding</span>
-        </button>
-      </nav>
+      <!-- Season Header Toolbar & Desktop Navigation Bar -->
+      <div class="season-top-bar">
+        <div class="season-top-brand">
+          <span class="season-brand-badge">📅 SEASON LEAGUE</span>
+          <span class="season-brand-sub">Fall 2026 • 12 Weeks</span>
+        </div>
+        
+        <!-- Desktop Primary Tab List -->
+        <nav class="season-subnav-container season-desktop-nav" aria-label="Season Desktop Navigation" role="tablist">
+          <button type="button" class="season-tab-btn active" id="seasonTabBtn-home" onclick="SeasonApp.switchTab('home')" role="tab" aria-selected="true">
+            <span>🏠</span> <span>Home</span>
+          </button>
+          <button type="button" class="season-tab-btn" id="seasonTabBtn-record" onclick="SeasonApp.switchTab('record')" role="tab" aria-selected="false">
+            <span>➕</span> <span>Record Match</span>
+          </button>
+          <button type="button" class="season-tab-btn" id="seasonTabBtn-history" onclick="SeasonApp.switchTab('matches')" role="tab" aria-selected="false">
+            <span>📋</span> <span>Matches</span>
+          </button>
+          <button type="button" class="season-tab-btn" id="seasonTabBtn-leaderboard" onclick="SeasonApp.switchTab('rankings')" role="tab" aria-selected="false">
+            <span>🏆</span> <span>Rankings</span>
+          </button>
+          <button type="button" class="season-tab-btn" id="seasonTabBtn-me" onclick="SeasonApp.switchTab('me')" role="tab" aria-selected="false">
+            <span>👤</span> <span>Me</span>
+          </button>
+        </nav>
+
+        <!-- Season Header Tools Button (Accessible in Header/Settings Area) -->
+        <div class="season-header-tools">
+          <button type="button" class="season-tools-btn" id="seasonToolsBtn" onclick="SeasonApp.openToolsMenu()" aria-label="Season Management &amp; Settings" aria-haspopup="dialog" title="Season Admin, Weekly Insights &amp; Tools">
+            <span class="season-tools-icon">⚙️</span>
+            <span class="season-tools-text">Tools</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Hidden compatibility buttons for legacy suite selectors -->
+      <div style="display:none;" aria-hidden="true">
+        <button type="button" id="seasonTabBtn-players" onclick="SeasonApp.switchTab('players')"></button>
+        <button type="button" id="seasonTabBtn-weekly" onclick="SeasonApp.switchTab('weekly')"></button>
+        <button type="button" id="seasonTabBtn-admin" onclick="SeasonApp.switchTab('admin')"></button>
+        <button type="button" id="seasonTabBtn-seeding" onclick="SeasonApp.switchTab('seeding')"></button>
+      </div>
 
       <!-- Main Season Panes -->
       <main class="season-main-content">
@@ -470,42 +488,49 @@
           </div>
         </section>
 
-        <!-- PANE 3: LEADERBOARD (Phase 5) -->
+        <!-- PANE 3: LEADERBOARD / RANKINGS (Phase 5) -->
         <section id="seasonPane-leaderboard" class="season-pane hidden" style="display:none;" role="tabpanel">
           <div id="seasonLeaderboardContainer" class="season-leaderboard-container">
             <!-- Injected dynamically by SeasonApp.renderLeaderboard() -->
           </div>
         </section>
 
-        <!-- PANE 4: SEASON PLAYERS (Phase 2) -->
-        <section id="seasonPane-players" class="season-pane hidden" style="display:none;" role="tabpanel">
-          <div id="seasonPlayersContainer">
-            <!-- Injected by SeasonApp.renderPlayers() -->
+        <!-- PANE 4: ME / PERSONAL PLAYER PROFILE (Phase B) -->
+        <section id="seasonPane-me" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div id="seasonMeContainer" class="season-me-container">
+            <!-- Injected dynamically by SeasonApp.renderMeView() -->
           </div>
         </section>
 
-        <!-- PANE 5: MATCH HISTORY (Phase 4) -->
+        <!-- PANE 5: MATCH HISTORY / LEDGER (Phase 4) -->
         <section id="seasonPane-history" class="season-pane hidden" style="display:none;" role="tabpanel">
           <div id="seasonHistoryContainer" class="season-history-container">
             <!-- Injected dynamically by SeasonApp.renderMatchHistory() -->
           </div>
         </section>
 
-        <!-- PANE 6: WEEKLY INSIGHTS (Phase 9) -->
+        <!-- PANE 6: SEASON PLAYERS DIRECTORY (Phase 2) -->
+        <section id="seasonPane-players" class="season-pane hidden" style="display:none;" role="tabpanel">
+          <div id="seasonPlayersContainer">
+            <!-- Injected by SeasonApp.renderPlayers() -->
+          </div>
+        </section>
+
+        <!-- PANE 7: WEEKLY INSIGHTS (Phase 9) -->
         <section id="seasonPane-weekly" class="season-pane hidden" style="display:none;" role="tabpanel">
           <div id="seasonWeeklyContainer">
             <!-- Injected dynamically by SeasonApp.renderWeeklyInsights() -->
           </div>
         </section>
 
-        <!-- PANE 7: SEASON ADMIN & AUDIT (Phase 8) -->
+        <!-- PANE 8: SEASON ADMIN & AUDIT (Phase 8) -->
         <section id="seasonPane-admin" class="season-pane hidden" style="display:none;" role="tabpanel">
           <div id="seasonAdminContainer">
             <!-- Injected dynamically by SeasonApp.renderSeasonAdmin() -->
           </div>
         </section>
 
-        <!-- PANE 8: TOURNAMENT SEEDING (Phase 10) -->
+        <!-- PANE 9: TOURNAMENT SEEDING (Phase 10) -->
         <section id="seasonPane-seeding" class="season-pane hidden" style="display:none;" role="tabpanel">
           <div id="seasonSeedingContainer">
             <!-- Injected dynamically by SeasonApp.renderTournamentSeeding() -->
@@ -513,6 +538,74 @@
         </section>
 
       </main>
+
+      <!-- FIXED MOBILE BOTTOM NAVIGATION (Phase B — 5 Tabs) -->
+      <nav class="season-bottom-nav" id="seasonBottomNav" aria-label="Season Mobile Navigation" role="tablist">
+        <button type="button" class="season-nav-item active" id="seasonNav-home" onclick="SeasonApp.switchTab('home')" role="tab" aria-selected="true" aria-label="Season Home">
+          <span class="season-nav-icon">🏠</span>
+          <span class="season-nav-label">Home</span>
+        </button>
+        <button type="button" class="season-nav-item" id="seasonNav-matches" onclick="SeasonApp.switchTab('matches')" role="tab" aria-selected="false" aria-label="Match Ledger">
+          <span class="season-nav-icon">📋</span>
+          <span class="season-nav-label">Matches</span>
+        </button>
+        <button type="button" class="season-nav-item season-nav-record-item" id="seasonNav-record" onclick="SeasonApp.switchTab('record')" role="tab" aria-selected="false" aria-label="Record Match">
+          <div class="season-nav-record-btn">
+            <span class="season-nav-record-icon">➕</span>
+            <span class="season-nav-record-label">Record</span>
+          </div>
+        </button>
+        <button type="button" class="season-nav-item" id="seasonNav-rankings" onclick="SeasonApp.switchTab('rankings')" role="tab" aria-selected="false" aria-label="Rankings &amp; Standings">
+          <span class="season-nav-icon">🏆</span>
+          <span class="season-nav-label">Rankings</span>
+        </button>
+        <button type="button" class="season-nav-item" id="seasonNav-me" onclick="SeasonApp.switchTab('me')" role="tab" aria-selected="false" aria-label="My Player Profile">
+          <span class="season-nav-icon">👤</span>
+          <span class="season-nav-label">Me</span>
+        </button>
+      </nav>
+
+      <!-- SEASON TOOLS & MANAGEMENT MODAL (Header/Settings Menu) -->
+      <div id="seasonToolsModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeToolsMenu()">
+        <div class="modal-card season-tools-card" role="dialog" aria-modal="true" aria-label="Season Management &amp; Settings">
+          <div class="season-tools-header">
+            <h3 class="season-tools-heading">
+              <span>⚙️</span> Season Tools &amp; Settings
+            </h3>
+            <button type="button" class="season-tools-close" onclick="SeasonApp.closeToolsMenu()" aria-label="Close tools menu">&times;</button>
+          </div>
+          <div class="season-tools-grid">
+            <button type="button" class="season-tool-btn" onclick="SeasonApp.switchTab('admin'); SeasonApp.closeToolsMenu();">
+              <span class="season-tool-icon">⚙️</span>
+              <div class="season-tool-text">
+                <div class="season-tool-title">Season Admin &amp; Audit History</div>
+                <div class="season-tool-sub">Audit trail, match score corrections &amp; freeze controls</div>
+              </div>
+            </button>
+            <button type="button" class="season-tool-btn" onclick="SeasonApp.switchTab('weekly'); SeasonApp.closeToolsMenu();">
+              <span class="season-tool-icon">📈</span>
+              <div class="season-tool-text">
+                <div class="season-tool-title">Weekly Insights</div>
+                <div class="season-tool-sub">Week-by-week player form, participation &amp; trends</div>
+              </div>
+            </button>
+            <button type="button" class="season-tool-btn" onclick="SeasonApp.switchTab('seeding'); SeasonApp.closeToolsMenu();">
+              <span class="season-tool-icon">🏸</span>
+              <div class="season-tool-text">
+                <div class="season-tool-title">Tournament Seeding Finalization</div>
+                <div class="season-tool-sub">Propose tiers, view evidence &amp; export snapshots</div>
+              </div>
+            </button>
+            <button type="button" class="season-tool-btn" onclick="SeasonApp.switchTab('players'); SeasonApp.closeToolsMenu();">
+              <span class="season-tool-icon">👥</span>
+              <div class="season-tool-text">
+                <div class="season-tool-title">All Players Directory</div>
+                <div class="season-tool-sub">Search, view and manage all registered season players</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- Season Footer -->
       <footer style="margin-top:30px; text-align:center; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border-subtle); padding-top:16px;">
