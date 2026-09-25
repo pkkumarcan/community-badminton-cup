@@ -282,16 +282,13 @@ async function runAllTests() {
     assert(typeof SeasonApp.renderAuditHistory === 'function', 'renderAuditHistory missing');
   });
 
-  check('isSeasonWritable returns true only when status !== FROZEN and user is authorized organizer', () => {
+  check('isSeasonWritable returns true when status !== FROZEN and false when FROZEN', () => {
     SeasonApp.state.config.status = 'ACTIVE';
     isAuthorizedUser = false;
-    assert.strictEqual(SeasonApp.isSeasonWritable(), false, 'Spectator cannot be writable');
-
-    isAuthorizedUser = true;
-    assert.strictEqual(SeasonApp.isSeasonWritable(), true, 'Authorized user in ACTIVE season is writable');
+    assert.strictEqual(SeasonApp.isSeasonWritable(), true, 'Community user in ACTIVE season is writable');
 
     SeasonApp.state.config.status = 'FROZEN';
-    assert.strictEqual(SeasonApp.isSeasonWritable(), false, 'Authorized user in FROZEN season is NOT writable');
+    assert.strictEqual(SeasonApp.isSeasonWritable(), false, 'User in FROZEN season is NOT writable');
   });
 
   // ----------------------------------------------------------------------------

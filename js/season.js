@@ -152,7 +152,7 @@
 
   function isSeasonWritable() {
     const isFrozen = Boolean(SeasonState.config && SeasonState.config.status === 'FROZEN');
-    return !isFrozen && isUserAuthorized();
+    return !isFrozen;
   }
 
   // 4. Pure Player Normalization & ID Generators
@@ -303,7 +303,7 @@
         playerCount: Object.keys(defaultMap).length,
         playerNames: Object.values(defaultMap).map(p => p.name),
         timestamp: (firebase.database.ServerValue) ? firebase.database.ServerValue.TIMESTAMP : Date.now(),
-        actorUid: (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : 'organizer'
+        actorUid: (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : 'community_user'
       };
       await firebase.database().ref().update(updates);
       console.log('[SeasonApp] Auto-seeded 24 tournament players into Firebase');
@@ -387,13 +387,9 @@
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser && !isUserAuthorized()) {
-      throw new Error('Sign in as an authorized organizer to add players.');
-    }
-
     const playerId = generatePlayerId();
     const auditId = generateAuditId();
-    const actorUid = authUser ? authUser.uid : 'organizer';
+    const actorUid = authUser ? authUser.uid : 'community_user';
     const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
       ? firebase.database.ServerValue.TIMESTAMP
       : Date.now();
@@ -424,10 +420,14 @@
       updates[`${getSeasonPlayersPath()}/${playerId}`] = playerRecord;
       updates[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
       await db.ref().update(updates);
-    } else {
-      SeasonState.players[playerId] = { ...playerRecord, joinedAt: Date.now(), updatedAt: Date.now() };
-      SeasonState.audit[auditId] = auditPayload;
     }
+
+    SeasonState.players[playerId] = { ...playerRecord, joinedAt: Date.now(), updatedAt: Date.now() };
+    SeasonState.audit[auditId] = auditPayload;
+    recalculatePlayerStats();
+    recalculateElo();
+    recalculateAnalytics();
+    recalculateWeeklyAnalytics();
 
     return playerRecord;
   }
@@ -445,11 +445,7 @@
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser && !isUserAuthorized()) {
-      throw new Error('Sign in as an authorized organizer to import tournament roster.');
-    }
-
-    const actorUid = authUser ? authUser.uid : 'organizer';
+    const actorUid = authUser ? authUser.uid : 'community_user';
     const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
       ? firebase.database.ServerValue.TIMESTAMP
       : Date.now();
@@ -542,12 +538,8 @@
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser && !isUserAuthorized()) {
-      throw new Error('Sign in as an authorized organizer to change player status.');
-    }
-
     const currentActive = player.active !== false;
-    const actorUid = authUser ? authUser.uid : 'organizer';
+    const actorUid = authUser ? authUser.uid : 'community_user';
     const auditId = generateAuditId();
     const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
       ? firebase.database.ServerValue.TIMESTAMP
@@ -751,14 +743,10 @@
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser && !isUserAuthorized()) {
-      throw new Error('Sign in as an authorized scorekeeper/organizer to record a match.');
-    }
-
     const matchId = generateMatchId();
     const auditId = generateAuditId();
-    const actorUid = authUser ? authUser.uid : 'organizer';
-    const matchPayload = buildMatchPayload(entry, matchId, authUser || { uid: actorUid, displayName: 'Organizer' });
+    const actorUid = authUser ? authUser.uid : 'community_scorekeeper';
+    const matchPayload = buildMatchPayload(entry, matchId, authUser || { uid: actorUid, displayName: 'Community Scorekeeper' });
 
     const auditPayload = {
       action: 'MATCH_CREATED',
@@ -1110,24 +1098,7 @@
       `;
     }
 
-    let authWarningHtml = '';
-    if (!isAuthorized) {
-      authWarningHtml = `
-        <div class="season-card" style="margin-bottom:16px; border-color:rgba(245, 158, 11, 0.4); background:rgba(254, 243, 199, 0.3);">
-          <div class="season-card-body" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px;">
-            <div style="font-size:0.85rem; color:#92400e; font-weight:700;">
-              🔒 Scorekeeper / Organizer sign in required to record live season matches.
-            </div>
-            <button type="button" class="season-primary-btn" onclick="handleOrganizerAuthClick()" style="padding:6px 14px; font-size:0.8rem;">
-              🔑 Sign In
-            </button>
-          </div>
-        </div>
-      `;
-    }
-
     container.innerHTML = `
-      ${authWarningHtml}
       ${postSaveHtml}
 
       <div class="season-match-form-card">
@@ -1259,15 +1230,6 @@
       return;
     }
 
-    if (!isUserAuthorized()) {
-      if (typeof handleOrganizerAuthClick === 'function') {
-        handleOrganizerAuthClick();
-      } else {
-        if (warn) warn.textContent = '⚠️ Sign in as authorized organizer to save matches.';
-      }
-      return;
-    }
-
     SeasonState.matchEntry.saving = true;
     if (submitBtn) submitBtn.disabled = true;
     if (submitBtnText) submitBtnText.textContent = 'Saving to Cloud Ledger...';
@@ -1326,29 +1288,16 @@
     const isAuthorized = isUserAuthorized();
 
     let addPlayerActionHtml = '';
-    if (isAuthorized) {
-      addPlayerActionHtml = `
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="season-secondary-btn" onclick="SeasonApp.importTournamentRoster()" title="Import all 24 tournament players">
-            <span>⚡</span> <span>Import Tournament Roster (24)</span>
-          </button>
-          <button type="button" class="season-primary-btn" onclick="SeasonApp.openAddPlayerModal()">
-            <span>➕</span> <span>Add Player</span>
-          </button>
-        </div>
-      `;
-    } else {
-      addPlayerActionHtml = `
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="season-secondary-btn" onclick="SeasonApp.importTournamentRoster()" title="Import all 24 tournament players">
-            <span>⚡</span> <span>Import Tournament Roster (24)</span>
-          </button>
-          <button type="button" class="season-secondary-btn" onclick="handleOrganizerAuthClick()" title="Sign in as authorized organizer to add players">
-            <span>🔑</span> <span>Sign In to Add</span>
-          </button>
-        </div>
-      `;
-    }
+    addPlayerActionHtml = `
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="season-secondary-btn" onclick="SeasonApp.importTournamentRoster()" title="Import all 24 tournament players">
+          <span>⚡</span> <span>Import Tournament Roster (24)</span>
+        </button>
+        <button type="button" class="season-primary-btn" onclick="SeasonApp.openAddPlayerModal()">
+          <span>➕</span> <span>Add Player</span>
+        </button>
+      </div>
+    `;
 
     container.innerHTML = `
       <div class="season-roster-header">
@@ -1394,20 +1343,18 @@
           const sElo = (SeasonState.elo && SeasonState.elo.ratings && SeasonState.elo.ratings[p.id]) ? SeasonState.elo.ratings[p.id].singlesElo : 1500;
 
           let actionBtnHtml = '';
-          if (isAuthorized) {
-            if (isActive) {
-              actionBtnHtml = `
-                <button type="button" class="season-btn-sm season-btn-deactivate" onclick="SeasonApp.setPlayerActive('${p.id}', false)" title="Deactivate ${p.name}">
-                  Deactivate
-                </button>
-              `;
-            } else {
-              actionBtnHtml = `
-                <button type="button" class="season-btn-sm season-btn-reactivate" onclick="SeasonApp.setPlayerActive('${p.id}', true)" title="Reactivate ${p.name}">
-                  Reactivate
-                </button>
-              `;
-            }
+          if (isActive) {
+            actionBtnHtml = `
+              <button type="button" class="season-btn-sm season-btn-deactivate" onclick="SeasonApp.setPlayerActive('${p.id}', false)" title="Deactivate ${p.name}">
+                Deactivate
+              </button>
+            `;
+          } else {
+            actionBtnHtml = `
+              <button type="button" class="season-btn-sm season-btn-reactivate" onclick="SeasonApp.setPlayerActive('${p.id}', true)" title="Reactivate ${p.name}">
+                Reactivate
+              </button>
+            `;
           }
 
           return `
@@ -1457,15 +1404,6 @@
   }
 
   function openAddPlayerModal() {
-    if (!isUserAuthorized()) {
-      if (typeof handleOrganizerAuthClick === 'function') {
-        handleOrganizerAuthClick();
-      } else {
-        alert('Please sign in as an authorized organizer to add players.');
-      }
-      return;
-    }
-
     const modal = document.getElementById('seasonAddPlayerModal');
     const input = document.getElementById('seasonPlayerNameInput');
     const warn = document.getElementById('seasonPlayerNameWarn');
