@@ -53,7 +53,7 @@ console.log('--- GROUP 1: Files, Rules & Scaffold ---');
 check('database.rules.json defines granular validation rules for /seasons/$seasonId/matches', () => {
   const matchRule = rulesJson.rules.seasons.$seasonId.matches.$matchId;
   assert(matchRule, '$matchId rule missing in database.rules.json');
-  assert(matchRule['.write'].includes('authorizedUsers'), 'Match write must check authorizedUsers');
+  assert(matchRule['.write'].includes('FROZEN'), 'Match write must enforce season status !== FROZEN check');
   assert(matchRule['.validate'].includes('DOUBLES'), 'Match validate must support DOUBLES');
   assert(matchRule['.validate'].includes('SINGLES'), 'Match validate must support SINGLES');
   assert(matchRule['.validate'].includes('scoreA'), 'Match validate must check scoreA');

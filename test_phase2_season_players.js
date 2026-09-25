@@ -55,7 +55,7 @@ check('database.rules.json defines security rules for /seasons/$seasonId/players
   assert(rulesJson.rules.seasons.$seasonId.players, 'players node missing in seasons rules');
   const playerRule = rulesJson.rules.seasons.$seasonId.players.$playerId;
   assert(playerRule, '$playerId rule missing');
-  assert(playerRule['.write'].includes('authorizedUsers'), 'Player write must check authorizedUsers');
+  assert(playerRule['.write'].includes('FROZEN'), 'Player write must enforce season status !== FROZEN check');
   assert(playerRule['.validate'].includes('newData.hasChildren'), 'Player validate must check required fields');
 });
 

@@ -90,6 +90,7 @@ global.window = {
 // Load code files
 const indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const seasonCss = fs.readFileSync(path.join(__dirname, 'css', 'season.css'), 'utf8');
+const styleCss = fs.readFileSync(path.join(__dirname, 'css', 'style.css'), 'utf8');
 const seasonJs = fs.readFileSync(path.join(__dirname, 'js', 'season.js'), 'utf8');
 const appJs = fs.readFileSync(path.join(__dirname, 'js', 'app.js'), 'utf8');
 
@@ -127,12 +128,12 @@ async function runTests() {
     assert(indexHtml.includes('src="js/app.js'), 'Missing js/app.js script in index.html');
   });
 
-  check('css/season.css contains styling for Fast Entry bar, Voice pulse & OCR items', () => {
-    assert(seasonCss.includes('.season-smart-entry-bar'), 'Missing .season-smart-entry-bar in css');
-    assert(seasonCss.includes('.season-voice-mic-btn'), 'Missing .season-voice-mic-btn in css');
-    assert(seasonCss.includes('@keyframes voice-pulse'), 'Missing @keyframes voice-pulse in css');
-    assert(seasonCss.includes('.season-ocr-upload-zone'), 'Missing .season-ocr-upload-zone in css');
-    assert(seasonCss.includes('.refresh-pill-btn'), 'Missing .refresh-pill-btn in css');
+  check('CSS files contain styling for Fast Entry bar, Voice pulse, OCR & Refresh button', () => {
+    assert(seasonCss.includes('.season-smart-entry-bar'), 'Missing .season-smart-entry-bar in season.css');
+    assert(seasonCss.includes('.season-voice-mic-btn'), 'Missing .season-voice-mic-btn in season.css');
+    assert(seasonCss.includes('@keyframes voice-pulse'), 'Missing @keyframes voice-pulse in season.css');
+    assert(seasonCss.includes('.season-ocr-upload-zone'), 'Missing .season-ocr-upload-zone in season.css');
+    assert(styleCss.includes('.refresh-pill-btn'), 'Missing .refresh-pill-btn in style.css');
   });
 
   // ----------------------------------------------------------------------------
