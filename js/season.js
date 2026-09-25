@@ -374,6 +374,108 @@
     return playerRecord;
   }
 
+  // Tournament Roster Reference (24 Players Strict Alphabetical)
+  const TOURNAMENT_ROSTER_NAMES = Object.freeze([
+    "Ajeet", "Amit", "Deepak", "Hira", "Honey", "Hrithik",
+    "Manoj", "Naresh", "Om", "Pardeep", "Partab", "Raja",
+    "Rajesh M.", "Rajesh N.", "Rakesh", "Ranjeet", "Rohit",
+    "Sanjay", "Sarwan", "Shashi", "Sunny", "Vijay", "Vinod", "Wijai"
+  ]);
+
+  /**
+   * Imports all 24 tournament players into Season Mode, skipping duplicates.
+   */
+  async function importTournamentRoster(names = TOURNAMENT_ROSTER_NAMES) {
+    if (!isSeasonWritable()) {
+      throw new Error('Season is frozen. Player registrations are locked.');
+    }
+
+    let authUser = null;
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      authUser = firebase.auth().currentUser;
+    }
+
+    if (!authUser && !isUserAuthorized()) {
+      throw new Error('Sign in as an authorized organizer to import tournament roster.');
+    }
+
+    const actorUid = authUser ? authUser.uid : 'organizer';
+    const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
+      ? firebase.database.ServerValue.TIMESTAMP
+      : Date.now();
+
+    const existingNorms = new Set(Object.values(SeasonState.players || {}).map(p => p.normalizedName));
+    const toAdd = [];
+
+    (names || []).forEach(name => {
+      const trimmed = (typeof name === 'string') ? name.trim().replace(/\s+/g, ' ') : '';
+      if (!trimmed || trimmed.length < 2) return;
+      const norm = normalizePlayerName(trimmed);
+      if (!existingNorms.has(norm)) {
+        const playerId = generatePlayerId();
+        toAdd.push({
+          id: playerId,
+          name: trimmed,
+          normalizedName: norm,
+          active: true,
+          joinedAt: serverTimestamp,
+          createdByUid: actorUid,
+          updatedAt: serverTimestamp,
+          createdFrom: 'tournament_roster'
+        });
+        existingNorms.add(norm);
+      }
+    });
+
+    if (toAdd.length === 0) {
+      if (typeof showToast === 'function') {
+        showToast('All 24 tournament players are already registered in the season.', 'info');
+      }
+      return { added: 0, skipped: names.length, total: names.length, players: toAdd };
+    }
+
+    if (typeof firebase !== 'undefined' && firebase.database) {
+      const db = firebase.database();
+      const updates = {};
+      const auditId = generateAuditId();
+
+      toAdd.forEach(p => {
+        updates[`${getSeasonPlayersPath()}/${p.id}`] = p;
+      });
+
+      updates[`${getSeasonAuditPath()}/${auditId}`] = {
+        action: 'TOURNAMENT_ROSTER_IMPORTED',
+        targetId: SeasonState.config.seasonId,
+        playerCount: toAdd.length,
+        playerNames: toAdd.map(p => p.name),
+        timestamp: serverTimestamp,
+        actorUid: actorUid
+      };
+
+      await db.ref().update(updates);
+    }
+
+    toAdd.forEach(p => {
+      SeasonState.players[p.id] = { ...p, joinedAt: typeof p.joinedAt === 'number' ? p.joinedAt : Date.now(), updatedAt: Date.now() };
+    });
+    recalculatePlayerStats();
+    recalculateElo();
+    recalculateAnalytics();
+    recalculateWeeklyAnalytics();
+
+    if (typeof showToast === 'function') {
+      showToast(`✓ Imported ${toAdd.length} tournament player(s) into Season Roster!`, 'success');
+    }
+
+    if (SeasonState.activeTab === 'players') {
+      renderPlayers();
+    } else if (SeasonState.activeTab === 'home') {
+      renderSeasonHome();
+    }
+
+    return { added: toAdd.length, skipped: names.length - toAdd.length, total: names.length, players: toAdd };
+  }
+
   // 8. Toggle Active / Inactive Status
   async function setPlayerActive(playerId, active) {
     if (!isSeasonWritable()) {
@@ -1176,15 +1278,25 @@
     let addPlayerActionHtml = '';
     if (isAuthorized) {
       addPlayerActionHtml = `
-        <button type="button" class="season-primary-btn" onclick="SeasonApp.openAddPlayerModal()">
-          <span>➕</span> <span>Add Player</span>
-        </button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="season-secondary-btn" onclick="SeasonApp.importTournamentRoster()" title="Import all 24 tournament players">
+            <span>⚡</span> <span>Import Tournament Roster (24)</span>
+          </button>
+          <button type="button" class="season-primary-btn" onclick="SeasonApp.openAddPlayerModal()">
+            <span>➕</span> <span>Add Player</span>
+          </button>
+        </div>
       `;
     } else {
       addPlayerActionHtml = `
-        <button type="button" class="season-secondary-btn" onclick="handleOrganizerAuthClick()" title="Sign in as authorized organizer to add players">
-          <span>🔑</span> <span>Sign In to Add</span>
-        </button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="season-secondary-btn" onclick="SeasonApp.importTournamentRoster()" title="Import all 24 tournament players">
+            <span>⚡</span> <span>Import Tournament Roster (24)</span>
+          </button>
+          <button type="button" class="season-secondary-btn" onclick="handleOrganizerAuthClick()" title="Sign in as authorized organizer to add players">
+            <span>🔑</span> <span>Sign In to Add</span>
+          </button>
+        </div>
       `;
     }
 
@@ -4360,6 +4472,9 @@
                 <span>🔒</span> <span>Freeze Season</span>
               </button>
             `}
+            <button type="button" class="season-btn-sm" onclick="SeasonApp.importTournamentRoster()" style="padding:8px 12px; font-weight:700;">
+              <span>⚡</span> <span>Import Tournament Roster (24)</span>
+            </button>
             <button type="button" class="season-btn-recalc" onclick="SeasonApp.handleAdminRecalculateClick()">
               <span>♻</span> <span>Recalculate Entire Season</span>
             </button>
@@ -6473,6 +6588,8 @@
     getSeasonComputedPath,
 
     // Phase 2 Player Management API
+    TOURNAMENT_ROSTER_NAMES,
+    importTournamentRoster,
     normalizePlayerName,
     generatePlayerId,
     getPlayers,

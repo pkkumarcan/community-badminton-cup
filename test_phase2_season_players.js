@@ -375,6 +375,36 @@ console.log('\n--- GROUP 3: Player Creation & Schema Integrity ---');
     assert.strictEqual(domElements.seasonAddPlayerSubmitBtn.disabled, false, 'Submit button should be enabled');
   });
 
+  // 7. Tournament Roster Batch Import Tests
+  console.log('\n--- GROUP 7: Tournament Roster Batch Import ---');
+
+  check('TOURNAMENT_ROSTER_NAMES contains exactly 24 official tournament players', () => {
+    const names = window.SeasonApp.TOURNAMENT_ROSTER_NAMES;
+    assert.strictEqual(names.length, 24, 'Must have 24 tournament players');
+    assert(names.includes('Rohit'), 'Must include Rohit');
+    assert(names.includes('Pardeep'), 'Must include Pardeep');
+    assert(names.includes('Ranjeet'), 'Must include Ranjeet');
+    assert(names.includes('Wijai'), 'Must include Wijai');
+    assert(names.includes('Rajesh M.'), 'Must include Rajesh M.');
+    assert(names.includes('Rajesh N.'), 'Must include Rajesh N.');
+  });
+
+  await checkAsync('importTournamentRoster imports all 24 players and skips existing', async () => {
+    // Current players: Ajeet, Wijai, Pardeep (3)
+    const result = await window.SeasonApp.importTournamentRoster();
+    assert.strictEqual(result.added, 21, 'Should add 21 new players');
+    assert.strictEqual(result.skipped, 3, 'Should skip 3 existing players');
+    assert.strictEqual(result.total, 24, 'Total evaluated should be 24');
+
+    const totalPlayers = Object.keys(window.SeasonApp.state.players).length;
+    assert.strictEqual(totalPlayers, 24, 'Season must now have all 24 tournament players');
+
+    // Second import should add 0 and skip all 24
+    const result2 = await window.SeasonApp.importTournamentRoster();
+    assert.strictEqual(result2.added, 0, 'Second import should add 0');
+    assert.strictEqual(result2.skipped, 24, 'Second import should skip all 24');
+  });
+
   console.log('\n============================================================');
   console.log(`PHASE 2 VERIFICATION SUITE: ${passedChecks} / ${totalChecks} passed`);
   console.log('============================================================\n');
