@@ -67,7 +67,7 @@
         auth.onAuthStateChanged(function (user) {
           currentUser = user;
           if (user) {
-            // Check if UID is authorized
+            // Check if UID is authorized as organizer
             rtdb.ref('authorizedUsers/' + user.uid).once('value').then(function (snap) {
               isAuthorized = snap.val() === true;
               notifyAuthListeners();
@@ -77,9 +77,16 @@
             });
           } else {
             isAuthorized = false;
+            // Auto-sign in participants anonymously for zero-friction match recording
+            ensureParticipantAuth().catch(() => {});
             notifyAuthListeners();
           }
         });
+
+        // Trigger initial participant authentication if not signed in
+        if (!auth.currentUser) {
+          ensureParticipantAuth().catch(() => {});
+        }
 
         return true;
       } catch (err) {
@@ -91,6 +98,25 @@
       isInitialized = false;
       return false;
     }
+  }
+
+  async function ensureParticipantAuth() {
+    if (auth) {
+      if (auth.currentUser) {
+        currentUser = auth.currentUser;
+        return currentUser;
+      }
+      try {
+        const cred = await auth.signInAnonymously();
+        currentUser = cred.user;
+        notifyAuthListeners();
+        return cred.user;
+      } catch (err) {
+        console.warn('[FirebaseSync] Participant anonymous auth error (non-fatal):', err);
+        return null;
+      }
+    }
+    return currentUser;
   }
 
   function markInitialSnapshotReceived() {
@@ -113,7 +139,7 @@
     const pill = document.getElementById('connectionStatusPill');
     if (!pill) return;
 
-    pill.className = 'connection-status-pill status-' + connectionState.toLowerCase();
+    pill.className = 'connection-status-pill status-' + connectionState.toLowerCase().replace(/_/g, '-');
     let text = connectionState;
 
     if (connectionState === 'LIVE') {
@@ -124,6 +150,10 @@
       text = '⏳ SAVING...';
     } else if (connectionState === 'OFFLINE') {
       text = '● OFFLINE';
+    } else if (connectionState === 'SIGN_IN_REQUIRED') {
+      text = '● SIGN IN REQUIRED';
+    } else if (connectionState === 'SAVE_FAILED') {
+      text = '⚠ SAVE FAILED';
     }
 
     pill.innerHTML = '<span>' + text + '</span>';
@@ -241,6 +271,7 @@
     getServerTimestamp: getServerTimestamp,
     signInOrganizer: signInOrganizer,
     signOutOrganizer: signOutOrganizer,
+    ensureParticipantAuth: ensureParticipantAuth,
     setTournamentNamespace: setTournamentNamespace,
     getTournamentNamespace: getTournamentNamespace,
     onConnectionChange: (fn) => connectionListeners.push(fn),

@@ -741,6 +741,11 @@
     let authUser = null;
     if (typeof firebase !== 'undefined' && firebase.auth) {
       authUser = firebase.auth().currentUser;
+      if (!authUser && window.TournamentFirebase && typeof window.TournamentFirebase.ensureParticipantAuth === 'function') {
+        try {
+          authUser = await window.TournamentFirebase.ensureParticipantAuth();
+        } catch (e) {}
+      }
     }
 
     const matchId = generateMatchId();
@@ -762,7 +767,18 @@
       const updates = {};
       updates[`${getSeasonMatchesPath()}/${matchId}`] = matchPayload;
       updates[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
-      await db.ref().update(updates);
+      try {
+        await db.ref().update(updates);
+      } catch (err) {
+        console.error('[SeasonApp] Firebase match write error:', err);
+        if (window.TournamentFirebase && typeof window.TournamentFirebase.setConnectionState === 'function') {
+          window.TournamentFirebase.setConnectionState('SAVE_FAILED');
+        }
+        if (err && (err.code === 'PERMISSION_DENIED' || (err.message && err.message.includes('PERMISSION_DENIED')))) {
+          throw new Error('Permission denied: Unable to save match. Please verify your connection.');
+        }
+        throw new Error('Unable to save match to cloud ledger. Please check your network connection.');
+      }
     } else {
       // In-memory fallback (sandbox / test environment)
       SeasonState.matches[matchId] = { ...matchPayload, createdAt: Date.now(), updatedAt: Date.now() };
