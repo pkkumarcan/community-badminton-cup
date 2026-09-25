@@ -80,6 +80,22 @@
       partnerships: {},
       headToHead: {}
     },
+    weeklyAnalytics: {
+      weeks: {},
+      seasonSummary: {
+        totalWeeks: 12,
+        totalMatches: 0,
+        doublesMatches: 0,
+        singlesMatches: 0,
+        totalPlayers: 0,
+        avgMatchesPerWeek: 0,
+        busiestWeek: null,
+        highestParticipationWeek: null,
+        weeklyTrends: []
+      }
+    },
+    selectedWeek: 1,
+    weeklyMode: 'COMBINED', // 'COMBINED' | 'DOUBLES' | 'SINGLES'
     matchEntry: {
       matchType: 'DOUBLES', // 'DOUBLES' | 'SINGLES'
       player1: '',
@@ -731,6 +747,12 @@
       renderPlayers();
     } else if (tabName === 'history') {
       renderMatchHistory();
+    } else if (tabName === 'leaderboard') {
+      renderLeaderboard();
+    } else if (tabName === 'weekly') {
+      renderWeeklyInsights();
+    } else if (tabName === 'admin') {
+      renderSeasonAdmin();
     }
   }
 
@@ -4358,7 +4380,798 @@
     `;
   }
 
-  // 21. Initialization
+  // 21. Weekly Analytics & Seasonal Insights Engine (Phase 9)
+  function generateSeasonWeeks(config = SeasonState.config) {
+    const startStr = (config && config.startDate) || '2026-09-27';
+    const totalWeeks = (config && typeof config.totalWeeks === 'number') ? config.totalWeeks : 12;
+
+    const [sYear, sMonth, sDay] = startStr.split('-').map(Number);
+    const startDate = new Date(Date.UTC(sYear, sMonth - 1, sDay));
+
+    const weeks = [];
+    for (let w = 1; w <= totalWeeks; w++) {
+      const wStart = new Date(startDate.getTime() + (w - 1) * 7 * 86400000);
+      const wEnd = new Date(wStart.getTime() + 6 * 86400000);
+
+      const fmtDate = (d) => {
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const startFormatted = fmtDate(wStart);
+      const endFormatted = fmtDate(wEnd);
+
+      weeks.push({
+        weekNumber: w,
+        startDate: startFormatted,
+        endDate: endFormatted,
+        label: `Week ${w}`
+      });
+    }
+    return weeks;
+  }
+
+  function getSeasonWeekForDate(dateStr, config = SeasonState.config) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const matchD = dateStr.trim();
+    const weeks = generateSeasonWeeks(config);
+    for (let i = 0; i < weeks.length; i++) {
+      const w = weeks[i];
+      if (matchD >= w.startDate && matchD <= w.endDate) {
+        return w;
+      }
+    }
+    return null; // Out of season
+  }
+
+  function getCurrentSeasonWeekNumber(config = SeasonState.config) {
+    const todayStr = getTodayDateString();
+    const currentWeek = getSeasonWeekForDate(todayStr, config);
+    if (currentWeek) return currentWeek.weekNumber;
+    const startStr = (config && config.startDate) || '2026-09-27';
+    if (todayStr < startStr) return 1;
+    return (config && config.totalWeeks) || 12;
+  }
+
+  function calculateWeeklyAnalytics(playersMap = {}, matchesMap = {}, config = SeasonState.config, eloState = SeasonState.elo) {
+    const weeksList = generateSeasonWeeks(config);
+    const minWeeklyGamesHighlight = 3;
+    const weeks = {};
+
+    // 1. Initialize week containers
+    weeksList.forEach(w => {
+      const pActivity = {};
+      const pResults = {};
+      const eloMov = {};
+      const streaks = {};
+
+      Object.values(playersMap || {}).forEach(p => {
+        if (p && p.id) {
+          pActivity[p.id] = {
+            playerId: p.id,
+            name: p.name || 'Unknown Player',
+            active: p.active !== false,
+            gp: 0,
+            doublesGp: 0,
+            singlesGp: 0
+          };
+          pResults[p.id] = {
+            combined: createEmptyStatBucket(),
+            doubles: createEmptyStatBucket(),
+            singles: createEmptyStatBucket()
+          };
+          eloMov[p.id] = {
+            playerId: p.id,
+            name: p.name || 'Unknown Player',
+            active: p.active !== false,
+            doublesDelta: 0,
+            singlesDelta: 0,
+            doublesMatches: 0,
+            singlesMatches: 0
+          };
+          streaks[p.id] = {
+            current: 0,
+            max: 0
+          };
+        }
+      });
+
+      weeks[w.weekNumber] = {
+        weekNumber: w.weekNumber,
+        startDate: w.startDate,
+        endDate: w.endDate,
+        label: w.label,
+        totalMatches: 0,
+        doublesMatches: 0,
+        singlesMatches: 0,
+        uniquePlayers: 0,
+        participantIds: new Set(),
+        playerActivity: pActivity,
+        playerResults: pResults,
+        eloMovement: eloMov,
+        streaks: streaks,
+        highlights: {
+          mostActive: null,
+          topWinPct: null,
+          biggestDoublesRiser: null,
+          biggestSinglesRiser: null,
+          biggestDoublesFaller: null,
+          biggestSinglesFaller: null,
+          longestWinStreak: null
+        }
+      };
+    });
+
+    // 2. Sort matches chronologically (createdAt ASC, id ASC)
+    const validMatches = Object.values(matchesMap || {}).filter(m => isRenderableMatch(m));
+    validMatches.sort((a, b) => {
+      const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+      const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+
+    // 3. Replay matches into corresponding weekly buckets
+    validMatches.forEach(m => {
+      const matchWeek = getSeasonWeekForDate(m.matchDate, config);
+      if (!matchWeek) return; // Skip out-of-season matches
+
+      const bucket = weeks[matchWeek.weekNumber];
+      if (!bucket) return;
+
+      const sA = m.scoreA;
+      const sB = m.scoreB;
+      const isWinnerA = m.winner === 'A';
+      const mDeltas = (eloState && eloState.matchDeltas && eloState.matchDeltas[m.id]) ? eloState.matchDeltas[m.id].deltas : null;
+
+      bucket.totalMatches++;
+
+      function recordPlayerMatch(pId, isWin, pf, pa, isDoubles) {
+        if (!pId) return;
+        if (!bucket.playerActivity[pId]) {
+          const pRec = playersMap[pId] || { id: pId, name: 'Unknown Player', active: true };
+          bucket.playerActivity[pId] = { playerId: pId, name: pRec.name || 'Unknown Player', active: pRec.active !== false, gp: 0, doublesGp: 0, singlesGp: 0 };
+          bucket.playerResults[pId] = { combined: createEmptyStatBucket(), doubles: createEmptyStatBucket(), singles: createEmptyStatBucket() };
+          bucket.eloMovement[pId] = { playerId: pId, name: pRec.name || 'Unknown Player', active: pRec.active !== false, doublesDelta: 0, singlesDelta: 0, doublesMatches: 0, singlesMatches: 0 };
+          bucket.streaks[pId] = { current: 0, max: 0 };
+        }
+
+        bucket.participantIds.add(pId);
+        const act = bucket.playerActivity[pId];
+        const res = bucket.playerResults[pId];
+        const stk = bucket.streaks[pId];
+
+        act.gp++;
+        if (isDoubles) act.doublesGp++; else act.singlesGp++;
+
+        function updateBucketStats(b) {
+          b.gp++;
+          if (isWin) {
+            b.wins++;
+          } else {
+            b.losses++;
+          }
+          b.pf += pf;
+          b.pa += pa;
+          b.pointDiff = b.pf - b.pa;
+          b.winPct = b.gp > 0 ? (b.wins / b.gp) * 100 : 0;
+          b.avgPointDiff = b.gp > 0 ? b.pointDiff / b.gp : 0;
+        }
+
+        updateBucketStats(res.combined);
+        if (isDoubles) {
+          updateBucketStats(res.doubles);
+        } else {
+          updateBucketStats(res.singles);
+        }
+
+        // Streak
+        if (isWin) {
+          stk.current++;
+          if (stk.current > stk.max) stk.max = stk.current;
+        } else {
+          stk.current = 0;
+        }
+
+        // Elo Delta
+        if (mDeltas && typeof mDeltas[pId] === 'number') {
+          const delta = mDeltas[pId];
+          if (isDoubles) {
+            bucket.eloMovement[pId].doublesDelta += delta;
+            bucket.eloMovement[pId].doublesMatches++;
+          } else {
+            bucket.eloMovement[pId].singlesDelta += delta;
+            bucket.eloMovement[pId].singlesMatches++;
+          }
+        }
+      }
+
+      if (m.matchType === 'DOUBLES') {
+        bucket.doublesMatches++;
+        const p1 = m.teamA ? m.teamA.player1 : null;
+        const p2 = m.teamA ? m.teamA.player2 : null;
+        const p3 = m.teamB ? m.teamB.player1 : null;
+        const p4 = m.teamB ? m.teamB.player2 : null;
+
+        recordPlayerMatch(p1, isWinnerA, sA, sB, true);
+        recordPlayerMatch(p2, isWinnerA, sA, sB, true);
+        recordPlayerMatch(p3, !isWinnerA, sB, sA, true);
+        recordPlayerMatch(p4, !isWinnerA, sB, sA, true);
+      } else if (m.matchType === 'SINGLES') {
+        bucket.singlesMatches++;
+        const pA = m.playerA;
+        const pB = m.playerB;
+
+        recordPlayerMatch(pA, isWinnerA, sA, sB, false);
+        recordPlayerMatch(pB, !isWinnerA, sB, sA, false);
+      }
+    });
+
+    // 4. Finalize weekly metrics & calculate highlights
+    Object.values(weeks).forEach(bucket => {
+      bucket.uniquePlayers = bucket.participantIds.size;
+
+      const pList = Object.values(bucket.playerActivity).filter(p => p.gp > 0);
+
+      if (pList.length > 0) {
+        // Most Active
+        const mostActiveSorted = [...pList].sort((a, b) => {
+          if (a.gp !== b.gp) return b.gp - a.gp;
+          return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+        });
+        const topAct = mostActiveSorted[0];
+        if (topAct && topAct.gp > 0) {
+          bucket.highlights.mostActive = {
+            playerId: topAct.playerId,
+            name: topAct.name,
+            gp: topAct.gp,
+            doublesGp: topAct.doublesGp,
+            singlesGp: topAct.singlesGp
+          };
+        }
+
+        // Top Win % (min 3 games, strictly null if no player meets 3 GP)
+        const eligibleWinPct = pList.filter(p => p.gp >= minWeeklyGamesHighlight);
+        if (eligibleWinPct.length > 0) {
+          const winPctSorted = [...eligibleWinPct].sort((a, b) => {
+            const resA = bucket.playerResults[a.playerId].combined;
+            const resB = bucket.playerResults[b.playerId].combined;
+            if (Math.abs(resA.winPct - resB.winPct) > 0.0001) return resB.winPct - resA.winPct;
+            if (resA.gp !== resB.gp) return resB.gp - resA.gp;
+            if (resA.pointDiff !== resB.pointDiff) return resB.pointDiff - resA.pointDiff;
+            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+          });
+          const topWin = winPctSorted[0];
+          if (topWin) {
+            const res = bucket.playerResults[topWin.playerId].combined;
+            bucket.highlights.topWinPct = {
+              playerId: topWin.playerId,
+              name: topWin.name,
+              gp: res.gp,
+              wins: res.wins,
+              losses: res.losses,
+              winPct: Number(res.winPct.toFixed(1)),
+              pointDiff: res.pointDiff
+            };
+          }
+        }
+
+        // Biggest Doubles Riser / Faller
+        const doublesEloActive = Object.values(bucket.eloMovement).filter(e => e.doublesMatches > 0);
+        if (doublesEloActive.length > 0) {
+          const risers = [...doublesEloActive].filter(e => e.doublesDelta > 0).sort((a, b) => {
+            if (Math.abs(a.doublesDelta - b.doublesDelta) > 0.0001) return b.doublesDelta - a.doublesDelta;
+            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+          });
+          if (risers.length > 0) {
+            bucket.highlights.biggestDoublesRiser = {
+              playerId: risers[0].playerId,
+              name: risers[0].name,
+              delta: risers[0].doublesDelta,
+              matches: risers[0].doublesMatches
+            };
+          }
+          const fallers = [...doublesEloActive].filter(e => e.doublesDelta < 0).sort((a, b) => {
+            if (Math.abs(a.doublesDelta - b.doublesDelta) > 0.0001) return a.doublesDelta - b.doublesDelta;
+            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+          });
+          if (fallers.length > 0) {
+            bucket.highlights.biggestDoublesFaller = {
+              playerId: fallers[0].playerId,
+              name: fallers[0].name,
+              delta: fallers[0].doublesDelta,
+              matches: fallers[0].doublesMatches
+            };
+          }
+        }
+
+        // Biggest Singles Riser / Faller
+        const singlesEloActive = Object.values(bucket.eloMovement).filter(e => e.singlesMatches > 0);
+        if (singlesEloActive.length > 0) {
+          const risers = [...singlesEloActive].filter(e => e.singlesDelta > 0).sort((a, b) => {
+            if (Math.abs(a.singlesDelta - b.singlesDelta) > 0.0001) return b.singlesDelta - a.singlesDelta;
+            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+          });
+          if (risers.length > 0) {
+            bucket.highlights.biggestSinglesRiser = {
+              playerId: risers[0].playerId,
+              name: risers[0].name,
+              delta: risers[0].singlesDelta,
+              matches: risers[0].singlesMatches
+            };
+          }
+          const fallers = [...singlesEloActive].filter(e => e.singlesDelta < 0).sort((a, b) => {
+            if (Math.abs(a.singlesDelta - b.singlesDelta) > 0.0001) return a.singlesDelta - b.singlesDelta;
+            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+          });
+          if (fallers.length > 0) {
+            bucket.highlights.biggestSinglesFaller = {
+              playerId: fallers[0].playerId,
+              name: fallers[0].name,
+              delta: fallers[0].singlesDelta,
+              matches: fallers[0].singlesMatches
+            };
+          }
+        }
+
+        // Longest Win Streak
+        const streakCandidates = Object.entries(bucket.streaks).filter(([_, s]) => s.max > 0);
+        if (streakCandidates.length > 0) {
+          streakCandidates.sort(([pAId, sA], [pBId, sB]) => {
+            if (sA.max !== sB.max) return sB.max - sA.max;
+            const nameA = playersMap[pAId] ? playersMap[pAId].name : '';
+            const nameB = playersMap[pBId] ? playersMap[pBId].name : '';
+            return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+          });
+          const [topStkId, topStk] = streakCandidates[0];
+          const pRec = playersMap[topStkId] || { name: 'Unknown' };
+          bucket.highlights.longestWinStreak = {
+            playerId: topStkId,
+            name: pRec.name || 'Unknown',
+            streak: topStk.max
+          };
+        }
+      }
+    });
+
+    // 5. Build Season-Level Summary & Trends
+    const totalWeeks = weeksList.length;
+    let totalInSeasonMatches = 0;
+    let totalDoubles = 0;
+    let totalSingles = 0;
+    let maxMatchWeek = null;
+    let maxMatchesCount = -1;
+    let maxPartWeek = null;
+    let maxPartCount = -1;
+
+    const weeklyTrends = weeksList.map(w => {
+      const b = weeks[w.weekNumber];
+      totalInSeasonMatches += b.totalMatches;
+      totalDoubles += b.doublesMatches;
+      totalSingles += b.singlesMatches;
+
+      if (b.totalMatches > maxMatchesCount) {
+        maxMatchesCount = b.totalMatches;
+        maxMatchWeek = b.totalMatches > 0 ? w.weekNumber : null;
+      }
+      if (b.uniquePlayers > maxPartCount) {
+        maxPartCount = b.uniquePlayers;
+        maxPartWeek = b.uniquePlayers > 0 ? w.weekNumber : null;
+      }
+
+      return {
+        weekNumber: w.weekNumber,
+        label: w.label,
+        startDate: w.startDate,
+        endDate: w.endDate,
+        totalMatches: b.totalMatches,
+        doublesMatches: b.doublesMatches,
+        singlesMatches: b.singlesMatches,
+        uniquePlayers: b.uniquePlayers
+      };
+    });
+
+    const seasonSummary = {
+      totalWeeks: totalWeeks,
+      totalMatches: totalInSeasonMatches,
+      doublesMatches: totalDoubles,
+      singlesMatches: totalSingles,
+      totalPlayers: Object.keys(playersMap || {}).length,
+      avgMatchesPerWeek: totalWeeks > 0 ? Number((totalInSeasonMatches / totalWeeks).toFixed(1)) : 0,
+      busiestWeek: maxMatchWeek !== null ? { weekNumber: maxMatchWeek, matchCount: maxMatchesCount } : null,
+      highestParticipationWeek: maxPartWeek !== null ? { weekNumber: maxPartWeek, playerCount: maxPartCount } : null,
+      weeklyTrends: weeklyTrends,
+      activeWeeksCount: weeklyTrends.filter(t => t.totalMatches > 0).length
+    };
+
+    return {
+      weeks,
+      seasonSummary,
+      trends: weeklyTrends
+    };
+  }
+
+  function recalculateWeeklyAnalytics() {
+    const calculated = calculateWeeklyAnalytics(SeasonState.players, SeasonState.matches, SeasonState.config, SeasonState.elo);
+    SeasonState.weeklyAnalytics = calculated;
+
+    if (SeasonState.activeTab === 'weekly') {
+      renderWeeklyInsights();
+    }
+  }
+
+  function getWeeklyPlayerStats(weekNumber = SeasonState.selectedWeek || 1, mode = SeasonState.weeklyMode || 'COMBINED') {
+    if (!SeasonState.weeklyAnalytics || !SeasonState.weeklyAnalytics.weeks) return [];
+    const bucket = SeasonState.weeklyAnalytics.weeks[weekNumber];
+    if (!bucket) return [];
+
+    const cat = (mode || 'COMBINED').toLowerCase();
+    const validCat = (cat === 'doubles' || cat === 'singles') ? cat : 'combined';
+
+    const allPlayers = Object.values(SeasonState.players || {});
+    const list = allPlayers.map(p => {
+      const pId = p.id;
+      const act = (bucket.playerActivity && bucket.playerActivity[pId]) || { gp: 0, doublesGp: 0, singlesGp: 0 };
+      const res = (bucket.playerResults && bucket.playerResults[pId]) ? bucket.playerResults[pId][validCat] : createEmptyStatBucket();
+      const eloMov = (bucket.eloMovement && bucket.eloMovement[pId]) || { doublesDelta: 0, singlesDelta: 0 };
+
+      const gp = (validCat === 'doubles') ? act.doublesGp : (validCat === 'singles' ? act.singlesGp : act.gp);
+
+      return {
+        playerId: pId,
+        name: p.name || 'Unknown Player',
+        active: p.active !== false,
+        gp: gp,
+        wins: res.wins,
+        losses: res.losses,
+        winPct: res.winPct,
+        pf: res.pf,
+        pa: res.pa,
+        pointDiff: res.pointDiff,
+        doublesEloDelta: eloMov.doublesDelta,
+        singlesEloDelta: eloMov.singlesDelta
+      };
+    }).filter(p => p.gp > 0);
+
+    list.sort((a, b) => {
+      if (a.gp !== b.gp) return b.gp - a.gp;
+      if (Math.abs(a.winPct - b.winPct) > 0.0001) return b.winPct - a.winPct;
+      if (a.pointDiff !== b.pointDiff) return b.pointDiff - a.pointDiff;
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    });
+
+    return list;
+  }
+
+  function setSelectedWeek(weekNumber) {
+    const num = parseInt(weekNumber, 10);
+    if (!isNaN(num) && num >= 1 && num <= 12) {
+      SeasonState.selectedWeek = num;
+      renderWeeklyInsights();
+    }
+  }
+
+  function setWeeklyMode(mode) {
+    const m = (mode || '').toUpperCase();
+    const valid = (m === 'SINGLES' || m === 'DOUBLES') ? m : 'COMBINED';
+    SeasonState.weeklyMode = valid;
+    renderWeeklyInsights();
+  }
+
+  function renderWeeklyTrendSvg(trendDataOrSummary, selectedWeek) {
+    let trends = [];
+    if (Array.isArray(trendDataOrSummary)) {
+      trends = trendDataOrSummary;
+    } else if (trendDataOrSummary && Array.isArray(trendDataOrSummary.weeklyTrends)) {
+      trends = trendDataOrSummary.weeklyTrends;
+    } else if (SeasonState.weeklyAnalytics && Array.isArray(SeasonState.weeklyAnalytics.trends)) {
+      trends = SeasonState.weeklyAnalytics.trends;
+    }
+    if (!trends || trends.length === 0) return '';
+    const sel = typeof selectedWeek === 'number' ? selectedWeek : (SeasonState.selectedWeek || 1);
+
+    const width = 640;
+    const height = 180;
+    const padLeft = 40;
+    const padRight = 20;
+    const padTop = 20;
+    const padBottom = 30;
+
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
+
+    const maxMatches = Math.max(10, ...trends.map(t => t.totalMatches));
+    const colWidth = chartW / trends.length;
+    const barWidth = Math.max(8, colWidth * 0.55);
+
+    let barsHtml = '';
+    let labelsHtml = '';
+
+    trends.forEach((t, idx) => {
+      const xCenter = padLeft + idx * colWidth + colWidth / 2;
+      const xBar = xCenter - barWidth / 2;
+      const isSel = t.weekNumber === selectedWeek;
+
+      const totalH = (t.totalMatches / maxMatches) * chartH;
+      const doublesH = (t.doublesMatches / maxMatches) * chartH;
+      const singlesH = totalH - doublesH;
+
+      const yTotal = padTop + chartH - totalH;
+      const yDoubles = padTop + chartH - doublesH;
+
+      const barFill = isSel ? 'var(--primary, #2563eb)' : 'rgba(37, 99, 235, 0.45)';
+      const singlesFill = isSel ? '#7c3aed' : 'rgba(124, 58, 237, 0.45)';
+
+      barsHtml += `
+        <g class="trend-col-group" style="cursor:pointer;" onclick="SeasonApp.setSelectedWeek(${t.weekNumber})" title="Week ${t.weekNumber}: ${t.totalMatches} matches (${t.doublesMatches} D, ${t.singlesMatches} S), ${t.uniquePlayers} players">
+          ${t.doublesMatches > 0 ? `<rect x="${xBar}" y="${yDoubles}" width="${barWidth}" height="${doublesH}" fill="${barFill}" rx="2" />` : ''}
+          ${t.singlesMatches > 0 ? `<rect x="${xBar}" y="${yTotal}" width="${barWidth}" height="${singlesH}" fill="${singlesFill}" rx="2" />` : ''}
+          ${t.totalMatches > 0 ? `<text x="${xCenter}" y="${Math.max(12, yTotal - 4)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-secondary, #64748b)">${t.totalMatches}</text>` : ''}
+        </g>
+      `;
+
+      labelsHtml += `
+        <text x="${xCenter}" y="${height - 10}" text-anchor="middle" font-size="10" font-weight="${isSel ? '800' : '600'}" fill="${isSel ? 'var(--primary, #2563eb)' : 'var(--text-muted, #94a3b8)'}">
+          W${t.weekNumber}
+        </text>
+      `;
+    });
+
+    return `
+      <svg class="season-trend-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+        <line x1="${padLeft}" y1="${padTop + chartH}" x2="${width - padRight}" y2="${padTop + chartH}" stroke="var(--border-card, #e2e8f0)" stroke-width="1" />
+        ${barsHtml}
+        ${labelsHtml}
+      </svg>
+    `;
+  }
+
+  function renderWeeklyInsights() {
+    const container = document.getElementById('seasonWeeklyContainer');
+    if (!container) return;
+
+    if (!SeasonState.weeklyAnalytics || !SeasonState.weeklyAnalytics.weeks) {
+      recalculateWeeklyAnalytics();
+    }
+
+    const weeklyData = SeasonState.weeklyAnalytics;
+    const weeksMap = weeklyData.weeks;
+    const seasonSummary = weeklyData.seasonSummary;
+
+    const selWeekNum = SeasonState.selectedWeek || getCurrentSeasonWeekNumber();
+    SeasonState.selectedWeek = selWeekNum;
+
+    const curWeekBucket = weeksMap[selWeekNum] || {
+      weekNumber: selWeekNum,
+      startDate: '—',
+      endDate: '—',
+      label: `Week ${selWeekNum}`,
+      totalMatches: 0,
+      doublesMatches: 0,
+      singlesMatches: 0,
+      uniquePlayers: 0,
+      highlights: {}
+    };
+
+    const highlights = curWeekBucket.highlights || {};
+    const mode = SeasonState.weeklyMode || 'COMBINED';
+    const playerEntries = getWeeklyPlayerStats(selWeekNum, mode);
+
+    const isCurrentWeek = selWeekNum === getCurrentSeasonWeekNumber();
+
+    const weeksList = generateSeasonWeeks(SeasonState.config);
+
+    container.innerHTML = `
+      <div class="season-weekly-wrap">
+
+        <!-- Season Activity Overview & Trend Chart -->
+        <div class="season-trend-card">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div>
+              <h3 style="margin:0; font-size:1.15rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                📈 12-Week Season Activity &amp; Participation Trends
+              </h3>
+              <p style="margin:2px 0 0; font-size:0.78rem; color:var(--text-muted);">
+                ${seasonSummary.totalMatches} matches played across ${seasonSummary.totalWeeks} weeks (${seasonSummary.avgMatchesPerWeek} matches/wk avg)
+              </p>
+            </div>
+            <div style="display:flex; gap:12px; font-size:0.75rem; color:var(--text-secondary); font-weight:700;">
+              <span style="display:flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; border-radius:2px; background:var(--primary, #2563eb);"></span> 👥 Doubles</span>
+              <span style="display:flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; border-radius:2px; background:#7c3aed;"></span> 👤 Singles</span>
+            </div>
+          </div>
+
+          <div class="season-trend-svg-wrap">
+            ${renderWeeklyTrendSvg(seasonSummary, selWeekNum)}
+          </div>
+        </div>
+
+        <!-- Week Selector Bar -->
+        <div class="season-week-selector-bar" role="tablist" aria-label="Season Week Selector">
+          ${weeksList.map(w => {
+            const b = weeksMap[w.weekNumber] || { totalMatches: 0, uniquePlayers: 0 };
+            const isSel = w.weekNumber === selWeekNum;
+            const isCur = w.weekNumber === getCurrentSeasonWeekNumber();
+
+            return `
+              <button type="button" class="season-week-chip ${isSel ? 'active' : ''}" onclick="SeasonApp.setSelectedWeek(${w.weekNumber})" role="tab" aria-selected="${isSel}">
+                <span class="season-week-chip-title">${w.label}${isCur ? ' •' : ''}</span>
+                <span class="season-week-chip-sub">${w.startDate.substring(5)}</span>
+                <span class="season-week-chip-pill">${b.totalMatches} games</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Active Week Hero Card -->
+        <div class="season-weekly-hero">
+          <div class="season-weekly-header-row">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <h2 style="margin:0; font-size:1.4rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                  📅 ${curWeekBucket.label} Insights
+                </h2>
+                ${isCurrentWeek ? '<span class="season-admin-status-badge active" style="font-size:0.7rem; padding:2px 8px;">CURRENT WEEK</span>' : ''}
+              </div>
+              <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-muted); font-weight:600;">
+                ${curWeekBucket.startDate} &rarr; ${curWeekBucket.endDate}
+              </p>
+            </div>
+            <div class="season-roster-chips">
+              <span class="season-count-chip active-chip">${curWeekBucket.totalMatches} Matches</span>
+              <span class="season-count-chip">${curWeekBucket.uniquePlayers} Active Players</span>
+              <span class="season-count-chip" style="color:var(--primary);">👥 ${curWeekBucket.doublesMatches} Dbl</span>
+              <span class="season-count-chip" style="color:#7c3aed;">👤 ${curWeekBucket.singlesMatches} Sgl</span>
+            </div>
+          </div>
+
+          <!-- Weekly Highlights Grid -->
+          <div class="season-weekly-highlights-grid">
+            <div class="season-highlight-card">
+              <div class="season-highlight-header">
+                <span>🏃 MOST ACTIVE</span>
+                <span>🔥</span>
+              </div>
+              <div class="season-highlight-val">
+                ${highlights.mostActive ? highlights.mostActive.name : '<span style="color:var(--text-muted); font-size:0.9rem;">—</span>'}
+              </div>
+              <div class="season-highlight-sub">
+                ${highlights.mostActive ? `<span>${highlights.mostActive.gp} Games (${highlights.mostActive.doublesGp}D / ${highlights.mostActive.singlesGp}S)</span>` : '<span>No games recorded</span>'}
+              </div>
+            </div>
+
+            <div class="season-highlight-card">
+              <div class="season-highlight-header">
+                <span>🎯 TOP WIN RATE</span>
+                <span>🥇</span>
+              </div>
+              <div class="season-highlight-val">
+                ${highlights.topWinPct ? highlights.topWinPct.name : '<span style="color:var(--text-muted); font-size:0.9rem;">—</span>'}
+              </div>
+              <div class="season-highlight-sub">
+                ${highlights.topWinPct ? `<span style="color:var(--win-color, #059669); font-weight:800;">${formatWinPct(highlights.topWinPct.winPct)}</span> (${highlights.topWinPct.wins}–${highlights.topWinPct.losses})` : '<span>Min 3 GP required</span>'}
+              </div>
+            </div>
+
+            <div class="season-highlight-card">
+              <div class="season-highlight-header">
+                <span>👥 DOUBLES RISER</span>
+                <span>📈</span>
+              </div>
+              <div class="season-highlight-val">
+                ${highlights.biggestDoublesRiser ? highlights.biggestDoublesRiser.name : '<span style="color:var(--text-muted); font-size:0.9rem;">—</span>'}
+              </div>
+              <div class="season-highlight-sub">
+                ${highlights.biggestDoublesRiser ? `<span class="season-delta-tag pos">${formatEloDelta(highlights.biggestDoublesRiser.delta)} Elo</span> (${highlights.biggestDoublesRiser.matches} games)` : '<span>No rating gain</span>'}
+              </div>
+            </div>
+
+            <div class="season-highlight-card">
+              <div class="season-highlight-header">
+                <span>👤 SINGLES RISER</span>
+                <span>📈</span>
+              </div>
+              <div class="season-highlight-val">
+                ${highlights.biggestSinglesRiser ? highlights.biggestSinglesRiser.name : '<span style="color:var(--text-muted); font-size:0.9rem;">—</span>'}
+              </div>
+              <div class="season-highlight-sub">
+                ${highlights.biggestSinglesRiser ? `<span class="season-delta-tag pos">${formatEloDelta(highlights.biggestSinglesRiser.delta)} Elo</span> (${highlights.biggestSinglesRiser.matches} games)` : '<span>No rating gain</span>'}
+              </div>
+            </div>
+
+            <div class="season-highlight-card">
+              <div class="season-highlight-header">
+                <span>⚡ LONGEST STREAK</span>
+                <span>🏆</span>
+              </div>
+              <div class="season-highlight-val">
+                ${highlights.longestWinStreak ? highlights.longestWinStreak.name : '<span style="color:var(--text-muted); font-size:0.9rem;">—</span>'}
+              </div>
+              <div class="season-highlight-sub">
+                ${highlights.longestWinStreak ? `<span>${highlights.longestWinStreak.streak} Consecutive Wins</span>` : '<span>No active streak</span>'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weekly Performance Table Section -->
+        <div class="season-weekly-table-wrap">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+            <div>
+              <h3 style="margin:0; font-size:1.15rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                📊 Weekly Performance Table (${playerEntries.length} Active Participants)
+              </h3>
+              <p style="margin:2px 0 0; font-size:0.78rem; color:var(--text-muted);">
+                Performance breakdown and rating movements for matches played within ${curWeekBucket.label}.
+              </p>
+            </div>
+            <div class="season-filter-segmented" role="tablist">
+              <button type="button" class="season-filter-btn ${mode === 'COMBINED' ? 'active' : ''}" onclick="SeasonApp.setWeeklyMode('COMBINED')">🌐 Combined</button>
+              <button type="button" class="season-filter-btn ${mode === 'DOUBLES' ? 'active' : ''}" onclick="SeasonApp.setWeeklyMode('DOUBLES')">👥 Doubles</button>
+              <button type="button" class="season-filter-btn ${mode === 'SINGLES' ? 'active' : ''}" onclick="SeasonApp.setWeeklyMode('SINGLES')">👤 Singles</button>
+            </div>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="season-mini-table">
+              <thead>
+                <tr>
+                  <th style="width:36px; text-align:center;">#</th>
+                  <th>Player</th>
+                  <th style="text-align:center;">GP</th>
+                  <th style="text-align:center;">W–L</th>
+                  <th style="text-align:right;">Win %</th>
+                  <th style="text-align:right;">+/-</th>
+                  <th style="text-align:right;">👥 Dbl Elo Δ</th>
+                  <th style="text-align:right;">👤 Sgl Elo Δ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${playerEntries.length > 0 ? playerEntries.map((e, idx) => {
+                  const dDelta = e.doublesEloDelta;
+                  const sDelta = e.singlesEloDelta;
+                  return `
+                    <tr onclick="SeasonApp.openPlayerProfile('${e.playerId}')" style="cursor:pointer;">
+                      <td style="text-align:center; font-weight:700; color:var(--text-muted);">${idx + 1}</td>
+                      <td>
+                        <div style="font-weight:700; color:var(--text-primary);">
+                          <span>${e.name}</span>
+                          ${!e.active ? '<span class="season-tag-pill" style="font-size:0.6rem; padding:1px 4px; margin-left:4px;">Inactive</span>' : ''}
+                        </div>
+                      </td>
+                      <td style="text-align:center; font-weight:700;">${e.gp}</td>
+                      <td style="text-align:center; color:var(--text-muted);">${e.wins}–${e.losses}</td>
+                      <td style="text-align:right; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">${formatWinPct(e.winPct)}</td>
+                      <td style="text-align:right; font-weight:700; color:${e.pointDiff > 0 ? 'var(--win-color, #059669)' : (e.pointDiff < 0 ? 'var(--loss-color, #ef4444)' : 'inherit')};">${formatPointDiff(e.pointDiff)}</td>
+                      <td style="text-align:right;">
+                        ${dDelta !== 0 ? `<span class="season-delta-tag ${dDelta >= 0 ? 'pos' : 'neg'}">${formatEloDelta(dDelta)}</span>` : '<span style="color:var(--text-muted);">0</span>'}
+                      </td>
+                      <td style="text-align:right;">
+                        ${sDelta !== 0 ? `<span class="season-delta-tag ${sDelta >= 0 ? 'pos' : 'neg'}">${formatEloDelta(sDelta)}</span>` : '<span style="color:var(--text-muted);">0</span>'}
+                      </td>
+                    </tr>
+                  `;
+                }).join('') : `
+                  <tr>
+                    <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+                      <span style="font-size:2rem; display:block; margin-bottom:6px;">🏸</span>
+                      <strong>No matches recorded for ${curWeekBucket.label} (${curWeekBucket.startDate} to ${curWeekBucket.endDate})</strong>
+                      <p style="font-size:0.75rem; margin:4px 0 0;">Matches dated within this week's date range will automatically populate here.</p>
+                    </td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  // 22. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
@@ -4370,6 +5183,7 @@
     recalculatePlayerStats();
     recalculateElo();
     recalculateAnalytics();
+    recalculateWeeklyAnalytics();
     switchSeasonTab(SeasonState.activeTab);
   }
 
@@ -4387,6 +5201,9 @@
         }
         if (SeasonState.activeTab === 'leaderboard') {
           renderLeaderboard();
+        }
+        if (SeasonState.activeTab === 'weekly') {
+          renderWeeklyInsights();
         }
         if (SeasonState.activeTab === 'admin') {
           renderSeasonAdmin();
@@ -4534,7 +5351,19 @@
     renderSeasonAdmin,
     renderAuditHistory: renderSeasonAdmin,
     setAuditFilter,
-    renderAuditItemHtml
+    renderAuditItemHtml,
+
+    // Phase 9 Weekly Analytics & Seasonal Insights API
+    generateSeasonWeeks,
+    getSeasonWeekForDate,
+    getCurrentSeasonWeekNumber,
+    calculateWeeklyAnalytics,
+    recalculateWeeklyAnalytics,
+    getWeeklyPlayerStats,
+    setSelectedWeek,
+    setWeeklyMode,
+    renderWeeklyTrendSvg,
+    renderWeeklyInsights
   };
 
   // Global helper aliases for HTML onclick handlers
