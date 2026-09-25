@@ -500,15 +500,10 @@
           </div>
         </section>
 
-        <!-- PANE 7: SEASON ADMIN PLACEHOLDER -->
+        <!-- PANE 7: SEASON ADMIN & AUDIT (Phase 8) -->
         <section id="seasonPane-admin" class="season-pane hidden" style="display:none;" role="tabpanel">
-          <div class="season-placeholder-pane">
-            <div class="season-placeholder-icon">⚙️</div>
-            <h3 class="season-placeholder-title">Season Administration &amp; Audit</h3>
-            <p class="season-placeholder-desc">
-              Score corrections, full deterministic season recalculation, and database season freeze controls will be activated in <strong>Phase 8</strong>.
-            </p>
-            <span class="season-placeholder-badge">COMING IN PHASE 8</span>
+          <div id="seasonAdminContainer">
+            <!-- Injected dynamically by SeasonApp.renderSeasonAdmin() -->
           </div>
         </section>
 
@@ -1035,6 +1030,53 @@
           <button type="submit" id="seasonAddPlayerSubmitBtn" class="btn-primary" style="flex:2;">➕ Add Player</button>
         </div>
       </form>
+    </div>
+  </div>
+  <!-- PHASE 8: SEASON EDIT MATCH MODAL -->
+  <div id="seasonEditMatchModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeEditMatchModal()">
+    <div class="season-modal-card" style="max-width:540px;">
+      <div class="season-modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.3rem;">✏️</span>
+          <h3 class="season-modal-title" id="seasonEditModalTitle">Correct Match Record</h3>
+        </div>
+        <button type="button" class="ai-close-btn" onclick="SeasonApp.closeEditMatchModal()" style="font-size:1.2rem; cursor:pointer;" aria-label="Close">✕</button>
+      </div>
+      <div id="seasonEditMatchBody">
+        <!-- Rendered dynamically by SeasonApp.renderEditMatchModalContent() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 8: SEASON FREEZE CONFIRM MODAL -->
+  <div id="seasonFreezeModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeFreezeModal()">
+    <div class="season-modal-card" style="max-width:440px; text-align:center;">
+      <div style="font-size:2.4rem; margin-bottom:8px;">🔒</div>
+      <h3 class="season-modal-title" style="margin-bottom:8px;">Freeze Fall 2026 Season?</h3>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px; line-height:1.5;">
+        Freezing the season locks the match ledger. New matches and score corrections will be blocked. All rankings, stats, and player profiles will remain publicly visible.
+      </p>
+      <div id="seasonFreezeWarn" class="season-modal-warn" style="margin-bottom:12px;"></div>
+      <div class="modal-btn-row">
+        <button type="button" class="btn-secondary" onclick="SeasonApp.closeFreezeModal()">Cancel</button>
+        <button type="button" id="seasonConfirmFreezeBtn" class="btn-primary" style="background:#dc2626; border-color:#dc2626; flex:2;" onclick="SeasonApp.executeFreezeSeason()">🔒 Freeze Season</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 8: SEASON REOPEN CONFIRM MODAL -->
+  <div id="seasonReopenModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeReopenModal()">
+    <div class="season-modal-card" style="max-width:440px; text-align:center;">
+      <div style="font-size:2.4rem; margin-bottom:8px;">🔓</div>
+      <h3 class="season-modal-title" style="margin-bottom:8px;">Reopen Fall 2026 Season?</h3>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px; line-height:1.5;">
+        Reopening the season restores write access for organizers to record new matches, correct scores, and add players.
+      </p>
+      <div id="seasonReopenWarn" class="season-modal-warn" style="margin-bottom:12px;"></div>
+      <div class="modal-btn-row">
+        <button type="button" class="btn-secondary" onclick="SeasonApp.closeReopenModal()">Cancel</button>
+        <button type="button" id="seasonConfirmReopenBtn" class="btn-primary" style="background:var(--win-color, #059669); border-color:var(--win-color, #059669); flex:2;" onclick="SeasonApp.executeReopenSeason()">🔓 Reopen Season</button>
+      </div>
     </div>
   </div>
 

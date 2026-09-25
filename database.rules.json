@@ -48,13 +48,13 @@
         },
         "players": {
           "$playerId": {
-            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && root.child('seasons').child($seasonId).child('config').child('status').val() !== 'FROZEN' && newData.exists()",
             ".validate": "newData.hasChildren(['id', 'name', 'normalizedName', 'active', 'createdByUid']) && newData.child('id').val() === $playerId && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('normalizedName').isString() && newData.child('active').isBoolean()"
           }
         },
         "matches": {
           "$matchId": {
-            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && newData.exists()",
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && root.child('seasons').child($seasonId).child('config').child('status').val() !== 'FROZEN' && newData.exists()",
             ".validate": "newData.hasChildren(['id', 'matchType', 'matchDate', 'enteredByUid', 'scoreA', 'scoreB', 'winner', 'revision']) && newData.child('id').val() === $matchId && (newData.child('matchType').val() === 'DOUBLES' || newData.child('matchType').val() === 'SINGLES') && newData.child('scoreA').isNumber() && newData.child('scoreB').isNumber() && newData.child('scoreA').val() >= 0 && newData.child('scoreB').val() >= 0 && newData.child('scoreA').val() !== newData.child('scoreB').val() && ((newData.child('scoreA').val() > newData.child('scoreB').val() && newData.child('winner').val() === 'A') || (newData.child('scoreB').val() > newData.child('scoreA').val() && newData.child('winner').val() === 'B')) && ((newData.child('matchType').val() === 'DOUBLES' && newData.hasChildren(['teamA', 'teamB']) && newData.child('teamA').hasChildren(['player1', 'player2']) && newData.child('teamB').hasChildren(['player1', 'player2']) && newData.child('teamA/player1').val() !== newData.child('teamA/player2').val() && newData.child('teamA/player1').val() !== newData.child('teamB/player1').val() && newData.child('teamA/player1').val() !== newData.child('teamB/player2').val() && newData.child('teamA/player2').val() !== newData.child('teamB/player1').val() && newData.child('teamA/player2').val() !== newData.child('teamB/player2').val() && newData.child('teamB/player1').val() !== newData.child('teamB/player2').val()) || (newData.child('matchType').val() === 'SINGLES' && newData.hasChildren(['playerA', 'playerB']) && newData.child('playerA').val() !== newData.child('playerB').val()))"
           }
         },

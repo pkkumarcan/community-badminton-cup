@@ -2277,6 +2277,401 @@ body.season-active .mobile-bottom-nav {
 }
 
 @media (max-width: 640px) {
+/* --------------------------------------------------------------------------
+   Phase 8 Season Administration, Audit History & Freeze Control Styles
+   -------------------------------------------------------------------------- */
+.season-admin-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: seasonFadeIn 0.2s ease-in-out;
+}
+
+.season-admin-hero {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+[data-theme="dark"] .season-admin-hero {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-admin-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.season-admin-title-area h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 4px 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-admin-subtitle {
+  font-size: 0.84rem;
+  color: var(--text-secondary, #475569);
+  margin: 0;
+}
+
+.season-admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  padding: 6px 14px;
+  border-radius: var(--radius-full, 9999px);
+  letter-spacing: 0.04em;
+}
+
+.season-admin-status-badge.active {
+  background: rgba(5, 150, 105, 0.12);
+  color: var(--win-color, #059669);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.season-admin-status-badge.frozen {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.season-admin-counts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.season-admin-count-box {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 12px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-theme="dark"] .season-admin-count-box {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.35);
+}
+
+.season-admin-count-lbl {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #475569);
+  text-transform: uppercase;
+}
+
+.season-admin-count-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-primary, #0f172a);
+}
+
+.season-admin-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-subtle, #e2e8f0);
+}
+
+[data-theme="dark"] .season-admin-actions-bar {
+  border-top-color: rgba(71, 85, 105, 0.35);
+}
+
+.season-btn-freeze {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  padding: 9px 16px;
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.season-btn-freeze:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.season-btn-reopen {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--win-color, #059669);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  padding: 9px 16px;
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.season-btn-reopen:hover {
+  background: var(--win-color, #059669);
+  color: #ffffff;
+}
+
+.season-btn-recalc {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--primary, #2563eb);
+  border: 1px solid var(--border-card, #cbd5e1);
+  padding: 9px 16px;
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.season-btn-recalc:hover {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+  border-color: var(--primary, #2563eb);
+}
+
+[data-theme="dark"] .season-btn-recalc {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-rebuild-banner {
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: var(--text-primary, #0f172a);
+  animation: seasonFadeIn 0.2s ease-in-out;
+}
+
+[data-theme="dark"] .season-rebuild-banner {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.season-frozen-banner {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  animation: seasonFadeIn 0.2s ease-in-out;
+}
+
+.season-frozen-banner-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.season-frozen-banner-title {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #dc2626;
+  margin: 0 0 2px 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-frozen-banner-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #475569);
+  margin: 0;
+}
+
+/* Edit Match Button on History Cards */
+.season-btn-edit-match {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid var(--border-card, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-secondary, #475569);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.season-btn-edit-match:hover {
+  background: var(--primary-light, #eff6ff);
+  color: var(--primary, #2563eb);
+  border-color: var(--primary-border, #bfdbfe);
+}
+
+[data-theme="dark"] .season-btn-edit-match {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+/* Audit History View */
+.season-audit-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 20px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+[data-theme="dark"] .season-audit-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-audit-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.season-audit-item {
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+[data-theme="dark"] .season-audit-item {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-audit-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.season-audit-pill {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: var(--radius-full, 9999px);
+  text-transform: uppercase;
+}
+
+.season-audit-pill.match-created {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary, #2563eb);
+}
+
+.season-audit-pill.match-updated {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+[data-theme="dark"] .season-audit-pill.match-updated {
+  color: #fbbf24;
+}
+
+.season-audit-pill.player-created {
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--win-color, #059669);
+}
+
+.season-audit-pill.player-status {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+}
+
+.season-audit-pill.season-frozen {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.season-audit-pill.season-reopened {
+  background: rgba(5, 150, 105, 0.12);
+  color: var(--win-color, #059669);
+}
+
+.season-audit-time {
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+}
+
+.season-audit-desc {
+  color: var(--text-primary, #0f172a);
+  font-weight: 600;
+}
+
+.season-audit-diff-box {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-theme="dark"] .season-audit-diff-box {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-audit-actor-tag {
+  font-size: 0.68rem;
+  color: var(--text-muted, #64748b);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Mobile Responsiveness
+   -------------------------------------------------------------------------- */
+body.season-active .mobile-bottom-nav {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
   .portal-mode-switcher {
     width: 100%;
     justify-content: center;
@@ -2347,5 +2742,12 @@ body.season-active .mobile-bottom-nav {
   }
   .season-two-col-grid {
     grid-template-columns: 1fr;
+  }
+  .season-admin-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .season-admin-counts-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

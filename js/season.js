@@ -60,14 +60,17 @@
     config: { ...SEASON_CONFIG },
     players: {},
     matches: {},
+    audit: {},
     playerSearchQuery: '',
     playerStatusFilter: 'active', // 'active' | 'inactive' | 'all'
     matchHistoryFilter: 'ALL', // 'ALL' | 'DOUBLES' | 'SINGLES'
     matchHistorySearch: '',
+    auditFilter: 'ALL', // 'ALL' | 'MATCHES' | 'PLAYERS' | 'SEASON'
     leaderboardView: 'ELO', // 'ELO' | 'TRADITIONAL'
     leaderboardMode: 'DOUBLES', // 'DOUBLES' | 'SINGLES' | 'COMBINED'
     selectedPlayerId: null,
     playerProfileMode: 'COMBINED', // 'COMBINED' | 'DOUBLES' | 'SINGLES'
+    editMatchState: null,
     elo: {
       ratings: {},
       histories: {},
@@ -102,9 +105,16 @@
       weekly: {}
     },
     initialized: false,
+    configSubscribed: false,
     playersSubscribed: false,
-    matchesSubscribed: false
+    matchesSubscribed: false,
+    auditSubscribed: false
   };
+
+  function isSeasonWritable() {
+    const isFrozen = Boolean(SeasonState.config && SeasonState.config.status === 'FROZEN');
+    return !isFrozen && isUserAuthorized();
+  }
 
   // 4. Pure Player Normalization & ID Generators
   function normalizePlayerName(name) {
@@ -145,7 +155,73 @@
     return SeasonState.players[id] || null;
   }
 
-  // 6. Firebase Real-Time Player Subscription
+  // 6. Firebase Real-Time Subscriptions (Config, Players, Audit)
+  function subscribeToSeasonConfig() {
+    if (SeasonState.configSubscribed) return;
+
+    if (typeof firebase === 'undefined' || !firebase.database) {
+      return;
+    }
+
+    try {
+      const db = firebase.database();
+      const configRef = db.ref(getSeasonConfigPath());
+
+      configRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        SeasonState.config = { ...SEASON_CONFIG, ...data };
+        SeasonState.configSubscribed = true;
+
+        if (SeasonState.activeTab === 'admin') {
+          renderSeasonAdmin();
+        }
+        if (SeasonState.activeTab === 'record') {
+          renderRecordMatch();
+        }
+        if (SeasonState.activeTab === 'players') {
+          renderPlayers();
+        }
+        if (SeasonState.activeTab === 'home') {
+          renderSeasonHome();
+        }
+        if (SeasonState.activeTab === 'history') {
+          renderMatchHistory();
+        }
+      }, (error) => {
+        console.error('[SeasonApp] Real-time config listener error:', error);
+      });
+    } catch (e) {
+      console.warn('[SeasonApp] Failed to subscribe to season config:', e);
+    }
+  }
+
+  function subscribeToAudit() {
+    if (SeasonState.auditSubscribed) return;
+
+    if (typeof firebase === 'undefined' || !firebase.database) {
+      return;
+    }
+
+    try {
+      const db = firebase.database();
+      const auditRef = db.ref(getSeasonAuditPath());
+
+      auditRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        SeasonState.audit = data;
+        SeasonState.auditSubscribed = true;
+
+        if (SeasonState.activeTab === 'admin') {
+          renderSeasonAdmin();
+        }
+      }, (error) => {
+        console.error('[SeasonApp] Real-time audit listener error:', error);
+      });
+    } catch (e) {
+      console.warn('[SeasonApp] Failed to subscribe to season audit:', e);
+    }
+  }
+
   function subscribeToPlayers() {
     if (SeasonState.playersSubscribed) return;
 
@@ -181,6 +257,9 @@
         if (SeasonState.activeTab === 'home') {
           renderSeasonHome();
         }
+        if (SeasonState.activeTab === 'admin') {
+          renderSeasonAdmin();
+        }
       }, (error) => {
         console.error('[SeasonApp] Real-time players listener error:', error);
       });
@@ -191,6 +270,10 @@
 
   // 7. Add Player Mutation
   async function addPlayer(name) {
+    if (!isSeasonWritable()) {
+      throw new Error('Season is frozen. Player registrations are locked.');
+    }
+
     const trimmedName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
     if (!trimmedName || trimmedName.length < 2) {
       throw new Error('Please enter a valid player name (at least 2 characters).');
@@ -207,11 +290,13 @@
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser) {
+    if (!authUser && !isUserAuthorized()) {
       throw new Error('Sign in as an authorized organizer to add players.');
     }
 
     const playerId = generatePlayerId();
+    const auditId = generateAuditId();
+    const actorUid = authUser ? authUser.uid : 'organizer';
     const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
       ? firebase.database.ServerValue.TIMESTAMP
       : Date.now();
@@ -222,16 +307,29 @@
       normalizedName: norm,
       active: true,
       joinedAt: serverTimestamp,
-      createdByUid: authUser.uid,
+      createdByUid: actorUid,
       updatedAt: serverTimestamp,
-      updatedByUid: authUser.uid
+      updatedByUid: actorUid
+    };
+
+    const auditPayload = {
+      action: 'PLAYER_CREATED',
+      targetId: playerId,
+      playerName: trimmedName,
+      playerData: playerRecord,
+      timestamp: serverTimestamp,
+      actorUid: actorUid
     };
 
     if (typeof firebase !== 'undefined' && firebase.database) {
       const db = firebase.database();
-      await db.ref(`${getSeasonPlayersPath()}/${playerId}`).set(playerRecord);
+      const updates = {};
+      updates[`${getSeasonPlayersPath()}/${playerId}`] = playerRecord;
+      updates[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
+      await db.ref().update(updates);
     } else {
       SeasonState.players[playerId] = { ...playerRecord, joinedAt: Date.now(), updatedAt: Date.now() };
+      SeasonState.audit[auditId] = auditPayload;
     }
 
     return playerRecord;
@@ -239,6 +337,10 @@
 
   // 8. Toggle Active / Inactive Status
   async function setPlayerActive(playerId, active) {
+    if (!isSeasonWritable()) {
+      throw new Error('Season is frozen. Player status changes are locked.');
+    }
+
     const player = SeasonState.players[playerId];
     if (!player) {
       throw new Error('Player not found.');
@@ -249,10 +351,13 @@
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser) {
+    if (!authUser && !isUserAuthorized()) {
       throw new Error('Sign in as an authorized organizer to change player status.');
     }
 
+    const currentActive = player.active !== false;
+    const actorUid = authUser ? authUser.uid : 'organizer';
+    const auditId = generateAuditId();
     const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
       ? firebase.database.ServerValue.TIMESTAMP
       : Date.now();
@@ -260,16 +365,32 @@
     const updates = {
       active: Boolean(active),
       updatedAt: serverTimestamp,
-      updatedByUid: authUser.uid
+      updatedByUid: actorUid
+    };
+
+    const auditPayload = {
+      action: 'PLAYER_STATUS_CHANGED',
+      targetId: playerId,
+      playerName: player.name,
+      before: currentActive,
+      after: Boolean(active),
+      timestamp: serverTimestamp,
+      actorUid: actorUid
     };
 
     if (typeof firebase !== 'undefined' && firebase.database) {
       const db = firebase.database();
-      await db.ref(`${getSeasonPlayersPath()}/${playerId}`).update(updates);
+      const updatesRef = {};
+      updatesRef[`${getSeasonPlayersPath()}/${playerId}/active`] = Boolean(active);
+      updatesRef[`${getSeasonPlayersPath()}/${playerId}/updatedAt`] = serverTimestamp;
+      updatesRef[`${getSeasonPlayersPath()}/${playerId}/updatedByUid`] = actorUid;
+      updatesRef[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
+      await db.ref().update(updatesRef);
     } else {
       SeasonState.players[playerId].active = Boolean(active);
       SeasonState.players[playerId].updatedAt = Date.now();
-      SeasonState.players[playerId].updatedByUid = authUser.uid;
+      SeasonState.players[playerId].updatedByUid = actorUid;
+      SeasonState.audit[auditId] = auditPayload;
     }
   }
 
@@ -430,18 +551,23 @@
   }
 
   async function saveMatch(entry = SeasonState.matchEntry) {
+    if (!isSeasonWritable()) {
+      throw new Error('Season is frozen. Recording new matches is locked.');
+    }
+
     let authUser = null;
     if (typeof firebase !== 'undefined' && firebase.auth) {
       authUser = firebase.auth().currentUser;
     }
 
-    if (!authUser) {
+    if (!authUser && !isUserAuthorized()) {
       throw new Error('Sign in as an authorized scorekeeper/organizer to record a match.');
     }
 
     const matchId = generateMatchId();
     const auditId = generateAuditId();
-    const matchPayload = buildMatchPayload(entry, matchId, authUser);
+    const actorUid = authUser ? authUser.uid : 'organizer';
+    const matchPayload = buildMatchPayload(entry, matchId, authUser || { uid: actorUid, displayName: 'Organizer' });
 
     const auditPayload = {
       action: 'MATCH_CREATED',
@@ -449,7 +575,7 @@
       timestamp: (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
         ? firebase.database.ServerValue.TIMESTAMP
         : Date.now(),
-      actorUid: authUser.uid
+      actorUid: actorUid
     };
 
     if (typeof firebase !== 'undefined' && firebase.database) {
@@ -461,6 +587,7 @@
     } else {
       // In-memory fallback (sandbox / test environment)
       SeasonState.matches[matchId] = { ...matchPayload, createdAt: Date.now(), updatedAt: Date.now() };
+      SeasonState.audit[auditId] = auditPayload;
     }
 
     return matchPayload;
@@ -1503,10 +1630,18 @@
 
         <div class="season-match-footer">
           <div class="season-match-tags">
+            ${match.revision && match.revision > 1 ? `<span class="season-tag-pill" style="background:rgba(245, 158, 11, 0.12); color:#b45309; font-weight:800;">Rev ${match.revision}</span>` : ''}
             ${metadataPills.join('')}
           </div>
-          <div class="season-match-author">
-            <span>Entered by ${authorName}</span>
+          <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+            <div class="season-match-author">
+              <span>Entered by ${authorName}</span>
+            </div>
+            ${isUserAuthorized() && isSeasonWritable() ? `
+              <button type="button" class="season-btn-edit-match" onclick="SeasonApp.openEditMatch('${match.id}')" title="Correct match record">
+                <span>✏️</span> <span>Edit</span>
+              </button>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -3500,13 +3635,738 @@
     `;
   }
 
-  // 20. Initialization
+  // 20. Season Administration, Match Corrections, Audit History & Freeze Controls (Phase 8)
+  function openEditMatch(matchId) {
+    if (!isUserAuthorized()) {
+      if (typeof handleOrganizerAuthClick === 'function') handleOrganizerAuthClick();
+      else alert('Please sign in as an authorized organizer to correct matches.');
+      return;
+    }
+    if (!isSeasonWritable()) {
+      alert('Season is frozen. Match corrections are disabled.');
+      return;
+    }
+    const match = SeasonState.matches[matchId];
+    if (!match) {
+      alert('Match not found.');
+      return;
+    }
+
+    SeasonState.editMatchState = {
+      matchId: match.id,
+      matchType: match.matchType || 'DOUBLES',
+      player1: match.teamA ? match.teamA.player1 : (match.playerA || ''),
+      player2: match.teamA ? match.teamA.player2 : '',
+      player3: match.teamB ? match.teamB.player1 : (match.playerB || ''),
+      player4: match.teamB ? match.teamB.player2 : '',
+      scoreA: match.scoreA,
+      scoreB: match.scoreB,
+      matchDate: match.matchDate || '',
+      court: match.court || '',
+      session: match.session || '',
+      notes: match.notes || '',
+      loadedRevision: match.revision || 1,
+      originalMatch: JSON.parse(JSON.stringify(match))
+    };
+
+    const modal = document.getElementById('seasonEditMatchModal');
+    if (modal) {
+      renderEditMatchModalContent();
+      modal.classList.add('open');
+    }
+  }
+
+  function closeEditMatchModal() {
+    const modal = document.getElementById('seasonEditMatchModal');
+    if (modal) modal.classList.remove('open');
+    SeasonState.editMatchState = null;
+  }
+
+  function renderEditMatchModalContent() {
+    const body = document.getElementById('seasonEditMatchBody');
+    if (!body || !SeasonState.editMatchState) return;
+
+    const state = SeasonState.editMatchState;
+    const isDoubles = state.matchType === 'DOUBLES';
+    const allPlayers = Object.values(SeasonState.players).sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+
+    function renderSelectOptions(selectedId) {
+      let options = `<option value="">-- Select Player --</option>`;
+      allPlayers.forEach(p => {
+        const isSel = p.id === selectedId;
+        const activeLabel = p.active === false ? ' (Inactive)' : '';
+        options += `<option value="${p.id}" ${isSel ? 'selected' : ''}>${p.name}${activeLabel}</option>`;
+      });
+      return options;
+    }
+
+    body.innerHTML = `
+      <form id="seasonEditMatchForm" onsubmit="SeasonApp.saveMatchCorrection(event)">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+          <span class="season-match-type-pill ${isDoubles ? 'doubles' : 'singles'}">
+            ${isDoubles ? '👥 DOUBLES (2v2)' : '👤 SINGLES (1v1)'}
+          </span>
+          <span class="season-tag-pill" style="background:rgba(245, 158, 11, 0.12); color:#b45309; font-weight:800;">
+            Editing Revision ${state.loadedRevision} &rarr; Rev ${state.loadedRevision + 1}
+          </span>
+        </div>
+
+        <div class="season-match-grid" style="margin-bottom:16px;">
+          <!-- TEAM A -->
+          <div class="season-team-box">
+            <div class="season-team-header">${isDoubles ? 'TEAM A' : 'PLAYER A'}</div>
+            <div>
+              <select id="seasonEditP1" class="season-select-styled" required onchange="SeasonState.editMatchState.player1 = this.value">
+                ${renderSelectOptions(state.player1)}
+              </select>
+            </div>
+            ${isDoubles ? `
+              <div>
+                <select id="seasonEditP2" class="season-select-styled" required onchange="SeasonState.editMatchState.player2 = this.value">
+                  ${renderSelectOptions(state.player2)}
+                </select>
+              </div>
+            ` : ''}
+            <div class="season-score-input-wrap">
+              <input type="number" id="seasonEditScoreA" class="season-score-input" placeholder="21" min="0" max="99" required value="${state.scoreA}" oninput="SeasonState.editMatchState.scoreA = this.value">
+            </div>
+          </div>
+
+          <!-- VS DIVIDER -->
+          <div class="season-vs-column">
+            <span>VS</span>
+          </div>
+
+          <!-- TEAM B -->
+          <div class="season-team-box">
+            <div class="season-team-header">${isDoubles ? 'TEAM B' : 'PLAYER B'}</div>
+            <div>
+              <select id="seasonEditP3" class="season-select-styled" required onchange="SeasonState.editMatchState.player3 = this.value">
+                ${renderSelectOptions(state.player3)}
+              </select>
+            </div>
+            ${isDoubles ? `
+              <div>
+                <select id="seasonEditP4" class="season-select-styled" required onchange="SeasonState.editMatchState.player4 = this.value">
+                  ${renderSelectOptions(state.player4)}
+                </select>
+              </div>
+            ` : ''}
+            <div class="season-score-input-wrap">
+              <input type="number" id="seasonEditScoreB" class="season-score-input" placeholder="17" min="0" max="99" required value="${state.scoreB}" oninput="SeasonState.editMatchState.scoreB = this.value">
+            </div>
+          </div>
+        </div>
+
+        <div class="season-optional-fields" style="display:grid; margin-bottom:14px;">
+          <div class="season-field-group">
+            <label for="seasonEditMatchDate">MATCH DATE</label>
+            <input type="date" id="seasonEditMatchDate" class="season-search-input" value="${state.matchDate || ''}" onchange="SeasonState.editMatchState.matchDate = this.value">
+          </div>
+          <div class="season-field-group">
+            <label for="seasonEditCourt">COURT</label>
+            <input type="text" id="seasonEditCourt" class="season-search-input" placeholder="e.g. Court 1" value="${state.court || ''}" oninput="SeasonState.editMatchState.court = this.value">
+          </div>
+          <div class="season-field-group">
+            <label for="seasonEditSession">SESSION</label>
+            <input type="text" id="seasonEditSession" class="season-search-input" placeholder="e.g. Sunday Afternoon" value="${state.session || ''}" oninput="SeasonState.editMatchState.session = this.value">
+          </div>
+          <div class="season-field-group" style="grid-column: 1 / -1;">
+            <label for="seasonEditNotes">CORRECTION NOTES</label>
+            <input type="text" id="seasonEditNotes" class="season-search-input" placeholder="e.g. Corrected score entry typo" value="${state.notes || ''}" oninput="SeasonState.editMatchState.notes = this.value">
+          </div>
+        </div>
+
+        <div id="seasonEditMatchWarn" class="season-modal-warn" style="margin-bottom:12px;"></div>
+
+        <div class="modal-btn-row">
+          <button type="button" class="btn-secondary" onclick="SeasonApp.closeEditMatchModal()">Cancel</button>
+          <button type="submit" id="seasonSaveCorrectionBtn" class="btn-primary" style="flex:2;">💾 Save Correction &amp; Replay</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function validateMatchCorrection(stateOrOriginal = SeasonState.editMatchState, maybePayload = null) {
+    let state = stateOrOriginal || SeasonState.editMatchState;
+    if (maybePayload && typeof maybePayload === 'object') {
+      state = { ...stateOrOriginal, ...maybePayload };
+    }
+    if (!state || (!state.matchId && !state.id)) {
+      return { valid: false, error: 'No match selected for correction.' };
+    }
+    const sA = parseInt(state.scoreA, 10);
+    const sB = parseInt(state.scoreB, 10);
+
+    if (isNaN(sA) || isNaN(sB) || sA < 0 || sB < 0) {
+      return { valid: false, error: 'Please enter valid positive scores.' };
+    }
+    if (sA === sB) {
+      return { valid: false, error: 'Matches cannot end in a tie (badminton is decisive).' };
+    }
+
+    const mType = state.matchType || state.type || ((state.teamAPlayer2Id || (state.teamA && state.teamA.player2) || state.player2) ? 'DOUBLES' : 'SINGLES');
+    const isDoubles = mType === 'DOUBLES';
+
+    const p1 = state.player1 || state.teamAPlayer1Id || (state.teamA && state.teamA.player1) || state.playerA || '';
+    const p2 = state.player2 || state.teamAPlayer2Id || (state.teamA && state.teamA.player2) || '';
+    const p3 = state.player3 || state.teamBPlayer1Id || (state.teamB && state.teamB.player1) || state.playerB || '';
+    const p4 = state.player4 || state.teamBPlayer2Id || (state.teamB && state.teamB.player2) || '';
+
+    if (isDoubles) {
+      const players = [p1, p2, p3, p4];
+      if (players.some(p => !p)) {
+        return { valid: false, error: 'All 4 Doubles players must be selected.' };
+      }
+      if (new Set(players).size !== 4) {
+        return { valid: false, error: 'All 4 players in a Doubles match must be distinct.' };
+      }
+    } else {
+      if (!p1 || !p3 || p1 === p3) {
+        return { valid: false, error: 'Both Singles players must be selected and distinct.' };
+      }
+    }
+
+    const winner = sA > sB ? 'A' : 'B';
+    const correctedMatch = {
+      ...state,
+      scoreA: sA,
+      scoreB: sB,
+      winner: winner,
+      winnerTeam: winner
+    };
+
+    return { valid: true, correctedMatch };
+  }
+
+  async function saveMatchCorrection(event) {
+    if (event && event.preventDefault) event.preventDefault();
+
+    if (!isUserAuthorized()) {
+      throw new Error('Sign in as an authorized organizer to correct match scores.');
+    }
+    if (!isSeasonWritable()) {
+      throw new Error('Season is frozen. Match corrections are locked.');
+    }
+
+    const state = SeasonState.editMatchState;
+    const validation = validateMatchCorrection(state);
+    const warn = document.getElementById('seasonEditMatchWarn');
+    const submitBtn = document.getElementById('seasonSaveCorrectionBtn');
+
+    if (!validation.valid) {
+      if (warn) warn.textContent = `⚠️ ${validation.error}`;
+      return;
+    }
+
+    const sA = parseInt(state.scoreA, 10);
+    const sB = parseInt(state.scoreB, 10);
+    const isDoubles = state.matchType === 'DOUBLES';
+
+    let authUser = null;
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      authUser = firebase.auth().currentUser;
+    }
+
+    const matchId = state.matchId;
+    let remoteMatch = null;
+
+    if (typeof firebase !== 'undefined' && firebase.database) {
+      const db = firebase.database();
+      const snap = await db.ref(`${getSeasonMatchesPath()}/${matchId}`).once('value');
+      remoteMatch = snap.val();
+    } else {
+      remoteMatch = SeasonState.matches[matchId];
+    }
+
+    if (!remoteMatch) {
+      throw new Error('Match record not found in database.');
+    }
+
+    // Revision conflict detection
+    const currentRev = remoteMatch.revision || 1;
+    if (currentRev !== state.loadedRevision) {
+      if (warn) {
+        warn.textContent = `⚠️ Revision conflict: This match was updated to Revision ${currentRev} by another organizer. Please close and reload.`;
+      }
+      return;
+    }
+
+    const newRevision = currentRev + 1;
+    const winner = sA > sB ? 'A' : 'B';
+    const actorUid = authUser ? authUser.uid : 'organizer';
+    const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
+      ? firebase.database.ServerValue.TIMESTAMP
+      : Date.now();
+
+    const updatedMatch = {
+      id: matchId,
+      matchType: state.matchType,
+      matchDate: state.matchDate || remoteMatch.matchDate || getTodayDateString(),
+      enteredByUid: remoteMatch.enteredByUid || actorUid,
+      enteredByName: remoteMatch.enteredByName || 'Organizer',
+      createdAt: remoteMatch.createdAt || Date.now(),
+      scoreA: sA,
+      scoreB: sB,
+      winner: winner,
+      court: state.court || '',
+      session: state.session || '',
+      notes: state.notes || '',
+      revision: newRevision,
+      updatedAt: serverTimestamp,
+      updatedByUid: actorUid
+    };
+
+    if (isDoubles) {
+      updatedMatch.teamA = { player1: state.player1, player2: state.player2 };
+      updatedMatch.teamB = { player1: state.player3, player2: state.player4 };
+    } else {
+      updatedMatch.playerA = state.player1;
+      updatedMatch.playerB = state.player3;
+    }
+
+    const auditId = generateAuditId();
+    const auditPayload = {
+      action: 'MATCH_UPDATED',
+      targetId: matchId,
+      revisionBefore: currentRev,
+      revisionAfter: newRevision,
+      before: remoteMatch,
+      after: updatedMatch,
+      timestamp: serverTimestamp,
+      actorUid: actorUid
+    };
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving Correction...';
+    }
+
+    try {
+      if (typeof firebase !== 'undefined' && firebase.database) {
+        const db = firebase.database();
+        const updates = {};
+        updates[`${getSeasonMatchesPath()}/${matchId}`] = updatedMatch;
+        updates[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
+        await db.ref().update(updates);
+      }
+      SeasonState.matches[matchId] = updatedMatch;
+      SeasonState.audit[auditId] = auditPayload;
+      recalculateEntireSeason();
+
+      closeEditMatchModal();
+      if (typeof showToast === 'function') {
+        showToast(`✓ Match corrected (Revision ${newRevision})`, 'success');
+      }
+      return { success: true, match: updatedMatch };
+    } catch (err) {
+      if (warn) warn.textContent = `⚠️ ${err.message}`;
+      console.error('[SeasonApp] Match correction error:', err);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💾 Save Correction & Replay';
+      }
+    }
+  }
+
+  // Freeze & Reopen Controls
+  function openFreezeModal() {
+    if (!isUserAuthorized()) {
+      if (typeof handleOrganizerAuthClick === 'function') handleOrganizerAuthClick();
+      else alert('Please sign in as an authorized organizer.');
+      return;
+    }
+    const modal = document.getElementById('seasonFreezeModal');
+    const warn = document.getElementById('seasonFreezeWarn');
+    if (warn) warn.textContent = '';
+    if (modal) modal.classList.add('open');
+  }
+
+  function closeFreezeModal() {
+    const modal = document.getElementById('seasonFreezeModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  async function executeFreezeSeason() {
+    let authUser = null;
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      authUser = firebase.auth().currentUser;
+    }
+    if (!authUser && !isUserAuthorized()) {
+      throw new Error('Sign in as an authorized organizer to freeze the season.');
+    }
+
+    const auditId = generateAuditId();
+    const prevStatus = SeasonState.config.status || 'ACTIVE';
+    const actorUid = authUser ? authUser.uid : 'organizer';
+    const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
+      ? firebase.database.ServerValue.TIMESTAMP
+      : Date.now();
+
+    const auditPayload = {
+      action: 'SEASON_FROZEN',
+      targetId: SeasonState.config.seasonId || 'fall2026',
+      previousStatus: prevStatus,
+      newStatus: 'FROZEN',
+      timestamp: serverTimestamp,
+      actorUid: actorUid
+    };
+
+    if (typeof firebase !== 'undefined' && firebase.database) {
+      const db = firebase.database();
+      const updates = {};
+      updates[`${getSeasonConfigPath()}/status`] = 'FROZEN';
+      updates[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
+      await db.ref().update(updates);
+    }
+    SeasonState.config.status = 'FROZEN';
+    SeasonState.audit[auditId] = auditPayload;
+
+    closeFreezeModal();
+    if (typeof showToast === 'function') {
+      showToast('🔒 Season frozen — match entries and edits locked.', 'warn');
+    }
+    renderSeasonAdmin();
+  }
+
+  function openReopenModal() {
+    if (!isUserAuthorized()) {
+      if (typeof handleOrganizerAuthClick === 'function') handleOrganizerAuthClick();
+      else alert('Please sign in as an authorized organizer.');
+      return;
+    }
+    const modal = document.getElementById('seasonReopenModal');
+    const warn = document.getElementById('seasonReopenWarn');
+    if (warn) warn.textContent = '';
+    if (modal) modal.classList.add('open');
+  }
+
+  function closeReopenModal() {
+    const modal = document.getElementById('seasonReopenModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  async function executeReopenSeason() {
+    let authUser = null;
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      authUser = firebase.auth().currentUser;
+    }
+    if (!authUser && !isUserAuthorized()) {
+      throw new Error('Sign in as an authorized organizer to reopen the season.');
+    }
+
+    const auditId = generateAuditId();
+    const prevStatus = SeasonState.config.status || 'FROZEN';
+    const actorUid = authUser ? authUser.uid : 'organizer';
+    const serverTimestamp = (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
+      ? firebase.database.ServerValue.TIMESTAMP
+      : Date.now();
+
+    const auditPayload = {
+      action: 'SEASON_REOPENED',
+      targetId: SeasonState.config.seasonId || 'fall2026',
+      previousStatus: prevStatus,
+      newStatus: 'ACTIVE',
+      timestamp: serverTimestamp,
+      actorUid: actorUid
+    };
+
+    if (typeof firebase !== 'undefined' && firebase.database) {
+      const db = firebase.database();
+      const updates = {};
+      updates[`${getSeasonConfigPath()}/status`] = 'ACTIVE';
+      updates[`${getSeasonAuditPath()}/${auditId}`] = auditPayload;
+      await db.ref().update(updates);
+    }
+    SeasonState.config.status = 'ACTIVE';
+    SeasonState.audit[auditId] = auditPayload;
+
+    closeReopenModal();
+    if (typeof showToast === 'function') {
+      showToast('🔓 Season reopened — write access restored.', 'success');
+    }
+    renderSeasonAdmin();
+  }
+
+  // Full Derived Rebuild
+  function recalculateEntireSeason() {
+    recalculatePlayerStats();
+    recalculateElo();
+    recalculateAnalytics();
+
+    if (SeasonState.activeTab === 'admin') renderSeasonAdmin();
+    if (SeasonState.activeTab === 'home') renderSeasonHome();
+    if (SeasonState.activeTab === 'players') renderPlayers();
+    if (SeasonState.activeTab === 'leaderboard') renderLeaderboard();
+    if (SeasonState.activeTab === 'history') renderMatchHistory();
+
+    const allMatches = Object.values(SeasonState.matches || {});
+    const dMatches = allMatches.filter(m => m.matchType === 'DOUBLES').length;
+    const sMatches = allMatches.filter(m => m.matchType === 'SINGLES').length;
+    const pCount = Object.keys(SeasonState.players || {}).length;
+    const mCount = allMatches.length;
+    const aCount = Object.keys(SeasonState.audit || {}).length;
+    const curStatus = (SeasonState.config && SeasonState.config.status) || 'ACTIVE';
+
+    return {
+      playersProcessed: pCount,
+      matchesProcessed: mCount,
+      doublesMatches: dMatches,
+      singlesMatches: sMatches,
+      playersCount: pCount,
+      matchesCount: mCount,
+      doublesCount: dMatches,
+      singlesCount: sMatches,
+      auditEventsCount: aCount,
+      status: curStatus
+    };
+  }
+
+  function handleAdminRecalculateClick() {
+    const result = recalculateEntireSeason();
+    const info = document.getElementById('seasonAdminRebuildInfo');
+    if (info) {
+      info.innerHTML = `
+        <div class="season-rebuild-banner" style="margin-top:14px;">
+          <div style="display:flex; align-items:center; gap:8px; font-weight:800; color:var(--win-color, #059669); margin-bottom:4px;">
+            <span>✓</span> <span>Season Rebuilt Deterministically</span>
+          </div>
+          <div style="font-size:0.8rem; color:var(--text-secondary); line-height:1.5;">
+            Processed <strong>${result.playersCount}</strong> players, <strong>${result.matchesCount}</strong> matches (<strong>${result.doublesCount}</strong> Doubles, <strong>${result.singlesCount}</strong> Singles), and <strong>${result.auditEventsCount}</strong> audit events with zero database writes.
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function setAuditFilter(filter) {
+    SeasonState.auditFilter = filter || 'ALL';
+    renderSeasonAdmin();
+  }
+
+  function renderAuditItemHtml(a) {
+    let actionPillClass = 'match-created';
+    let actionLabel = a.action || 'AUDIT EVENT';
+    let detailHtml = '';
+
+    if (a.action === 'MATCH_CREATED') {
+      actionPillClass = 'match-created';
+      actionLabel = 'MATCH RECORDED';
+      detailHtml = `<span style="font-weight:700; color:var(--text-primary);">Match ID: ${a.targetId}</span>`;
+    } else if (a.action === 'MATCH_UPDATED') {
+      actionPillClass = 'match-updated';
+      actionLabel = 'MATCH CORRECTED';
+      const beforeStr = a.before ? (a.before.matchType === 'DOUBLES'
+        ? `${getPlayerDisplayName(a.before.teamA ? a.before.teamA.player1 : '')} + ${getPlayerDisplayName(a.before.teamA ? a.before.teamA.player2 : '')} (${a.before.scoreA}–${a.before.scoreB}) ${getPlayerDisplayName(a.before.teamB ? a.before.teamB.player1 : '')} + ${getPlayerDisplayName(a.before.teamB ? a.before.teamB.player2 : '')}`
+        : `${getPlayerDisplayName(a.before.playerA)} (${a.before.scoreA}–${a.before.scoreB}) ${getPlayerDisplayName(a.before.playerB)}`) : '';
+      const afterStr = a.after ? (a.after.matchType === 'DOUBLES'
+        ? `${getPlayerDisplayName(a.after.teamA ? a.after.teamA.player1 : '')} + ${getPlayerDisplayName(a.after.teamA ? a.after.teamA.player2 : '')} (${a.after.scoreA}–${a.after.scoreB}) ${getPlayerDisplayName(a.after.teamB ? a.after.teamB.player1 : '')} + ${getPlayerDisplayName(a.after.teamB ? a.after.teamB.player2 : '')}`
+        : `${getPlayerDisplayName(a.after.playerA)} (${a.after.scoreA}–${a.after.scoreB}) ${getPlayerDisplayName(a.after.playerB)}`) : '';
+
+      detailHtml = `
+        <div class="season-audit-diff-box">
+          <div><span style="color:var(--text-muted); font-weight:700;">Revision:</span> Rev ${a.revisionBefore || 1} &rarr; <strong>Rev ${a.revisionAfter || 2}</strong></div>
+          ${beforeStr ? `<div><span style="color:#dc2626; font-weight:700;">Before:</span> <strike>${beforeStr}</strike></div>` : ''}
+          ${afterStr ? `<div><span style="color:var(--win-color, #059669); font-weight:700;">After:</span> <strong>${afterStr}</strong></div>` : ''}
+        </div>
+      `;
+    } else if (a.action === 'PLAYER_CREATED') {
+      actionPillClass = 'player-created';
+      actionLabel = 'PLAYER REGISTERED';
+      detailHtml = `<span style="font-weight:700; color:var(--text-primary);">Added: ${a.playerName || a.targetId}</span>`;
+    } else if (a.action === 'PLAYER_STATUS_CHANGED') {
+      actionPillClass = 'player-status';
+      actionLabel = 'PLAYER STATUS';
+      const fromStr = a.before ? 'Active' : 'Inactive';
+      const toStr = a.after ? 'Active' : 'Inactive';
+      detailHtml = `
+        <div class="season-audit-diff-box">
+          <div><span style="color:var(--text-primary); font-weight:700;">${a.playerName || a.targetId}:</span> ${fromStr} &rarr; <strong>${toStr}</strong></div>
+        </div>
+      `;
+    } else if (a.action === 'SEASON_FROZEN') {
+      actionPillClass = 'season-frozen';
+      actionLabel = 'SEASON FROZEN';
+      detailHtml = `<span style="color:#dc2626; font-weight:700;">Season status changed: ACTIVE &rarr; FROZEN</span>`;
+    } else if (a.action === 'SEASON_REOPENED') {
+      actionPillClass = 'season-reopened';
+      actionLabel = 'SEASON REOPENED';
+      detailHtml = `<span style="color:var(--win-color, #059669); font-weight:700;">Season status changed: FROZEN &rarr; ACTIVE</span>`;
+    }
+
+    const timeStr = a.timestamp ? formatMatchDate('', a.timestamp) + ' • ' + formatMatchTime(a.timestamp) : 'Recently';
+
+    return `
+      <div class="season-audit-item">
+        <div class="season-audit-item-top">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="season-audit-pill ${actionPillClass}">${actionLabel}</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">${timeStr}</span>
+          </div>
+          <span class="season-audit-actor-tag">👤 ${a.actorUid || 'Organizer'}</span>
+        </div>
+        <div>
+          ${detailHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSeasonAdmin() {
+    const container = document.getElementById('seasonAdminContainer');
+    if (!container) return;
+
+    const isAuthorized = isUserAuthorized();
+    if (!isAuthorized) {
+      container.innerHTML = `
+        <div class="season-placeholder-pane" style="max-width:540px; margin:40px auto;">
+          <div class="season-placeholder-icon">🔒</div>
+          <h3 class="season-placeholder-title">Organizer Access Required</h3>
+          <p class="season-placeholder-desc">
+            Sign in with authorized organizer credentials to access Season Administration, match score corrections, deterministic season recalculation, and database freeze controls.
+          </p>
+          <button type="button" class="btn-primary" onclick="if(typeof handleOrganizerAuthClick === 'function') handleOrganizerAuthClick();" style="padding:10px 20px; font-weight:800; margin-top:12px;">
+            🔑 Sign In as Organizer
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const allPlayers = Object.values(SeasonState.players);
+    const activePlayers = allPlayers.filter(p => p.active !== false);
+    const allMatches = getSortedMatches('DESC');
+    const doublesMatches = allMatches.filter(m => m.matchType === 'DOUBLES');
+    const singlesMatches = allMatches.filter(m => m.matchType === 'SINGLES');
+    const allAudits = Object.values(SeasonState.audit || {});
+    const isFrozen = SeasonState.config.status === 'FROZEN';
+
+    const filter = SeasonState.auditFilter || 'ALL';
+    const filteredAudits = allAudits.filter(a => {
+      if (filter === 'MATCHES' && !['MATCH_CREATED', 'MATCH_UPDATED'].includes(a.action)) return false;
+      if (filter === 'PLAYERS' && !['PLAYER_CREATED', 'PLAYER_STATUS_CHANGED'].includes(a.action)) return false;
+      if (filter === 'SEASON' && !['SEASON_FROZEN', 'SEASON_REOPENED'].includes(a.action)) return false;
+      return true;
+    }).sort((a, b) => {
+      const tA = typeof a.timestamp === 'number' ? a.timestamp : 0;
+      const tB = typeof b.timestamp === 'number' ? b.timestamp : 0;
+      return tB - tA;
+    });
+
+    container.innerHTML = `
+      <div class="season-admin-wrap">
+        
+        <!-- Status & Operations Hero -->
+        <div class="season-admin-hero">
+          <div class="season-admin-header-row">
+            <div class="season-admin-title-area">
+              <h2>⚙️ Season Administration &amp; Controls</h2>
+              <p class="season-admin-subtitle">
+                ${SeasonState.config.name || 'Sindhi Boys Badminton Season — Fall 2026'} &bull; ${SeasonState.config.startDate || '2026-09-27'} to ${SeasonState.config.endDate || '2026-12-20'}
+              </p>
+            </div>
+            <div>
+              <span class="season-admin-status-badge ${isFrozen ? 'frozen' : 'active'}">
+                ${isFrozen ? '🔒 SEASON FROZEN' : '● STATUS: ACTIVE'}
+              </span>
+            </div>
+          </div>
+
+          <!-- Summary Counts Grid -->
+          <div class="season-admin-counts-grid">
+            <div class="season-admin-count-box">
+              <span class="season-admin-count-lbl">REGISTERED PLAYERS</span>
+              <span class="season-admin-count-val">${allPlayers.length}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">${activePlayers.length} Active</span>
+            </div>
+            <div class="season-admin-count-box">
+              <span class="season-admin-count-lbl">TOTAL MATCHES</span>
+              <span class="season-admin-count-val">${allMatches.length}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">Raw Ledger</span>
+            </div>
+            <div class="season-admin-count-box">
+              <span class="season-admin-count-lbl">DOUBLES MATCHES</span>
+              <span class="season-admin-count-val" style="color:var(--primary);">${doublesMatches.length}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">2v2</span>
+            </div>
+            <div class="season-admin-count-box">
+              <span class="season-admin-count-lbl">SINGLES MATCHES</span>
+              <span class="season-admin-count-val" style="color:#7c3aed;">${singlesMatches.length}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">1v1</span>
+            </div>
+            <div class="season-admin-count-box">
+              <span class="season-admin-count-lbl">AUDIT EVENTS</span>
+              <span class="season-admin-count-val">${allAudits.length}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">Immutable</span>
+            </div>
+          </div>
+
+          <!-- Actions Bar -->
+          <div class="season-admin-actions-bar">
+            ${isFrozen ? `
+              <button type="button" class="season-btn-reopen" onclick="SeasonApp.openReopenModal()">
+                <span>🔓</span> <span>Reopen Season</span>
+              </button>
+            ` : `
+              <button type="button" class="season-btn-freeze" onclick="SeasonApp.openFreezeModal()">
+                <span>🔒</span> <span>Freeze Season</span>
+              </button>
+            `}
+            <button type="button" class="season-btn-recalc" onclick="SeasonApp.handleAdminRecalculateClick()">
+              <span>♻</span> <span>Recalculate Entire Season</span>
+            </button>
+            <button type="button" class="season-btn-sm" onclick="SeasonApp.switchTab('history')" style="margin-left:auto; padding:8px 12px; font-weight:700;">
+              <span>📊</span> <span>Go to Match History &rarr;</span>
+            </button>
+          </div>
+
+          <div id="seasonAdminRebuildInfo"></div>
+        </div>
+
+        <!-- Audit History Feed Section -->
+        <div class="season-audit-card">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div>
+              <h3 style="margin:0; font-size:1.15rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                📜 Immutable Audit History (${filteredAudits.length})
+              </h3>
+              <p style="margin:2px 0 0; font-size:0.78rem; color:var(--text-muted);">
+                Append-only log of all match creations, corrections, player status changes, and freeze events.
+              </p>
+            </div>
+            <div class="season-filter-segmented" role="tablist">
+              <button type="button" class="season-filter-btn ${filter === 'ALL' ? 'active' : ''}" onclick="SeasonApp.setAuditFilter('ALL')">All (${allAudits.length})</button>
+              <button type="button" class="season-filter-btn ${filter === 'MATCHES' ? 'active' : ''}" onclick="SeasonApp.setAuditFilter('MATCHES')">Matches</button>
+              <button type="button" class="season-filter-btn ${filter === 'PLAYERS' ? 'active' : ''}" onclick="SeasonApp.setAuditFilter('PLAYERS')">Players</button>
+              <button type="button" class="season-filter-btn ${filter === 'SEASON' ? 'active' : ''}" onclick="SeasonApp.setAuditFilter('SEASON')">Season</button>
+            </div>
+          </div>
+
+          <div class="season-audit-feed">
+            ${filteredAudits.length > 0 ? filteredAudits.map(renderAuditItemHtml).join('') : `
+              <div class="season-empty-state" style="padding:28px;">
+                <span style="font-size:2rem;">📜</span>
+                <p style="font-weight:700; margin:6px 0 2px;">No audit events recorded</p>
+                <p style="font-size:0.8rem; color:var(--text-muted);">Audit history is recorded automatically when match creations, corrections, or freeze events occur.</p>
+              </div>
+            `}
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  // 21. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
 
+    subscribeToSeasonConfig();
     subscribeToPlayers();
     subscribeToMatches();
+    subscribeToAudit();
     recalculatePlayerStats();
     recalculateElo();
     recalculateAnalytics();
@@ -3527,6 +4387,9 @@
         }
         if (SeasonState.activeTab === 'leaderboard') {
           renderLeaderboard();
+        }
+        if (SeasonState.activeTab === 'admin') {
+          renderSeasonAdmin();
         }
       });
     }
@@ -3647,7 +4510,31 @@
     openPlayerProfile,
     closePlayerProfile,
     setPlayerProfileMode,
-    renderPlayerProfile
+    renderPlayerProfile,
+
+    // Phase 8 Season Administration, Corrections & Freeze API
+    subscribeToSeasonConfig,
+    subscribeToAudit,
+    isSeasonWritable,
+    openEditMatch,
+    closeEditMatchModal,
+    renderEditMatchModalContent,
+    validateMatchCorrection,
+    saveMatchCorrection,
+    openFreezeModal,
+    closeFreezeModal,
+    executeFreezeSeason,
+    freezeSeason: executeFreezeSeason,
+    openReopenModal,
+    closeReopenModal,
+    executeReopenSeason,
+    reopenSeason: executeReopenSeason,
+    recalculateEntireSeason,
+    handleAdminRecalculateClick,
+    renderSeasonAdmin,
+    renderAuditHistory: renderSeasonAdmin,
+    setAuditFilter,
+    renderAuditItemHtml
   };
 
   // Global helper aliases for HTML onclick handlers
