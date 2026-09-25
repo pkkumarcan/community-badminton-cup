@@ -502,15 +502,10 @@
           </div>
         </section>
 
-        <!-- PANE 8: TOURNAMENT SEEDING PLACEHOLDER -->
+        <!-- PANE 8: TOURNAMENT SEEDING (Phase 10) -->
         <section id="seasonPane-seeding" class="season-pane hidden" style="display:none;" role="tabpanel">
-          <div class="season-placeholder-pane">
-            <div class="season-placeholder-icon">🏸</div>
-            <h3 class="season-placeholder-title">Tournament Seeding Bridge</h3>
-            <p class="season-placeholder-desc">
-              End-of-season freeze and automatic Level 1 / Level 2 / Level 3 seeding tier export for future tournaments will be activated in <strong>Phase 10</strong>.
-            </p>
-            <span class="season-placeholder-badge">COMING IN PHASE 10</span>
+          <div id="seasonSeedingContainer">
+            <!-- Injected dynamically by SeasonApp.renderTournamentSeeding() -->
           </div>
         </section>
 
@@ -1071,6 +1066,64 @@
       <div class="modal-btn-row">
         <button type="button" class="btn-secondary" onclick="SeasonApp.closeReopenModal()">Cancel</button>
         <button type="button" id="seasonConfirmReopenBtn" class="btn-primary" style="background:var(--win-color, #059669); border-color:var(--win-color, #059669); flex:2;" onclick="SeasonApp.executeReopenSeason()">🔓 Reopen Season</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 10: SEEDING EVIDENCE MODAL / DRAWER -->
+  <div id="seasonSeedingEvidenceModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeSeedingEvidenceModal()">
+    <div class="season-modal-card" style="max-width:540px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:10px;">
+        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">📊 Seeding Performance Evidence</h3>
+        <button type="button" class="btn-icon" onclick="SeasonApp.closeSeedingEvidenceModal()" aria-label="Close modal">✕</button>
+      </div>
+      <div id="seasonSeedingEvidenceBody">
+        <!-- Injected dynamically by SeasonApp.renderSeedingEvidenceModal() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 10: FINALIZE SEEDING SNAPSHOT MODAL -->
+  <div id="seasonFinalizeSeedingModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeFinalizeSeedingModal()">
+    <div class="season-modal-card" style="max-width:480px; text-align:center;">
+      <div style="font-size:2.4rem; margin-bottom:8px;">🏆</div>
+      <h3 class="season-modal-title" style="margin-bottom:8px;">Finalize Tournament Seeding?</h3>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:14px; line-height:1.5;">
+        This will create an immutable, permanent Season seeding snapshot with all current player ratings, performance evidence, and Level 1 / 2 / 3 assignments.
+      </p>
+      <div id="seasonFinalizeSeedingSummary" style="background:var(--card-bg, #1e293b); border:1px solid var(--border-subtle); border-radius:8px; padding:12px; margin-bottom:14px; font-size:0.85rem; text-align:left;">
+        <!-- Injected dynamically -->
+      </div>
+      <div id="seasonFinalizeSeedingWarn" class="season-modal-warn" style="margin-bottom:12px;"></div>
+      <div class="modal-btn-row">
+        <button type="button" class="btn-secondary" onclick="SeasonApp.closeFinalizeSeedingModal()">Cancel</button>
+        <button type="button" id="seasonConfirmFinalizeSeedingBtn" class="btn-primary" style="flex:2;" onclick="SeasonApp.executeFinalizeTournamentSeeding()">✅ Finalize Seeding Snapshot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 10: TOURNAMENT EXPORT & APPLIER MODAL -->
+  <div id="seasonExportTournamentModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeExportTournamentModal()">
+    <div class="season-modal-card" style="max-width:680px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:10px;">
+        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">🏸 Export Seeding to Tournament</h3>
+        <button type="button" class="btn-icon" onclick="SeasonApp.closeExportTournamentModal()" aria-label="Close modal">✕</button>
+      </div>
+      <div id="seasonExportTournamentBody">
+        <!-- Injected dynamically by SeasonApp.renderExportTournamentModal() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 10: SNAPSHOT DETAIL VIEW MODAL -->
+  <div id="seasonSnapshotDetailModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeSnapshotDetailModal()">
+    <div class="season-modal-card" style="max-width:700px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:10px;">
+        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">📜 Historical Seeding Snapshot</h3>
+        <button type="button" class="btn-icon" onclick="SeasonApp.closeSnapshotDetailModal()" aria-label="Close modal">✕</button>
+      </div>
+      <div id="seasonSnapshotDetailBody">
+        <!-- Injected dynamically by SeasonApp.renderSnapshotDetailModal() -->
       </div>
     </div>
   </div>

@@ -64,6 +64,15 @@
             ".validate": "newData.hasChildren(['action', 'targetId', 'actorUid'])"
           }
         },
+        "seedingSnapshots": {
+          "$snapshotId": {
+            ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['snapshotId', 'createdAt', 'createdByUid', 'status', 'players'])"
+          }
+        },
+        "finalSnapshot": {
+          ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true"
+        },
         "computed": {
           ".write": "auth != null && root.child('authorizedUsers').child(auth.uid).val() === true"
         }

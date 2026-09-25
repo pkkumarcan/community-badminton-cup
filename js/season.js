@@ -15,7 +15,8 @@
     seasonId: 'fall2026',
     name: 'Sindhi Boys Badminton Season — Fall 2026',
     startDate: '2026-09-27',
-    endDate: '2026-12-20',
+    endDate: '2026-12-19', // Strict 12-week (84 calendar days) match season. Dec 20 is Tournament Seeding Day.
+    totalWeeks: 12,
     status: 'ACTIVE', // ACTIVE | FROZEN | ARCHIVED
     minGamesQualified: 15,
     startingElo: 1500,
@@ -52,6 +53,14 @@
 
   function getSeasonComputedPath(seasonId = SEASON_CONFIG.seasonId) {
     return `/seasons/${seasonId}/computed`;
+  }
+
+  function getSeasonSeedingSnapshotsPath(seasonId = SEASON_CONFIG.seasonId) {
+    return `/seasons/${seasonId}/seedingSnapshots`;
+  }
+
+  function getSeasonFinalSnapshotPath(seasonId = SEASON_CONFIG.seasonId) {
+    return `/seasons/${seasonId}/finalSnapshot`;
   }
 
   // 3. Season State (Isolated Namespace)
@@ -96,6 +105,20 @@
     },
     selectedWeek: 1,
     weeklyMode: 'COMBINED', // 'COMBINED' | 'DOUBLES' | 'SINGLES'
+    seeding: {
+      selectedPlayerIds: [],
+      proposedLevels: {},
+      finalLevels: {},
+      config: {
+        level3Count: 8,
+        level2Count: 10,
+        level1Count: 6,
+        minGamesQualified: 15
+      },
+      evidencePlayerId: null,
+      snapshots: {},
+      selectedSnapshotId: null
+    },
     matchEntry: {
       matchType: 'DOUBLES', // 'DOUBLES' | 'SINGLES'
       player1: '',
@@ -753,6 +776,8 @@
       renderWeeklyInsights();
     } else if (tabName === 'admin') {
       renderSeasonAdmin();
+    } else if (tabName === 'seeding') {
+      renderTournamentSeeding();
     }
   }
 
@@ -5171,7 +5196,1220 @@
     `;
   }
 
-  // 22. Initialization
+  // ============================================================================
+  // 22. Phase 10: Tournament Seeding & Export Engine
+  // ============================================================================
+
+  /**
+   * Identifies Qualified vs Provisional tournament candidates based on Doubles GP >= minGamesQualified.
+   * Deterministic, pure function.
+   */
+  function getQualifiedTournamentCandidates(playersMap = SeasonState.players, statsMap = SeasonState.playerStats, eloState = SeasonState.elo, config = SeasonState.config) {
+    const minGames = (config && typeof config.minGamesQualified === 'number') ? config.minGamesQualified : 15;
+    const allPlayers = Object.values(playersMap || {});
+
+    const list = allPlayers.map(p => {
+      const pId = p.id;
+      const st = (statsMap && statsMap[pId]) ? statsMap[pId] : createEmptyPlayerStats();
+      const elo = (eloState && eloState.ratings && eloState.ratings[pId]) ? eloState.ratings[pId] : { doublesElo: 1500, singlesElo: 1500 };
+      const dGp = st.doubles ? st.doubles.gp : 0;
+      const isQualified = dGp >= minGames;
+
+      return {
+        playerId: pId,
+        name: p.name || 'Unknown Player',
+        active: p.active !== false,
+        qualified: isQualified,
+        doublesGp: dGp,
+        doublesWins: st.doubles ? st.doubles.wins : 0,
+        doublesLosses: st.doubles ? st.doubles.losses : 0,
+        doublesWinPct: st.doubles ? st.doubles.winPct : 0,
+        doublesPointDiff: st.doubles ? st.doubles.pointDiff : 0,
+        doublesAvgPointDiff: st.doubles ? st.doubles.avgPointDiff : 0,
+        doublesElo: elo.doublesElo !== undefined ? elo.doublesElo : 1500,
+        singlesGp: st.singles ? st.singles.gp : 0,
+        singlesWins: st.singles ? st.singles.wins : 0,
+        singlesLosses: st.singles ? st.singles.losses : 0,
+        singlesWinPct: st.singles ? st.singles.winPct : 0,
+        singlesPointDiff: st.singles ? st.singles.pointDiff : 0,
+        singlesElo: elo.singlesElo !== undefined ? elo.singlesElo : 1500,
+        combinedGp: st.combined ? st.combined.gp : 0,
+        combinedWins: st.combined ? st.combined.wins : 0,
+        combinedLosses: st.combined ? st.combined.losses : 0,
+        combinedWinPct: st.combined ? st.combined.winPct : 0,
+        combinedPointDiff: st.combined ? st.combined.pointDiff : 0
+      };
+    });
+
+    function sortCandidates(arr) {
+      return [...arr].sort((a, b) => {
+        if (Math.abs(a.doublesElo - b.doublesElo) > 0.00001) return b.doublesElo - a.doublesElo;
+        if (a.doublesGp !== b.doublesGp) return b.doublesGp - a.doublesGp;
+        if (Math.abs(a.doublesWinPct - b.doublesWinPct) > 0.00001) return b.doublesWinPct - a.doublesWinPct;
+        if (a.doublesPointDiff !== b.doublesPointDiff) return b.doublesPointDiff - a.doublesPointDiff;
+        return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+      });
+    }
+
+    const qualified = sortCandidates(list.filter(p => p.qualified));
+    const provisional = sortCandidates(list.filter(p => !p.qualified));
+
+    return {
+      qualified,
+      provisional,
+      all: sortCandidates(list)
+    };
+  }
+
+  /**
+   * Generates proposed Level 1 / 2 / 3 tiers for a given list of selected candidates.
+   * Deterministic, pure function.
+   */
+  function generateSeedingProposal(selectedCandidates = [], seedingConfig = SeasonState.seeding.config) {
+    const l3Count = (seedingConfig && typeof seedingConfig.level3Count === 'number') ? seedingConfig.level3Count : 8;
+    const l2Count = (seedingConfig && typeof seedingConfig.level2Count === 'number') ? seedingConfig.level2Count : 10;
+    const l1Count = (seedingConfig && typeof seedingConfig.level1Count === 'number') ? seedingConfig.level1Count : 6;
+
+    // Sort selected candidates deterministically
+    const sorted = [...selectedCandidates].sort((a, b) => {
+      if (Math.abs(a.doublesElo - b.doublesElo) > 0.00001) return b.doublesElo - a.doublesElo;
+      if (a.doublesGp !== b.doublesGp) return b.doublesGp - a.doublesGp;
+      if (Math.abs(a.doublesWinPct - b.doublesWinPct) > 0.00001) return b.doublesWinPct - a.doublesWinPct;
+      if (a.doublesPointDiff !== b.doublesPointDiff) return b.doublesPointDiff - a.doublesPointDiff;
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    });
+
+    const proposedList = [];
+    const proposedMap = {};
+
+    sorted.forEach((p, idx) => {
+      const rank = idx + 1;
+      let level = 1;
+      if (rank <= l3Count) {
+        level = 3;
+      } else if (rank <= (l3Count + l2Count)) {
+        level = 2;
+      } else {
+        level = 1;
+      }
+
+      const item = {
+        ...p,
+        rank,
+        proposedLevel: level
+      };
+
+      proposedList.push(item);
+      proposedMap[p.playerId] = level;
+    });
+
+    // Identify boundary comparisons
+    const boundaries = [];
+    if (l3Count > 0 && sorted.length > l3Count) {
+      const pAbove = sorted[l3Count - 1];
+      const pBelow = sorted[l3Count];
+      boundaries.push({
+        boundaryName: 'Level 3 / Level 2 Cutoff',
+        rankAbove: l3Count,
+        playerAbove: pAbove,
+        rankBelow: l3Count + 1,
+        playerBelow: pBelow,
+        eloGap: Number(Math.abs(pAbove.doublesElo - pBelow.doublesElo).toFixed(1))
+      });
+    }
+
+    const l2BoundaryIdx = l3Count + l2Count;
+    if (l2Count > 0 && sorted.length > l2BoundaryIdx) {
+      const pAbove = sorted[l2BoundaryIdx - 1];
+      const pBelow = sorted[l2BoundaryIdx];
+      boundaries.push({
+        boundaryName: 'Level 2 / Level 1 Cutoff',
+        rankAbove: l2BoundaryIdx,
+        playerAbove: pAbove,
+        rankBelow: l2BoundaryIdx + 1,
+        playerBelow: pBelow,
+        eloGap: Number(Math.abs(pAbove.doublesElo - pBelow.doublesElo).toFixed(1))
+      });
+    }
+
+    return {
+      proposedList,
+      proposedMap,
+      boundaries
+    };
+  }
+
+  /**
+   * Validates manual tier assignments vs target counts.
+   */
+  function validateTournamentTierDistribution(finalLevelsMap = SeasonState.seeding.finalLevels, selectedPlayerIds = SeasonState.seeding.selectedPlayerIds, seedingConfig = SeasonState.seeding.config) {
+    const l3Target = (seedingConfig && typeof seedingConfig.level3Count === 'number') ? seedingConfig.level3Count : 8;
+    const l2Target = (seedingConfig && typeof seedingConfig.level2Count === 'number') ? seedingConfig.level2Count : 10;
+    const l1Target = (seedingConfig && typeof seedingConfig.level1Count === 'number') ? seedingConfig.level1Count : 6;
+    const totalTarget = l3Target + l2Target + l1Target;
+
+    let l3Count = 0;
+    let l2Count = 0;
+    let l1Count = 0;
+    let unassignedCount = 0;
+
+    const errors = [];
+    const warnings = [];
+
+    const selectedList = Array.isArray(selectedPlayerIds) ? selectedPlayerIds : [];
+    selectedList.forEach(pId => {
+      const entry = finalLevelsMap ? finalLevelsMap[pId] : null;
+      const lvl = (entry && typeof entry.level === 'number') ? entry.level : (typeof entry === 'number' ? entry : null);
+      if (lvl === 3) l3Count++;
+      else if (lvl === 2) l2Count++;
+      else if (lvl === 1) l1Count++;
+      else unassignedCount++;
+    });
+
+    const totalSelected = selectedList.length;
+    const assignedCount = l3Count + l2Count + l1Count;
+
+    if (totalSelected !== totalTarget) {
+      warnings.push(`Selected players (${totalSelected}) differs from configured target roster size (${totalTarget}).`);
+    }
+
+    if (unassignedCount > 0) {
+      errors.push(`${unassignedCount} selected player(s) do not have a Level assigned.`);
+    }
+
+    if (l3Count !== l3Target) {
+      errors.push(`Level 3 has ${l3Count} players (target: ${l3Target}).`);
+    }
+
+    if (l2Count !== l2Target) {
+      errors.push(`Level 2 has ${l2Count} players (target: ${l2Target}).`);
+    }
+
+    if (l1Count !== l1Target) {
+      errors.push(`Level 1 has ${l1Count} players (target: ${l1Target}).`);
+    }
+
+    const valid = errors.length === 0 && assignedCount === totalSelected && totalSelected > 0;
+
+    return {
+      valid,
+      totalSelected,
+      assignedCount,
+      l3Assigned: l3Count,
+      l2Assigned: l2Count,
+      l1Assigned: l1Count,
+      l3Target,
+      l2Target,
+      l1Target,
+      totalTarget,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * Detailed evidence calculation for a single player.
+   */
+  function getTournamentSeedingEvidence(playerId, playersMap = SeasonState.players, matchesMap = SeasonState.matches, statsMap = SeasonState.playerStats, eloState = SeasonState.elo) {
+    if (!playerId) return null;
+    const p = (playersMap && playersMap[playerId]) ? playersMap[playerId] : { id: playerId, name: 'Unknown' };
+    const st = (statsMap && statsMap[playerId]) ? statsMap[playerId] : createEmptyPlayerStats();
+    const elo = (eloState && eloState.ratings && eloState.ratings[playerId]) ? eloState.ratings[playerId] : { doublesElo: 1500, singlesElo: 1500 };
+
+    const partnerList = getPartnerStats(playerId);
+    const uniquePartners = partnerList.length;
+
+    const h2hList = getHeadToHeadStats(playerId);
+    const uniqueOpponents = h2hList.length;
+
+    const recent = getPlayerRecentMatches(playerId, 5);
+
+    const proposedLvl = (SeasonState.seeding.proposedLevels && SeasonState.seeding.proposedLevels[playerId]) ? SeasonState.seeding.proposedLevels[playerId] : null;
+    const finalLvlEntry = (SeasonState.seeding.finalLevels && SeasonState.seeding.finalLevels[playerId]) ? SeasonState.seeding.finalLevels[playerId] : null;
+    const finalLvl = (finalLvlEntry && typeof finalLvlEntry.level === 'number') ? finalLvlEntry.level : (typeof finalLvlEntry === 'number' ? finalLvlEntry : proposedLvl);
+
+    return {
+      playerId,
+      name: p.name,
+      active: p.active !== false,
+      doublesElo: elo.doublesElo !== undefined ? elo.doublesElo : 1500,
+      singlesElo: elo.singlesElo !== undefined ? elo.singlesElo : 1500,
+      doublesGp: st.doubles ? st.doubles.gp : 0,
+      doublesWins: st.doubles ? st.doubles.wins : 0,
+      doublesLosses: st.doubles ? st.doubles.losses : 0,
+      doublesWinPct: st.doubles ? st.doubles.winPct : 0,
+      doublesPointDiff: st.doubles ? st.doubles.pointDiff : 0,
+      singlesGp: st.singles ? st.singles.gp : 0,
+      singlesWins: st.singles ? st.singles.wins : 0,
+      singlesLosses: st.singles ? st.singles.losses : 0,
+      singlesWinPct: st.singles ? st.singles.winPct : 0,
+      singlesPointDiff: st.singles ? st.singles.pointDiff : 0,
+      combinedGp: st.combined ? st.combined.gp : 0,
+      uniquePartners,
+      uniqueOpponents,
+      partnerList: partnerList.slice(0, 5),
+      opponentList: h2hList.slice(0, 5),
+      recentMatches: recent,
+      proposedLevel: proposedLvl,
+      finalLevel: finalLvl,
+      adjusted: finalLvlEntry ? finalLvlEntry.adjusted === true : false,
+      adjustmentReason: finalLvlEntry ? (finalLvlEntry.reason || '') : ''
+    };
+  }
+
+  function subscribeToSeedingSnapshots() {
+    if (typeof firebase === 'undefined' || !firebase.database) return;
+    const path = getSeasonSeedingSnapshotsPath(SeasonState.config.seasonId);
+    firebase.database().ref(path).on('value', snapshot => {
+      const val = snapshot.val() || {};
+      SeasonState.seeding.snapshots = val;
+      if (SeasonState.activeTab === 'seeding') {
+        renderTournamentSeeding();
+      }
+    });
+  }
+
+  /**
+   * Finalizes the tournament seeding snapshot into Firebase with atomic audit log.
+   */
+  async function finalizeTournamentSeeding(seasonId = SeasonState.config.seasonId, seedingState = SeasonState.seeding, actorUid = null) {
+    if (SeasonState.config.status !== 'FROZEN') {
+      throw new Error('Season must be FROZEN before final tournament seeding can be confirmed.');
+    }
+
+    const valResult = validateTournamentTierDistribution(seedingState.finalLevels, seedingState.selectedPlayerIds, seedingState.config);
+    if (!valResult.valid) {
+      throw new Error(`Seeding distribution is invalid: ${valResult.errors.join(' ')}`);
+    }
+
+    let uid = actorUid;
+    if (!uid && typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+      uid = firebase.auth().currentUser.uid;
+    }
+    if (!uid) {
+      uid = 'organizer-seeding-admin';
+    }
+
+    const candidateData = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+    const candidateMap = {};
+    candidateData.all.forEach(c => { candidateMap[c.playerId] = c; });
+
+    const playersSnapshot = {};
+    seedingState.selectedPlayerIds.forEach(pId => {
+      const cand = candidateMap[pId] || { name: 'Unknown', qualified: false, doublesGp: 0, doublesElo: 1500, singlesGp: 0, singlesElo: 1500, combinedGp: 0, doublesWins: 0, doublesLosses: 0, doublesWinPct: 0, doublesPointDiff: 0 };
+      const propLvl = seedingState.proposedLevels[pId] || 1;
+      const finalLvlEntry = seedingState.finalLevels[pId];
+      const finalLvl = (finalLvlEntry && typeof finalLvlEntry.level === 'number') ? finalLvlEntry.level : (typeof finalLvlEntry === 'number' ? finalLvlEntry : propLvl);
+      const isAdjusted = finalLvlEntry ? (finalLvlEntry.adjusted === true || finalLvl !== propLvl) : false;
+      const reason = finalLvlEntry ? (finalLvlEntry.reason || '') : '';
+
+      playersSnapshot[pId] = {
+        playerId: pId,
+        name: cand.name,
+        qualified: cand.qualified,
+        doublesGp: cand.doublesGp,
+        doublesElo: cand.doublesElo,
+        doublesWins: cand.doublesWins,
+        doublesLosses: cand.doublesLosses,
+        doublesWinPct: cand.doublesWinPct,
+        doublesPointDiff: cand.doublesPointDiff,
+        singlesGp: cand.singlesGp,
+        singlesElo: cand.singlesElo,
+        combinedGp: cand.combinedGp,
+        proposedLevel: propLvl,
+        finalLevel: finalLvl,
+        adjusted: isAdjusted,
+        reason: reason,
+        adjustedByUid: isAdjusted ? uid : null,
+        adjustedAt: isAdjusted ? Date.now() : null
+      };
+    });
+
+    const snapshotKey = `seed_${Date.now()}`;
+    const snapshotPayload = {
+      snapshotId: snapshotKey,
+      seasonId: seasonId,
+      createdAt: (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue) ? firebase.database.ServerValue.TIMESTAMP : Date.now(),
+      createdByUid: uid,
+      status: 'FINAL',
+      seedingVersion: 1,
+      algorithm: 'DOUBLES_ELO_TIER_CUTOFF',
+      config: {
+        startingElo: SeasonState.config.startingElo || 1500,
+        kFactor: SeasonState.config.kFactor || 32,
+        minGamesQualified: seedingState.config.minGamesQualified || 15,
+        level3Count: seedingState.config.level3Count || 8,
+        level2Count: seedingState.config.level2Count || 10,
+        level1Count: seedingState.config.level1Count || 6
+      },
+      summary: {
+        totalPlayers: seedingState.selectedPlayerIds.length,
+        level3Count: valResult.l3Assigned,
+        level2Count: valResult.l2Assigned,
+        level1Count: valResult.l1Assigned
+      },
+      players: playersSnapshot
+    };
+
+    if (typeof firebase !== 'undefined' && firebase.database) {
+      const dbRef = firebase.database().ref();
+      const auditKey = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const updates = {};
+      updates[`seasons/${seasonId}/seedingSnapshots/${snapshotKey}`] = snapshotPayload;
+      updates[`seasons/${seasonId}/finalSnapshot`] = snapshotPayload;
+      updates[`seasons/${seasonId}/audit/${auditKey}`] = {
+        action: 'TOURNAMENT_SEEDING_FINALIZED',
+        targetId: seasonId,
+        snapshotId: snapshotKey,
+        actorUid: uid,
+        serverTimestamp: (firebase.database.ServerValue) ? firebase.database.ServerValue.TIMESTAMP : Date.now()
+      };
+      await dbRef.update(updates);
+    }
+
+    if (!SeasonState.seeding.snapshots) SeasonState.seeding.snapshots = {};
+    SeasonState.seeding.snapshots[snapshotKey] = snapshotPayload;
+    SeasonState.seeding.selectedSnapshotId = snapshotKey;
+
+    return snapshotPayload;
+  }
+
+  function exportSeedingCsv(snapshotOrState = null) {
+    let players = [];
+    if (snapshotOrState && snapshotOrState.players) {
+      players = Object.values(snapshotOrState.players);
+    } else {
+      const candData = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+      const candMap = {};
+      candData.all.forEach(c => { candMap[c.playerId] = c; });
+
+      players = (SeasonState.seeding.selectedPlayerIds || []).map(pId => {
+        const c = candMap[pId] || { name: 'Unknown', doublesElo: 1500, doublesGp: 0, doublesWinPct: 0, doublesPointDiff: 0, singlesElo: 1500, singlesGp: 0 };
+        const prop = SeasonState.seeding.proposedLevels[pId] || 1;
+        const finalEntry = SeasonState.seeding.finalLevels[pId];
+        const fin = (finalEntry && typeof finalEntry.level === 'number') ? finalEntry.level : (typeof finalEntry === 'number' ? finalEntry : prop);
+        return {
+          name: c.name,
+          doublesElo: c.doublesElo,
+          doublesGp: c.doublesGp,
+          doublesWinPct: c.doublesWinPct,
+          doublesPointDiff: c.doublesPointDiff,
+          singlesElo: c.singlesElo,
+          singlesGp: c.singlesGp,
+          proposedLevel: prop,
+          finalLevel: fin,
+          adjusted: finalEntry ? finalEntry.adjusted === true : false,
+          reason: finalEntry ? (finalEntry.reason || '') : ''
+        };
+      });
+    }
+
+    players.sort((a, b) => {
+      if (a.finalLevel !== b.finalLevel) return b.finalLevel - a.finalLevel;
+      return b.doublesElo - a.doublesElo;
+    });
+
+    const rows = [
+      ['Player', 'Season Doubles Elo', 'Doubles GP', 'Doubles Win %', 'Doubles +/-', 'Singles Elo', 'Singles GP', 'Proposed Level', 'Final Level', 'Adjusted', 'Reason']
+    ];
+
+    players.forEach(p => {
+      rows.push([
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        formatElo(p.doublesElo),
+        p.doublesGp || 0,
+        `${formatWinPct(p.doublesWinPct || 0)}%`,
+        formatPointDiff(p.doublesPointDiff || 0),
+        formatElo(p.singlesElo),
+        p.singlesGp || 0,
+        p.proposedLevel || 1,
+        p.finalLevel || 1,
+        p.adjusted ? 'YES' : 'NO',
+        `"${(p.reason || '').replace(/"/g, '""')}"`
+      ]);
+    });
+
+    return rows.map(r => r.join(',')).join('\n');
+  }
+
+  function exportSeedingJson(snapshotOrState = null) {
+    if (snapshotOrState && snapshotOrState.players) {
+      return JSON.stringify(snapshotOrState, null, 2);
+    }
+    const candData = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+    const candMap = {};
+    candData.all.forEach(c => { candMap[c.playerId] = c; });
+
+    const exportObj = {
+      seasonId: SeasonState.config.seasonId,
+      exportedAt: new Date().toISOString(),
+      config: SeasonState.seeding.config,
+      players: (SeasonState.seeding.selectedPlayerIds || []).map(pId => {
+        const c = candMap[pId] || { name: 'Unknown', doublesElo: 1500, doublesGp: 0 };
+        const prop = SeasonState.seeding.proposedLevels[pId] || 1;
+        const finalEntry = SeasonState.seeding.finalLevels[pId];
+        const fin = (finalEntry && typeof finalEntry.level === 'number') ? finalEntry.level : (typeof finalEntry === 'number' ? finalEntry : prop);
+        return {
+          playerId: pId,
+          name: c.name,
+          doublesElo: Number(c.doublesElo.toFixed(1)),
+          doublesGp: c.doublesGp,
+          singlesElo: Number(c.singlesElo.toFixed(1)),
+          proposedLevel: prop,
+          finalLevel: fin,
+          adjusted: finalEntry ? finalEntry.adjusted === true : false,
+          reason: finalEntry ? (finalEntry.reason || '') : ''
+        };
+      })
+    };
+    return JSON.stringify(exportObj, null, 2);
+  }
+
+  function exportSeedingWhatsApp(snapshotOrState = null) {
+    let players = [];
+    if (snapshotOrState && snapshotOrState.players) {
+      players = Object.values(snapshotOrState.players);
+    } else {
+      const candData = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+      const candMap = {};
+      candData.all.forEach(c => { candMap[c.playerId] = c; });
+
+      players = (SeasonState.seeding.selectedPlayerIds || []).map(pId => {
+        const c = candMap[pId] || { name: 'Unknown', doublesElo: 1500, doublesGp: 0 };
+        const prop = SeasonState.seeding.proposedLevels[pId] || 1;
+        const finalEntry = SeasonState.seeding.finalLevels[pId];
+        const fin = (finalEntry && typeof finalEntry.level === 'number') ? finalEntry.level : (typeof finalEntry === 'number' ? finalEntry : prop);
+        return {
+          name: c.name,
+          doublesElo: c.doublesElo,
+          doublesGp: c.doublesGp,
+          finalLevel: fin
+        };
+      });
+    }
+
+    const l3 = players.filter(p => p.finalLevel === 3).sort((a, b) => b.doublesElo - a.doublesElo);
+    const l2 = players.filter(p => p.finalLevel === 2).sort((a, b) => b.doublesElo - a.doublesElo);
+    const l1 = players.filter(p => p.finalLevel === 1).sort((a, b) => b.doublesElo - a.doublesElo);
+
+    let text = `🏸 *COMMUNITY BADMINTON CUP — TOURNAMENT SEEDING TIERS*\n`;
+    text += `📅 _Derived from Fall 2026 Season Performance Evidence_\n\n`;
+
+    text += `⭐ *LEVEL 3 — ADVANCED (${l3.length} Players)*\n`;
+    l3.forEach((p, i) => {
+      text += `${i + 1}. ${p.name} — ${formatElo(p.doublesElo)} Elo (${p.doublesGp} GP)\n`;
+    });
+
+    text += `\n🔷 *LEVEL 2 — INTERMEDIATE (${l2.length} Players)*\n`;
+    l2.forEach((p, i) => {
+      text += `${i + 1}. ${p.name} — ${formatElo(p.doublesElo)} Elo (${p.doublesGp} GP)\n`;
+    });
+
+    text += `\n🟢 *LEVEL 1 — DEVELOPING (${l1.length} Players)*\n`;
+    l1.forEach((p, i) => {
+      text += `${i + 1}. ${p.name} — ${formatElo(p.doublesElo)} Elo (${p.doublesGp} GP)\n`;
+    });
+
+    text += `\n📊 _Total Tournament Roster: ${players.length} Players_`;
+    return text;
+  }
+
+  function setTournamentParticipantSelected(playerId, isSelected) {
+    if (!playerId) return;
+    const cur = new Set(SeasonState.seeding.selectedPlayerIds || []);
+    if (isSelected) {
+      cur.add(playerId);
+    } else {
+      cur.delete(playerId);
+    }
+    SeasonState.seeding.selectedPlayerIds = Array.from(cur);
+
+    refreshSeedingProposal();
+    renderTournamentSeeding();
+  }
+
+  function selectAllQualifiedParticipants() {
+    const cands = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+    SeasonState.seeding.selectedPlayerIds = cands.qualified.map(c => c.playerId);
+    refreshSeedingProposal();
+    renderTournamentSeeding();
+  }
+
+  function clearAllSelectedParticipants() {
+    SeasonState.seeding.selectedPlayerIds = [];
+    SeasonState.seeding.proposedLevels = {};
+    SeasonState.seeding.finalLevels = {};
+    renderTournamentSeeding();
+  }
+
+  function setPlayerFinalLevel(playerId, level, reason = '') {
+    if (!playerId) return;
+    const lvlNum = parseInt(level, 10);
+    if (isNaN(lvlNum) || lvlNum < 1 || lvlNum > 3) return;
+
+    const prop = SeasonState.seeding.proposedLevels[playerId] || lvlNum;
+    const isAdjusted = lvlNum !== prop;
+
+    SeasonState.seeding.finalLevels[playerId] = {
+      level: lvlNum,
+      adjusted: isAdjusted,
+      reason: reason || (isAdjusted ? 'Organizer manual override' : '')
+    };
+
+    renderTournamentSeeding();
+  }
+
+  function refreshSeedingProposal() {
+    const candData = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+    const candMap = {};
+    candData.all.forEach(c => { candMap[c.playerId] = c; });
+
+    const selectedCands = (SeasonState.seeding.selectedPlayerIds || []).map(pId => candMap[pId]).filter(Boolean);
+    const proposal = generateSeedingProposal(selectedCands, SeasonState.seeding.config);
+
+    SeasonState.seeding.proposedLevels = proposal.proposedMap;
+
+    if (!SeasonState.seeding.finalLevels) SeasonState.seeding.finalLevels = {};
+    selectedCands.forEach(p => {
+      if (!SeasonState.seeding.finalLevels[p.playerId]) {
+        SeasonState.seeding.finalLevels[p.playerId] = {
+          level: proposal.proposedMap[p.playerId] || 1,
+          adjusted: false,
+          reason: ''
+        };
+      }
+    });
+  }
+
+  function openSeedingEvidenceModal(playerId) {
+    SeasonState.seeding.evidencePlayerId = playerId;
+    renderSeedingEvidenceModal(playerId);
+    const modal = document.getElementById('seasonSeedingEvidenceModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  function closeSeedingEvidenceModal() {
+    const modal = document.getElementById('seasonSeedingEvidenceModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function renderSeedingEvidenceModal(playerId) {
+    const body = document.getElementById('seasonSeedingEvidenceBody');
+    if (!body) return;
+    const ev = getTournamentSeedingEvidence(playerId);
+    if (!ev) {
+      body.innerHTML = `<p style="color:var(--text-muted);">No player evidence found.</p>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div>
+          <h4 style="margin:0; font-size:1.25rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+            ${ev.name}
+          </h4>
+          <span style="font-size:0.75rem; color:var(--text-muted);">ID: ${ev.playerId}</span>
+        </div>
+        <div style="text-align:right;">
+          <span class="season-tier-pill level-${ev.finalLevel}" style="font-size:0.85rem; padding:4px 12px; font-weight:800; border-radius:12px;">
+            Level ${ev.finalLevel} ${ev.finalLevel === 3 ? 'Advanced' : (ev.finalLevel === 2 ? 'Intermediate' : 'Developing')}
+          </span>
+          ${ev.adjusted ? `<div style="font-size:0.7rem; color:#f59e0b; font-weight:700; margin-top:2px;">(Manual: Prop L${ev.proposedLevel} &rarr; Final L${ev.finalLevel})</div>` : ''}
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div style="background:var(--bg-card-hover,#f8fafc); border:1px solid var(--border-subtle,#e2e8f0); border-radius:10px; padding:10px;">
+          <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">👥 Doubles Elo &amp; Record</div>
+          <div style="font-size:1.3rem; font-weight:800; color:var(--primary,#2563eb); font-family:'Outfit',sans-serif;">${formatElo(ev.doublesElo)}</div>
+          <div style="font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${ev.doublesWins}W – ${ev.doublesLosses}L (${formatWinPct(ev.doublesWinPct)}%) &bull; ${formatPointDiff(ev.doublesPointDiff)}</div>
+        </div>
+
+        <div style="background:var(--bg-card-hover,#f8fafc); border:1px solid var(--border-subtle,#e2e8f0); border-radius:10px; padding:10px;">
+          <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">👤 Singles Elo &amp; Record</div>
+          <div style="font-size:1.3rem; font-weight:800; color:#7c3aed; font-family:'Outfit',sans-serif;">${formatElo(ev.singlesElo)}</div>
+          <div style="font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${ev.singlesWins}W – ${ev.singlesLosses}L (${formatWinPct(ev.singlesWinPct)}%) &bull; ${formatPointDiff(ev.singlesPointDiff)}</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">🤝 Partner &amp; Opponent Diversity</div>
+        <div style="display:flex; gap:10px; font-size:0.82rem;">
+          <span style="background:var(--bg-card-hover,#f8fafc); border:1px solid var(--border-subtle,#e2e8f0); padding:4px 10px; border-radius:6px;"><strong>${ev.uniquePartners}</strong> Unique Partners</span>
+          <span style="background:var(--bg-card-hover,#f8fafc); border:1px solid var(--border-subtle,#e2e8f0); padding:4px 10px; border-radius:6px;"><strong>${ev.uniqueOpponents}</strong> Unique Opponents</span>
+        </div>
+      </div>
+
+      ${ev.adjustmentReason ? `
+        <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:8px 12px; margin-bottom:14px; font-size:0.8rem; color:#b45309;">
+          <strong>Adjustment Rationale:</strong> ${ev.adjustmentReason}
+        </div>
+      ` : ''}
+
+      <div style="text-align:right;">
+        <button type="button" class="btn-secondary" onclick="SeasonApp.closeSeedingEvidenceModal()">Close</button>
+      </div>
+    `;
+  }
+
+  function openFinalizeSeedingModal() {
+    const val = validateTournamentTierDistribution();
+    const summaryEl = document.getElementById('seasonFinalizeSeedingSummary');
+    const warnEl = document.getElementById('seasonFinalizeSeedingWarn');
+    if (warnEl) warnEl.textContent = '';
+
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Total Selected Players:</span>
+          <strong>${val.totalSelected}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#ca8a04;">
+          <span>Level 3 (Advanced):</span>
+          <strong>${val.l3Assigned} / ${val.l3Target}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#2563eb;">
+          <span>Level 2 (Intermediate):</span>
+          <strong>${val.l2Assigned} / ${val.l2Target}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#059669;">
+          <span>Level 1 (Developing):</span>
+          <strong>${val.l1Assigned} / ${val.l1Target}</strong>
+        </div>
+      `;
+    }
+
+    if (SeasonState.config.status !== 'FROZEN') {
+      if (warnEl) {
+        warnEl.innerHTML = `⚠️ Season is currently ACTIVE. You must freeze the Season in Admin before confirming final seeding.`;
+      }
+    } else if (!val.valid) {
+      if (warnEl) {
+        warnEl.innerHTML = `⚠️ ${val.errors.join(' ')}`;
+      }
+    }
+
+    const modal = document.getElementById('seasonFinalizeSeedingModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  function closeFinalizeSeedingModal() {
+    const modal = document.getElementById('seasonFinalizeSeedingModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  async function executeFinalizeTournamentSeeding() {
+    const warnEl = document.getElementById('seasonFinalizeSeedingWarn');
+    const btn = document.getElementById('seasonConfirmFinalizeSeedingBtn');
+    if (warnEl) warnEl.textContent = '';
+
+    if (SeasonState.config.status !== 'FROZEN') {
+      if (warnEl) warnEl.textContent = 'Season must be FROZEN first.';
+      return;
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving Snapshot...'; }
+      await finalizeTournamentSeeding(SeasonState.config.seasonId, SeasonState.seeding);
+      closeFinalizeSeedingModal();
+      renderTournamentSeeding();
+    } catch (err) {
+      if (warnEl) warnEl.textContent = err.message || 'Failed to finalize seeding snapshot.';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Finalize Seeding Snapshot'; }
+    }
+  }
+
+  function openExportTournamentModal() {
+    renderExportTournamentModal();
+    const modal = document.getElementById('seasonExportTournamentModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  function closeExportTournamentModal() {
+    const modal = document.getElementById('seasonExportTournamentModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function renderExportTournamentModal() {
+    const body = document.getElementById('seasonExportTournamentBody');
+    if (!body) return;
+
+    const csvText = exportSeedingCsv();
+    const jsonText = exportSeedingJson();
+    const waText = exportSeedingWhatsApp();
+
+    body.innerHTML = `
+      <div class="season-export-tabs" role="tablist">
+        <button type="button" class="season-export-tab-btn active" onclick="SeasonApp.switchExportTab('csv', this)">📊 CSV Spreadsheet</button>
+        <button type="button" class="season-export-tab-btn" onclick="SeasonApp.switchExportTab('whatsapp', this)">💬 WhatsApp Message</button>
+        <button type="button" class="season-export-tab-btn" onclick="SeasonApp.switchExportTab('json', this)">💻 JSON Schema</button>
+      </div>
+
+      <div id="seasonExportPane-csv" class="season-export-pane">
+        <textarea id="seasonExportText-csv" class="season-export-textarea" readonly>${csvText}</textarea>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Ready to import into Excel, Google Sheets, or Numbers.</span>
+          <button type="button" class="btn-primary" onclick="SeasonApp.copyExportContent('seasonExportText-csv', this)">📋 Copy CSV</button>
+        </div>
+      </div>
+
+      <div id="seasonExportPane-whatsapp" class="season-export-pane hidden" style="display:none;">
+        <textarea id="seasonExportText-whatsapp" class="season-export-textarea" readonly>${waText}</textarea>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Pre-formatted markdown for WhatsApp group announcement.</span>
+          <button type="button" class="btn-primary" onclick="SeasonApp.copyExportContent('seasonExportText-whatsapp', this)">📋 Copy WhatsApp Text</button>
+        </div>
+      </div>
+
+      <div id="seasonExportPane-json" class="season-export-pane hidden" style="display:none;">
+        <textarea id="seasonExportText-json" class="season-export-textarea" readonly>${jsonText}</textarea>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Structured payload for automated bracket generators and tournament engines.</span>
+          <button type="button" class="btn-primary" onclick="SeasonApp.copyExportContent('seasonExportText-json', this)">📋 Copy JSON</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function switchExportTab(tabName, btnEl) {
+    document.querySelectorAll('.season-export-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+
+    ['csv', 'whatsapp', 'json'].forEach(t => {
+      const pane = document.getElementById(`seasonExportPane-${t}`);
+      if (pane) {
+        if (t === tabName) {
+          pane.classList.remove('hidden');
+          pane.style.display = 'block';
+        } else {
+          pane.classList.add('hidden');
+          pane.style.display = 'none';
+        }
+      }
+    });
+  }
+
+  function copyExportContent(elementId, btnEl) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.select();
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(el.value);
+      } else {
+        document.execCommand('copy');
+      }
+      if (btnEl) {
+        const orig = btnEl.textContent;
+        btnEl.textContent = '✓ Copied!';
+        setTimeout(() => { btnEl.textContent = orig; }, 2000);
+      }
+    } catch (e) {
+      console.warn('Copy failed', e);
+    }
+  }
+
+  function openSnapshotDetailModal(snapshotId) {
+    const snapshots = SeasonState.seeding.snapshots || {};
+    const snap = snapshots[snapshotId];
+    if (!snap) return;
+
+    const body = document.getElementById('seasonSnapshotDetailBody');
+    if (body) {
+      const players = Object.values(snap.players || {}).sort((a, b) => {
+        if (a.finalLevel !== b.finalLevel) return b.finalLevel - a.finalLevel;
+        return b.doublesElo - a.doublesElo;
+      });
+
+      body.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div>
+            <h4 style="margin:0; font-size:1.15rem; font-weight:800; font-family:'Outfit',sans-serif;">Snapshot: ${snap.snapshotId}</h4>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Generated: ${typeof snap.createdAt === 'number' ? new Date(snap.createdAt).toLocaleString() : '—'} &bull; By: ${snap.createdByUid}</span>
+          </div>
+          <div>
+            <span class="season-admin-status-badge active" style="font-size:0.75rem;">IMMUTABLE SNAPSHOT</span>
+          </div>
+        </div>
+
+        <div style="max-height:380px; overflow-y:auto; margin-bottom:14px; border:1px solid var(--border-subtle,#e2e8f0); border-radius:10px;">
+          <table class="season-mini-table">
+            <thead>
+              <tr>
+                <th style="width:36px; text-align:center;">#</th>
+                <th>Player</th>
+                <th style="text-align:right;">Doubles Elo</th>
+                <th style="text-align:center;">GP</th>
+                <th style="text-align:center;">Tier</th>
+                <th>Adjustment</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${players.map((p, i) => `
+                <tr>
+                  <td style="text-align:center; font-weight:700; color:var(--text-muted);">${i + 1}</td>
+                  <td style="font-weight:700;">${p.name}</td>
+                  <td style="text-align:right; font-family:'Outfit',sans-serif; font-weight:800; color:var(--primary);">${formatElo(p.doublesElo)}</td>
+                  <td style="text-align:center;">${p.doublesGp}</td>
+                  <td style="text-align:center;">
+                    <span class="season-tier-pill level-${p.finalLevel}">Level ${p.finalLevel}</span>
+                  </td>
+                  <td style="font-size:0.75rem; color:${p.adjusted ? '#f59e0b' : 'var(--text-muted)'};">
+                    ${p.adjusted ? `Prop L${p.proposedLevel} &rarr; Final L${p.finalLevel} (${p.reason || 'Manual'})` : 'Auto'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <button type="button" class="btn-secondary" onclick="SeasonApp.closeSnapshotDetailModal()">Close</button>
+          <button type="button" class="btn-primary" onclick="SeasonApp.openExportTournamentModal()">📤 Export This Snapshot</button>
+        </div>
+      `;
+    }
+
+    const modal = document.getElementById('seasonSnapshotDetailModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  function closeSnapshotDetailModal() {
+    const modal = document.getElementById('seasonSnapshotDetailModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  /**
+   * Renders the complete Tournament Seeding UI inside #seasonSeedingContainer.
+   */
+  function renderTournamentSeeding() {
+    const container = document.getElementById('seasonSeedingContainer');
+    if (!container) return;
+
+    const isFrozen = SeasonState.config && SeasonState.config.status === 'FROZEN';
+    const candidateData = getQualifiedTournamentCandidates(SeasonState.players, SeasonState.playerStats, SeasonState.elo, SeasonState.config);
+
+    // Auto-select qualified players if nothing is selected yet
+    if (!SeasonState.seeding.selectedPlayerIds || SeasonState.seeding.selectedPlayerIds.length === 0) {
+      SeasonState.seeding.selectedPlayerIds = candidateData.qualified.map(c => c.playerId);
+      refreshSeedingProposal();
+    }
+
+    const selectedSet = new Set(SeasonState.seeding.selectedPlayerIds || []);
+    const candidateMap = {};
+    candidateData.all.forEach(c => { candidateMap[c.playerId] = c; });
+
+    const selectedCands = (SeasonState.seeding.selectedPlayerIds || []).map(pId => candidateMap[pId]).filter(Boolean);
+    const proposal = generateSeedingProposal(selectedCands, SeasonState.seeding.config);
+    const valResult = validateTournamentTierDistribution(SeasonState.seeding.finalLevels, SeasonState.seeding.selectedPlayerIds, SeasonState.seeding.config);
+
+    const snapshotsList = Object.values(SeasonState.seeding.snapshots || {}).sort((a, b) => {
+      const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+      const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+      return timeB - timeA;
+    });
+
+    // Group selected players by final level
+    const level3Players = [];
+    const level2Players = [];
+    const level1Players = [];
+
+    proposal.proposedList.forEach(p => {
+      const pId = p.playerId;
+      const finalEntry = SeasonState.seeding.finalLevels ? SeasonState.seeding.finalLevels[pId] : null;
+      const finalLvl = (finalEntry && typeof finalEntry.level === 'number') ? finalEntry.level : (typeof finalEntry === 'number' ? finalEntry : p.proposedLevel);
+      const isAdjusted = finalEntry ? (finalEntry.adjusted === true || finalLvl !== p.proposedLevel) : false;
+      const reason = finalEntry ? (finalEntry.reason || '') : '';
+
+      const playerRow = {
+        ...p,
+        finalLevel: finalLvl,
+        adjusted: isAdjusted,
+        adjustmentReason: reason
+      };
+
+      if (finalLvl === 3) level3Players.push(playerRow);
+      else if (finalLvl === 2) level2Players.push(playerRow);
+      else level1Players.push(playerRow);
+    });
+
+    container.innerHTML = `
+      <div class="season-seeding-wrap">
+
+        <!-- Season Status Banner -->
+        ${!isFrozen ? `
+          <div class="season-seeding-banner-preview">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:1.3rem;">⚠️</span>
+              <div>
+                <strong>PREVIEW — SEASON NOT FROZEN</strong>
+                <p style="margin:2px 0 0; font-size:0.78rem; font-weight:500;">
+                  The season is currently ACTIVE. Seeding tiers below are an in-memory preview. Freeze the season in Season Admin to enable permanent finalization.
+                </p>
+              </div>
+            </div>
+            <button type="button" class="btn-secondary" style="font-size:0.8rem; padding:6px 12px;" onclick="SeasonApp.switchTab('admin')">Go to Season Admin &rarr;</button>
+          </div>
+        ` : `
+          <div class="season-seeding-banner-frozen">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:1.3rem;">🔒</span>
+              <div>
+                <strong>SEASON FROZEN &bull; READY FOR TOURNAMENT FINALIZATION</strong>
+                <p style="margin:2px 0 0; font-size:0.78rem; font-weight:500;">
+                  The match ledger is sealed. You can adjust skill tiers below and confirm the permanent final snapshot.
+                </p>
+              </div>
+            </div>
+          </div>
+        `}
+
+        <!-- Seeding Header Card -->
+        <div class="season-seeding-header">
+          <div>
+            <h2 style="margin:0; font-size:1.4rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+              🏸 Tournament Seeding &amp; Skill Tiers
+            </h2>
+            <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-muted);">
+              Evidence-based Level 1 / 2 / 3 tier allocation informed by 12-week Doubles Elo ratings and match volume.
+            </p>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn-secondary" onclick="SeasonApp.openExportTournamentModal()">
+              📤 Export Seeding
+            </button>
+            <button type="button" class="btn-primary" style="${!isFrozen ? 'opacity:0.6;' : ''}" onclick="SeasonApp.openFinalizeSeedingModal()">
+              ✅ Finalize Seeding Snapshot
+            </button>
+          </div>
+        </div>
+
+        <!-- Tier Configuration & Participant Counts -->
+        <div class="season-seeding-config-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+            <div>
+              <h3 style="margin:0; font-size:1.05rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+                ⚙️ Tournament Roster &amp; Tier Distribution
+              </h3>
+              <p style="margin:2px 0 0; font-size:0.78rem; color:var(--text-muted);">
+                ${SeasonState.seeding.selectedPlayerIds.length} players selected (${candidateData.qualified.length} Qualified &bull; ${candidateData.provisional.length} Provisional)
+              </p>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn-secondary" style="font-size:0.75rem; padding:4px 10px;" onclick="SeasonApp.selectAllQualifiedParticipants()">Select All Qualified (${candidateData.qualified.length})</button>
+              <button type="button" class="btn-secondary" style="font-size:0.75rem; padding:4px 10px;" onclick="SeasonApp.clearAllSelectedParticipants()">Clear Selection</button>
+            </div>
+          </div>
+
+          <div class="season-tier-inputs-row">
+            <div class="season-tier-input-group">
+              <span style="color:#ca8a04;">⭐ Level 3 (Advanced):</span>
+              <input type="number" min="0" max="64" value="${SeasonState.seeding.config.level3Count}" onchange="SeasonState.seeding.config.level3Count = parseInt(this.value,10)||0; SeasonApp.refreshSeedingProposal(); SeasonApp.renderTournamentSeeding();">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Assigned: ${valResult.l3Assigned}</span>
+            </div>
+
+            <div class="season-tier-input-group">
+              <span style="color:#2563eb;">🔷 Level 2 (Intermediate):</span>
+              <input type="number" min="0" max="64" value="${SeasonState.seeding.config.level2Count}" onchange="SeasonState.seeding.config.level2Count = parseInt(this.value,10)||0; SeasonApp.refreshSeedingProposal(); SeasonApp.renderTournamentSeeding();">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Assigned: ${valResult.l2Assigned}</span>
+            </div>
+
+            <div class="season-tier-input-group">
+              <span style="color:#059669;">🟢 Level 1 (Developing):</span>
+              <input type="number" min="0" max="64" value="${SeasonState.seeding.config.level1Count}" onchange="SeasonState.seeding.config.level1Count = parseInt(this.value,10)||0; SeasonApp.refreshSeedingProposal(); SeasonApp.renderTournamentSeeding();">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Assigned: ${valResult.l1Assigned}</span>
+            </div>
+          </div>
+
+          ${valResult.errors.length > 0 ? `
+            <div style="margin-top:12px; font-size:0.8rem; color:var(--loss-color,#dc2626); font-weight:700;">
+              ⚠️ ${valResult.errors.join(' &bull; ')}
+            </div>
+          ` : `
+            <div style="margin-top:12px; font-size:0.8rem; color:var(--win-color,#059669); font-weight:700;">
+              ✓ Target tier distribution balanced (${valResult.totalSelected} / ${valResult.totalTarget} players).
+            </div>
+          `}
+        </div>
+
+        <!-- Boundary Review Card -->
+        ${proposal.boundaries.length > 0 ? `
+          <div class="season-boundary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.82rem; font-weight:800; color:var(--text-primary); text-transform:uppercase;">
+                ⚖️ Tier Boundary Gap Analysis
+              </span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Review close ratings around tier cutoffs</span>
+            </div>
+            <div class="season-boundary-items">
+              ${proposal.boundaries.map(b => `
+                <div class="season-boundary-item">
+                  <span>${b.boundaryName}:</span>
+                  <span style="color:var(--text-primary);">#${b.rankAbove} ${b.playerAbove.name} (${formatElo(b.playerAbove.doublesElo)})</span>
+                  <span style="color:var(--text-muted);">&harr;</span>
+                  <span style="color:var(--text-primary);">#${b.rankBelow} ${b.playerBelow.name} (${formatElo(b.playerBelow.doublesElo)})</span>
+                  <span class="season-tag-pill" style="font-size:0.7rem; background:rgba(99,102,241,0.15); color:#6366f1;">${b.eloGap} Elo Gap</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 3 Tiers Layout -->
+        <div class="season-tiers-layout">
+
+          <!-- LEVEL 3 -->
+          <div class="season-tier-card">
+            <div class="season-tier-header tier-3">
+              <div>
+                <div style="font-size:1.1rem;">⭐ Level 3 — Advanced</div>
+                <div style="font-size:0.72rem; opacity:0.85; font-weight:600;">Top Doubles Seeds &bull; Target: ${SeasonState.seeding.config.level3Count}</div>
+              </div>
+              <span class="season-count-chip" style="background:#ca8a04; color:#ffffff;">${level3Players.length}</span>
+            </div>
+            <div class="season-tier-player-list">
+              ${level3Players.length > 0 ? level3Players.map(p => renderTierPlayerRow(p)).join('') : `
+                <div style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.85rem;">No players in Level 3</div>
+              `}
+            </div>
+          </div>
+
+          <!-- LEVEL 2 -->
+          <div class="season-tier-card">
+            <div class="season-tier-header tier-2">
+              <div>
+                <div style="font-size:1.1rem;">🔷 Level 2 — Intermediate</div>
+                <div style="font-size:0.72rem; opacity:0.85; font-weight:600;">Core Competitive Tier &bull; Target: ${SeasonState.seeding.config.level2Count}</div>
+              </div>
+              <span class="season-count-chip" style="background:#2563eb; color:#ffffff;">${level2Players.length}</span>
+            </div>
+            <div class="season-tier-player-list">
+              ${level2Players.length > 0 ? level2Players.map(p => renderTierPlayerRow(p)).join('') : `
+                <div style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.85rem;">No players in Level 2</div>
+              `}
+            </div>
+          </div>
+
+          <!-- LEVEL 1 -->
+          <div class="season-tier-card">
+            <div class="season-tier-header tier-1">
+              <div>
+                <div style="font-size:1.1rem;">🟢 Level 1 — Developing</div>
+                <div style="font-size:0.72rem; opacity:0.85; font-weight:600;">Rising / Developing Tier &bull; Target: ${SeasonState.seeding.config.level1Count}</div>
+              </div>
+              <span class="season-count-chip" style="background:#059669; color:#ffffff;">${level1Players.length}</span>
+            </div>
+            <div class="season-tier-player-list">
+              ${level1Players.length > 0 ? level1Players.map(p => renderTierPlayerRow(p)).join('') : `
+                <div style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.85rem;">No players in Level 1</div>
+              `}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Provisional & Unselected Players Section -->
+        <div class="season-seeding-config-card">
+          <h3 style="margin:0 0 10px 0; font-size:1.05rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+            📋 Roster Availability &amp; Provisional Candidates (${candidateData.all.length} Total Registered)
+          </h3>
+          <p style="margin:0 0 14px 0; font-size:0.78rem; color:var(--text-muted);">
+            Check players to include in the tournament roster. Players with under 15 Doubles GP are flagged Provisional.
+          </p>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px;">
+            ${candidateData.all.map(p => {
+              const isSel = selectedSet.has(p.playerId);
+              return `
+                <label style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--bg-card-hover,#f8fafc); border:1px solid var(--border-subtle,#e2e8f0); border-radius:8px; cursor:pointer; font-size:0.85rem;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" ${isSel ? 'checked' : ''} onchange="SeasonApp.setTournamentParticipantSelected('${p.playerId}', this.checked)">
+                    <span style="font-weight:700; color:var(--text-primary);">${p.name}</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:0.75rem; font-weight:800; color:var(--primary);">${formatElo(p.doublesElo)}</span>
+                    <span style="font-size:0.7rem; color:${p.qualified ? 'var(--text-muted)' : '#f59e0b'}; display:block;">
+                      ${p.qualified ? `${p.doublesGp} GP` : `Prov (${p.doublesGp}/15)`}
+                    </span>
+                  </div>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Confirmed Snapshots History Table -->
+        ${snapshotsList.length > 0 ? `
+          <div class="season-seeding-config-card">
+            <h3 style="margin:0 0 10px 0; font-size:1.05rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-primary);">
+              📜 Finalized Seeding Snapshots (${snapshotsList.length})
+            </h3>
+            <div style="overflow-x:auto;">
+              <table class="season-snapshots-table">
+                <thead>
+                  <tr>
+                    <th>Snapshot ID</th>
+                    <th>Created</th>
+                    <th>Created By</th>
+                    <th>Roster Size</th>
+                    <th>Distribution (L3 / L2 / L1)</th>
+                    <th style="text-align:right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${snapshotsList.map(s => {
+                    const sum = s.summary || { totalPlayers: 0, level3Count: 0, level2Count: 0, level1Count: 0 };
+                    return `
+                      <tr>
+                        <td style="font-weight:700; font-family:'Consolas',monospace;">${s.snapshotId}</td>
+                        <td style="color:var(--text-muted); font-size:0.8rem;">${typeof s.createdAt === 'number' ? new Date(s.createdAt).toLocaleDateString() : '—'}</td>
+                        <td style="font-size:0.8rem;">${s.createdByUid || 'Admin'}</td>
+                        <td style="font-weight:700;">${sum.totalPlayers} Players</td>
+                        <td style="font-weight:600;">${sum.level3Count} / ${sum.level2Count} / ${sum.level1Count}</td>
+                        <td style="text-align:right;">
+                          <button type="button" class="btn-secondary" style="font-size:0.75rem; padding:4px 10px;" onclick="SeasonApp.openSnapshotDetailModal('${s.snapshotId}')">View Details &rarr;</button>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+      </div>
+    `;
+  }
+
+  function renderTierPlayerRow(p) {
+    return `
+      <div class="season-tier-player-row ${p.adjusted ? 'adjusted-row' : ''}">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-weight:800; color:var(--text-muted); font-size:0.8rem; width:22px;">#${p.rank}</span>
+          <div>
+            <div style="font-weight:700; color:var(--text-primary); font-size:0.88rem;">${p.name}</div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">
+              ${formatElo(p.doublesElo)} Elo &bull; ${p.doublesGp} GP &bull; ${formatWinPct(p.doublesWinPct)}%
+              ${p.adjusted ? `<span style="color:#f59e0b; font-weight:700; margin-left:4px;">(Manual override)</span>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" class="btn-secondary" style="font-size:0.7rem; padding:3px 8px;" onclick="SeasonApp.openSeedingEvidenceModal('${p.playerId}')">📊 Evidence</button>
+          <select class="season-level-select" onchange="SeasonApp.setPlayerFinalLevel('${p.playerId}', this.value)">
+            <option value="3" ${p.finalLevel === 3 ? 'selected' : ''}>Level 3</option>
+            <option value="2" ${p.finalLevel === 2 ? 'selected' : ''}>Level 2</option>
+            <option value="1" ${p.finalLevel === 1 ? 'selected' : ''}>Level 1</option>
+          </select>
+        </div>
+      </div>
+    `;
+  }
+
+  // 23. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
@@ -5180,6 +6418,7 @@
     subscribeToPlayers();
     subscribeToMatches();
     subscribeToAudit();
+    subscribeToSeedingSnapshots();
     recalculatePlayerStats();
     recalculateElo();
     recalculateAnalytics();
@@ -5363,7 +6602,39 @@
     setSelectedWeek,
     setWeeklyMode,
     renderWeeklyTrendSvg,
-    renderWeeklyInsights
+    renderWeeklyInsights,
+
+    // Phase 10 Tournament Seeding & Export API
+    getSeasonSeedingSnapshotsPath,
+    getSeasonFinalSnapshotPath,
+    getQualifiedTournamentCandidates,
+    generateSeedingProposal,
+    validateTournamentTierDistribution,
+    getTournamentSeedingEvidence,
+    subscribeToSeedingSnapshots,
+    finalizeTournamentSeeding,
+    exportSeedingCsv,
+    exportSeedingJson,
+    exportSeedingWhatsApp,
+    copySeedingForWhatsApp: exportSeedingWhatsApp,
+    setTournamentParticipantSelected,
+    selectAllQualifiedParticipants,
+    clearAllSelectedParticipants,
+    setPlayerFinalLevel,
+    refreshSeedingProposal,
+    openSeedingEvidenceModal,
+    closeSeedingEvidenceModal,
+    openFinalizeSeedingModal,
+    closeFinalizeSeedingModal,
+    executeFinalizeTournamentSeeding,
+    openExportTournamentModal,
+    closeExportTournamentModal,
+    openSnapshotDetailModal,
+    closeSnapshotDetailModal,
+    renderTournamentSeeding,
+    renderSeedingSnapshot: openSnapshotDetailModal,
+    switchExportTab,
+    copyExportContent
   };
 
   // Global helper aliases for HTML onclick handlers

@@ -2966,3 +2966,319 @@ body.season-active .mobile-bottom-nav {
   border-color: rgba(71, 85, 105, 0.4);
 }
 
+/* --------------------------------------------------------------------------
+   Phase 10: Tournament Seeding & Export Styles
+   -------------------------------------------------------------------------- */
+.season-seeding-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.season-seeding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #e2e8f0);
+  border-radius: var(--radius-lg, 16px);
+  padding: 20px 24px;
+}
+
+[data-theme="dark"] .season-seeding-header {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-seeding-banner-preview {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #b45309;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+[data-theme="dark"] .season-seeding-banner-preview {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+}
+
+.season-seeding-banner-frozen {
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.35);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--win-color, #059669);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.season-seeding-config-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #e2e8f0);
+  border-radius: var(--radius-lg, 16px);
+  padding: 20px;
+}
+
+[data-theme="dark"] .season-seeding-config-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-tier-inputs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.season-tier-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  padding: 6px 14px;
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .season-tier-input-group {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-tier-input-group input[type="number"] {
+  width: 54px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-align: center;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="dark"] .season-tier-input-group input[type="number"] {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+.season-tiers-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.season-tier-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #e2e8f0);
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-theme="dark"] .season-tier-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-tier-header {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+}
+
+.season-tier-header.tier-3 {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(245, 158, 11, 0.05));
+  border-top: 4px solid #eab308;
+  color: #ca8a04;
+}
+
+.season-tier-header.tier-2 {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(59, 130, 246, 0.05));
+  border-top: 4px solid #2563eb;
+  color: #2563eb;
+}
+
+.season-tier-header.tier-1 {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.05));
+  border-top: 4px solid #10b981;
+  color: #059669;
+}
+
+[data-theme="dark"] .season-tier-header.tier-3 { color: #fde047; }
+[data-theme="dark"] .season-tier-header.tier-2 { color: #60a5fa; }
+[data-theme="dark"] .season-tier-header.tier-1 { color: #34d399; }
+
+.season-tier-player-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.season-tier-player-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  gap: 10px;
+  transition: all 0.15s ease;
+}
+
+[data-theme="dark"] .season-tier-player-row {
+  background: rgba(15, 23, 42, 0.45);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-tier-player-row:hover {
+  border-color: var(--primary, #2563eb);
+}
+
+.season-tier-player-row.adjusted-row {
+  border-left: 3px solid #f59e0b;
+}
+
+.season-level-select {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .season-level-select {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+.season-boundary-card {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px dashed rgba(99, 102, 241, 0.35);
+  border-radius: var(--radius-lg, 16px);
+  padding: 16px 20px;
+}
+
+[data-theme="dark"] .season-boundary-card {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.season-boundary-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.season-boundary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .season-boundary-item {
+  background: #1e293b;
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-snapshots-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.season-snapshots-table th,
+.season-snapshots-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  text-align: left;
+}
+
+[data-theme="dark"] .season-snapshots-table th,
+[data-theme="dark"] .season-snapshots-table td {
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-export-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  margin-bottom: 14px;
+}
+
+.season-export-tab-btn {
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+}
+
+.season-export-tab-btn.active {
+  color: var(--primary, #2563eb);
+  border-bottom-color: var(--primary, #2563eb);
+}
+
+.season-export-textarea {
+  width: 100%;
+  height: 220px;
+  padding: 12px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.82rem;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card-hover, #f8fafc);
+  color: var(--text-primary, #0f172a);
+  resize: vertical;
+}
+
+[data-theme="dark"] .season-export-textarea {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+

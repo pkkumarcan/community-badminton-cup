@@ -202,7 +202,7 @@ check('Season configuration constants are correctly defined', () => {
   assert.strictEqual(cfg.seasonId, 'fall2026', 'seasonId must be fall2026');
   assert.strictEqual(cfg.name, 'Sindhi Boys Badminton Season — Fall 2026');
   assert.strictEqual(cfg.startDate, '2026-09-27');
-  assert.strictEqual(cfg.endDate, '2026-12-20');
+  assert.strictEqual(cfg.endDate, '2026-12-19');
   assert.strictEqual(cfg.status, 'ACTIVE');
   assert.strictEqual(cfg.minGamesQualified, 15);
   assert.strictEqual(cfg.startingElo, 1500);
