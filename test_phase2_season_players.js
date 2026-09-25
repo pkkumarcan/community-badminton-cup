@@ -226,6 +226,8 @@ check('normalizePlayerName handles empty, null and non-string inputs safely', ()
 console.log('\n--- GROUP 3: Player Creation & Schema Integrity ---');
 
 (async () => {
+  window.SeasonApp.state.players = {}; // Start unit tests from clean slate
+
   await checkAsync('addPlayer adds valid player with complete schema', async () => {
     const p1 = await window.SeasonApp.addPlayer('Pardeep');
     assert(p1.id && p1.id.startsWith('p_'), 'ID must start with p_');

@@ -261,6 +261,57 @@
     }
   }
 
+  // Tournament Roster Reference (24 Players Strict Alphabetical)
+  const TOURNAMENT_ROSTER_NAMES = Object.freeze([
+    "Ajeet", "Amit", "Deepak", "Hira", "Honey", "Hrithik",
+    "Manoj", "Naresh", "Om", "Pardeep", "Partab", "Raja",
+    "Rajesh M.", "Rajesh N.", "Rakesh", "Ranjeet", "Rohit",
+    "Sanjay", "Sarwan", "Shashi", "Sunny", "Vijay", "Vinod", "Wijai"
+  ]);
+
+  function getDefaultTournamentPlayersMap() {
+    const map = {};
+    TOURNAMENT_ROSTER_NAMES.forEach((name, idx) => {
+      const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+      const id = `p_${slug}`;
+      map[id] = {
+        id,
+        name,
+        normalizedName: normalizePlayerName(name),
+        active: true,
+        createdAt: 1727395200000 + idx,
+        joinedAt: 1727395200000 + idx,
+        createdByUid: 'tournament_roster',
+        createdFrom: 'tournament_roster'
+      };
+    });
+    return map;
+  }
+
+  async function autoSeedTournamentPlayersToFirebase() {
+    if (typeof firebase === 'undefined' || !firebase.database) return;
+    try {
+      const defaultMap = getDefaultTournamentPlayersMap();
+      const updates = {};
+      Object.keys(defaultMap).forEach(id => {
+        updates[`${getSeasonPlayersPath()}/${id}`] = defaultMap[id];
+      });
+      const auditId = generateAuditId();
+      updates[`${getSeasonAuditPath()}/${auditId}`] = {
+        action: 'TOURNAMENT_ROSTER_IMPORTED',
+        targetId: SeasonState.config.seasonId,
+        playerCount: Object.keys(defaultMap).length,
+        playerNames: Object.values(defaultMap).map(p => p.name),
+        timestamp: (firebase.database.ServerValue) ? firebase.database.ServerValue.TIMESTAMP : Date.now(),
+        actorUid: (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : 'organizer'
+      };
+      await firebase.database().ref().update(updates);
+      console.log('[SeasonApp] Auto-seeded 24 tournament players into Firebase');
+    } catch (e) {
+      console.warn('[SeasonApp] Auto-seed error (non-fatal):', e);
+    }
+  }
+
   function subscribeToPlayers() {
     if (SeasonState.playersSubscribed) return;
 
@@ -274,12 +325,19 @@
       const playersRef = db.ref(getSeasonPlayersPath());
 
       playersRef.on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        SeasonState.players = data;
+        const data = snapshot.val();
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          SeasonState.players = data;
+        } else {
+          SeasonState.players = getDefaultTournamentPlayersMap();
+          autoSeedTournamentPlayersToFirebase();
+        }
+
         SeasonState.playersSubscribed = true;
         recalculatePlayerStats();
         recalculateElo();
         recalculateAnalytics();
+        recalculateWeeklyAnalytics();
 
         if (SeasonState.activeTab === 'players') {
           renderPlayers();
@@ -373,14 +431,6 @@
 
     return playerRecord;
   }
-
-  // Tournament Roster Reference (24 Players Strict Alphabetical)
-  const TOURNAMENT_ROSTER_NAMES = Object.freeze([
-    "Ajeet", "Amit", "Deepak", "Hira", "Honey", "Hrithik",
-    "Manoj", "Naresh", "Om", "Pardeep", "Partab", "Raja",
-    "Rajesh M.", "Rajesh N.", "Rakesh", "Ranjeet", "Rohit",
-    "Sanjay", "Sarwan", "Shashi", "Sunny", "Vijay", "Vinod", "Wijai"
-  ]);
 
   /**
    * Imports all 24 tournament players into Season Mode, skipping duplicates.
@@ -6528,6 +6578,10 @@
   function initSeasonApp() {
     if (SeasonState.initialized) return;
     SeasonState.initialized = true;
+
+    if (!SeasonState.players || Object.keys(SeasonState.players).length === 0) {
+      SeasonState.players = getDefaultTournamentPlayersMap();
+    }
 
     subscribeToSeasonConfig();
     subscribeToPlayers();
