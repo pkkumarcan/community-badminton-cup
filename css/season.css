@@ -3281,4 +3281,269 @@ body.season-active .mobile-bottom-nav {
   border-color: rgba(71, 85, 105, 0.4);
 }
 
+/* --------------------------------------------------------------------------
+   Smart Fast Entry Bar (Voice & OCR)
+   -------------------------------------------------------------------------- */
+.season-smart-entry-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(99, 102, 241, 0.06));
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: var(--radius-lg, 12px);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.season-smart-entry-label {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--primary, #2563eb);
+}
+
+.season-smart-entry-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.season-smart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md, 8px);
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.season-smart-voice-btn {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.season-smart-voice-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.season-smart-ocr-btn {
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+}
+
+.season-smart-ocr-btn:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+/* --------------------------------------------------------------------------
+   Voice Match Modal & Mic Animation
+   -------------------------------------------------------------------------- */
+.season-voice-mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.season-voice-mic-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.season-voice-mic-btn.listening {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: voice-pulse 1.4s infinite;
+}
+
+@keyframes voice-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.season-voice-status {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+}
+
+.season-voice-transcript-card {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px dashed var(--border-subtle, #cbd5e1);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+  margin: 12px 0;
+  text-align: left;
+}
+
+.season-voice-transcript-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.season-voice-transcript-text {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.season-voice-detected-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md, 10px);
+  padding: 12px;
+  margin: 12px 0;
+}
+
+[data-theme="dark"] .season-voice-detected-card {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.season-voice-teams-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.season-voice-team {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.season-voice-score-badge {
+  font-size: 1.3rem;
+  font-weight: 900;
+  padding: 4px 12px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  color: var(--text-primary, #0f172a);
+}
+
+.season-voice-hints {
+  font-size: 0.76rem;
+  color: var(--text-muted, #64748b);
+  background: var(--bg-card-hover, #f8fafc);
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 8px);
+  text-align: left;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   OCR Scoresheet Upload Zone & Match List
+   -------------------------------------------------------------------------- */
+.season-ocr-upload-zone {
+  border: 2px dashed rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.04);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.season-ocr-upload-zone:hover {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: var(--primary, #2563eb);
+}
+
+.season-ocr-processing {
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.season-ocr-match-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.season-ocr-match-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: var(--radius-md, 8px);
+}
+
+.season-ocr-match-item.valid {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.season-ocr-match-item.invalid {
+  opacity: 0.75;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   Refresh Pill Button & Spin
+   -------------------------------------------------------------------------- */
+.refresh-pill-btn {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary, #2563eb);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.refresh-pill-btn:hover {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 

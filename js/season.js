@@ -1101,6 +1101,19 @@
     container.innerHTML = `
       ${postSaveHtml}
 
+      <!-- Smart Fast Entry Bar (Voice & OCR) -->
+      <div class="season-smart-entry-bar">
+        <div class="season-smart-entry-label">⚡ Fast Entry Options:</div>
+        <div class="season-smart-entry-btns">
+          <button type="button" class="season-smart-btn season-smart-voice-btn" onclick="SeasonApp.openVoiceMatchModal()" title="Speak match score (e.g. 'Pardeep and Ajeet defeated Om and Naresh 21-14')">
+            <span class="season-smart-icon">🎙️</span> <span>Speak Score (Voice)</span>
+          </button>
+          <button type="button" class="season-smart-btn season-smart-ocr-btn" onclick="SeasonApp.openScorePhotoModal()" title="Take photo or upload image of handwritten / printed scoresheet">
+            <span class="season-smart-icon">📷</span> <span>Scan Score Sheet (Photo)</span>
+          </button>
+        </div>
+      </div>
+
       <div class="season-match-form-card">
         <!-- Match Type Toggle -->
         <div class="season-match-type-toggle" role="tablist">
@@ -6512,6 +6525,690 @@
     `;
   }
 
+  // --------------------------------------------------------------------------
+  // 22. Voice Score Entry & Photo OCR Scoresheet Scanning
+  // --------------------------------------------------------------------------
+
+  const NUMBER_WORDS_MAP = {
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+    'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+    'twenty one': 21, 'twenty-one': 21, 'twenty two': 22, 'twenty-two': 22,
+    'twenty three': 23, 'twenty-three': 23, 'twenty four': 24, 'twenty-four': 24,
+    'twenty five': 25, 'twenty-five': 25, 'twenty six': 26, 'twenty-six': 26,
+    'twenty seven': 27, 'twenty-seven': 27, 'twenty eight': 28, 'twenty-eight': 28,
+    'twenty nine': 29, 'twenty-nine': 29, 'thirty': 30, 'thirty one': 31, 'thirty-one': 31
+  };
+
+  let voiceRecognitionInstance = null;
+  let isVoiceRecordingActive = false;
+  let lastParsedVoiceMatch = null;
+  let ocrExtractedMatches = [];
+
+  function normalizeVoiceText(text) {
+    if (!text) return '';
+    let normalized = text.toLowerCase()
+      .replace(/[\.,\?!]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Sort number words by length descending to replace multi-word phrases first (e.g. "twenty one" before "twenty")
+    const sortedWords = Object.entries(NUMBER_WORDS_MAP).sort((a, b) => b[0].length - a[0].length);
+    for (const [word, num] of sortedWords) {
+      const escaped = word.replace(/[-]/g, '\\-');
+      const reg = new RegExp(`\\b${escaped}\\b`, 'gi');
+      normalized = normalized.replace(reg, String(num));
+    }
+
+    return normalized;
+  }
+
+  function findRegisteredPlayersInText(text, playersDict) {
+    const players = Object.values(playersDict || SeasonState.players || {});
+    const normText = ' ' + normalizeVoiceText(text) + ' ';
+    const found = [];
+
+    // Common phonetic / nickname aliases
+    const commonAliases = {
+      'pradeep': 'pardeep',
+      'jit': 'ajeet',
+      'ajit': 'ajeet',
+      'ritik': 'hrithik',
+      'hritik': 'hrithik',
+      'honee': 'honey',
+      'heer': 'hira',
+      'heera': 'hira',
+      'omji': 'om',
+      'nareshji': 'naresh'
+    };
+
+    players.forEach(p => {
+      const normName = normalizePlayerName(p.name);
+      const firstName = normName.split(' ')[0];
+      let matchIdx = -1;
+
+      // 1. Check full normalized name
+      const fullIdx = normText.indexOf(' ' + normName + ' ');
+      if (fullIdx !== -1) {
+        matchIdx = fullIdx;
+      } else if (firstName.length >= 2) {
+        // 2. Check first name
+        const firstIdx = normText.indexOf(' ' + firstName + ' ');
+        if (firstIdx !== -1) {
+          matchIdx = firstIdx;
+        }
+      }
+
+      // 3. Check aliases
+      if (matchIdx === -1) {
+        for (const [alias, target] of Object.entries(commonAliases)) {
+          if (firstName === target && normText.includes(' ' + alias + ' ')) {
+            matchIdx = normText.indexOf(' ' + alias + ' ');
+            break;
+          }
+        }
+      }
+
+      if (matchIdx !== -1) {
+        found.push({
+          player: p,
+          index: matchIdx,
+          name: p.name,
+          id: p.id
+        });
+      }
+    });
+
+    // Sort by appearance in text
+    found.sort((a, b) => a.index - b.index);
+
+    // Filter duplicate player entries
+    const seenIds = new Set();
+    const unique = [];
+    found.forEach(item => {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        unique.push(item);
+      }
+    });
+
+    return unique;
+  }
+
+  function parseVoiceMatchTranscript(rawTranscript, playersDict) {
+    if (!rawTranscript || typeof rawTranscript !== 'string') {
+      return { success: false, error: 'Empty voice transcript.' };
+    }
+
+    const norm = normalizeVoiceText(rawTranscript);
+    const playersFound = findRegisteredPlayersInText(norm, playersDict);
+
+    // Extract Scores: look for patterns like 21-14, 21 14, 21 to 14, 21 and 14
+    let scoreA = null;
+    let scoreB = null;
+
+    const scorePatterns = [
+      /\b(\d{1,2})\s*(?:-|–|to|and|\s)\s*(\d{1,2})\b/g,
+      /\b(\d{1,2})\s+(\d{1,2})\b/g
+    ];
+
+    for (const pat of scorePatterns) {
+      const matches = Array.from(norm.matchAll(pat));
+      if (matches && matches.length > 0) {
+        // Take the last match which is usually the final score
+        const lastM = matches[matches.length - 1];
+        const s1 = parseInt(lastM[1], 10);
+        const s2 = parseInt(lastM[2], 10);
+        if (s1 >= 0 && s1 <= 99 && s2 >= 0 && s2 <= 99 && s1 !== s2) {
+          scoreA = s1;
+          scoreB = s2;
+          break;
+        }
+      }
+    }
+
+    if (scoreA === null || scoreB === null) {
+      // Default to standard 21-15 if no score mentioned but players are recognized
+      scoreA = 21;
+      scoreB = 15;
+    }
+
+    // Determine teams based on separator words
+    const verbRegex = /\b(defeated|defeats|beat|beats|won against|won over|won vs|vs|versus|against|lost to)\b/i;
+    const verbMatch = norm.match(verbRegex);
+
+    let teamAPlayers = [];
+    let teamBPlayers = [];
+
+    if (verbMatch && verbMatch.index != null) {
+      const verbIdx = verbMatch.index;
+      const isLostTo = verbMatch[0].toLowerCase().includes('lost to');
+
+      playersFound.forEach(item => {
+        if (item.index < verbIdx) {
+          teamAPlayers.push(item);
+        } else {
+          teamBPlayers.push(item);
+        }
+      });
+
+      if (isLostTo) {
+        // Invert teams if "lost to"
+        const tmp = teamAPlayers;
+        teamAPlayers = teamBPlayers;
+        teamBPlayers = tmp;
+      }
+    } else {
+      // Fallback: split recognized players evenly
+      if (playersFound.length >= 4) {
+        teamAPlayers = [playersFound[0], playersFound[1]];
+        teamBPlayers = [playersFound[2], playersFound[3]];
+      } else if (playersFound.length >= 2) {
+        teamAPlayers = [playersFound[0]];
+        teamBPlayers = [playersFound[1]];
+      }
+    }
+
+    const isDoubles = (teamAPlayers.length >= 2 && teamBPlayers.length >= 2) || playersFound.length >= 4;
+    const matchType = isDoubles ? 'DOUBLES' : 'SINGLES';
+
+    const p1 = teamAPlayers[0] ? teamAPlayers[0].id : (playersFound[0] ? playersFound[0].id : '');
+    const p2 = isDoubles ? (teamAPlayers[1] ? teamAPlayers[1].id : (playersFound[1] ? playersFound[1].id : '')) : '';
+    const p3 = teamBPlayers[0] ? teamBPlayers[0].id : (isDoubles ? (playersFound[2] ? playersFound[2].id : '') : (playersFound[1] ? playersFound[1].id : ''));
+    const p4 = isDoubles ? (teamBPlayers[1] ? teamBPlayers[1].id : (playersFound[3] ? playersFound[3].id : '')) : '';
+
+    const p1Name = getPlayerDisplayName(p1);
+    const p2Name = isDoubles ? getPlayerDisplayName(p2) : '';
+    const p3Name = getPlayerDisplayName(p3);
+    const p4Name = isDoubles ? getPlayerDisplayName(p4) : '';
+
+    // Ensure winner has winning score
+    if (scoreA < scoreB) {
+      // Swap so Team A is winner with scoreA
+      const tmpScore = scoreA;
+      scoreA = scoreB;
+      scoreB = tmpScore;
+    }
+
+    const isValid = isDoubles ? (p1 && p2 && p3 && p4 && p1 !== p2 && p1 !== p3 && p1 !== p4 && p2 !== p3 && p2 !== p4 && p3 !== p4)
+                              : (p1 && p3 && p1 !== p3);
+
+    return {
+      success: true,
+      isValid,
+      matchType,
+      player1: p1,
+      player2: p2,
+      player3: p3,
+      player4: p4,
+      player1Name: p1Name,
+      player2Name: p2Name,
+      player3Name: p3Name,
+      player4Name: p4Name,
+      scoreA,
+      scoreB,
+      rawTranscript
+    };
+  }
+
+  // Voice Recording Modal & Web Speech Recognition
+  function openVoiceMatchModal() {
+    const modal = document.getElementById('seasonVoiceModal');
+    const transcriptEl = document.getElementById('seasonVoiceTranscript');
+    const statusEl = document.getElementById('seasonVoiceStatus');
+    const previewEl = document.getElementById('seasonVoicePreview');
+    const applyBtn = document.getElementById('seasonVoiceApplyBtn');
+
+    if (transcriptEl) transcriptEl.textContent = '"Say e.g. Pardeep and Ajeet defeated Om and Naresh 21-14"';
+    if (statusEl) statusEl.textContent = 'Tap microphone to speak...';
+    if (previewEl) {
+      previewEl.innerHTML = '';
+      previewEl.style.display = 'none';
+    }
+    if (applyBtn) applyBtn.disabled = true;
+
+    if (modal) modal.classList.add('open');
+    startVoiceRecording();
+  }
+
+  function closeVoiceMatchModal() {
+    stopVoiceRecording();
+    const modal = document.getElementById('seasonVoiceModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  function toggleVoiceRecording() {
+    if (isVoiceRecordingActive) {
+      stopVoiceRecording();
+    } else {
+      startVoiceRecording();
+    }
+  }
+
+  function startVoiceRecording() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const statusEl = document.getElementById('seasonVoiceStatus');
+    const micBtn = document.getElementById('seasonVoiceMicBtn');
+
+    if (!SpeechRecognition) {
+      if (statusEl) statusEl.innerHTML = '⚠️ Voice recognition not supported in this browser. Please type or scan score sheet.';
+      return;
+    }
+
+    try {
+      if (voiceRecognitionInstance) {
+        voiceRecognitionInstance.abort();
+      }
+
+      voiceRecognitionInstance = new SpeechRecognition();
+      voiceRecognitionInstance.continuous = true;
+      voiceRecognitionInstance.interimResults = true;
+      voiceRecognitionInstance.lang = 'en-US';
+
+      voiceRecognitionInstance.onstart = function () {
+        isVoiceRecordingActive = true;
+        if (micBtn) micBtn.classList.add('listening');
+        if (statusEl) statusEl.innerHTML = '🔴 <span style="color:#ef4444; font-weight:700;">Listening... Speak match score now!</span>';
+      };
+
+      voiceRecognitionInstance.onresult = function (event) {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const currentText = finalTranscript || interimTranscript;
+        const transcriptEl = document.getElementById('seasonVoiceTranscript');
+        if (transcriptEl && currentText) {
+          transcriptEl.textContent = `"${currentText}"`;
+        }
+
+        if (currentText) {
+          const parsed = parseVoiceMatchTranscript(currentText);
+          lastParsedVoiceMatch = parsed;
+          renderVoiceMatchPreview(parsed);
+        }
+      };
+
+      voiceRecognitionInstance.onerror = function (event) {
+        console.warn('[Voice Recognition]', event.error);
+        if (statusEl) statusEl.textContent = `⚠️ Voice error (${event.error}). Tap mic to retry.`;
+        isVoiceRecordingActive = false;
+        if (micBtn) micBtn.classList.remove('listening');
+      };
+
+      voiceRecognitionInstance.onend = function () {
+        isVoiceRecordingActive = false;
+        if (micBtn) micBtn.classList.remove('listening');
+        if (statusEl) statusEl.textContent = 'Tap microphone to speak again';
+      };
+
+      voiceRecognitionInstance.start();
+    } catch (err) {
+      console.warn('SpeechRecognition start failed:', err);
+      if (statusEl) statusEl.textContent = '⚠️ Could not access microphone.';
+    }
+  }
+
+  function stopVoiceRecording() {
+    if (voiceRecognitionInstance) {
+      try {
+        voiceRecognitionInstance.stop();
+      } catch (e) {}
+      voiceRecognitionInstance = null;
+    }
+    isVoiceRecordingActive = false;
+    const micBtn = document.getElementById('seasonVoiceMicBtn');
+    if (micBtn) micBtn.classList.remove('listening');
+  }
+
+  function renderVoiceMatchPreview(parsed) {
+    const previewEl = document.getElementById('seasonVoicePreview');
+    const applyBtn = document.getElementById('seasonVoiceApplyBtn');
+    if (!previewEl) return;
+
+    if (!parsed || !parsed.success) {
+      previewEl.style.display = 'none';
+      if (applyBtn) applyBtn.disabled = true;
+      return;
+    }
+
+    const isDoubles = parsed.matchType === 'DOUBLES';
+    const teamAStr = isDoubles ? `${parsed.player1Name || '?'} & ${parsed.player2Name || '?'}` : (parsed.player1Name || '?');
+    const teamBStr = isDoubles ? `${parsed.player3Name || '?'} & ${parsed.player4Name || '?'}` : (parsed.player3Name || '?');
+
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = `
+      <div class="season-voice-detected-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span class="season-pill-badge" style="background:var(--primary-light); color:var(--primary); font-weight:800; font-size:0.75rem;">
+            ${isDoubles ? '👥 DOUBLES (2v2)' : '👤 SINGLES (1v1)'}
+          </span>
+          <span style="font-size:0.75rem; color:${parsed.isValid ? '#059669' : '#d97706'}; font-weight:700;">
+            ${parsed.isValid ? '✓ All Players Recognized' : '⚠️ Missing player - select in form'}
+          </span>
+        </div>
+        <div class="season-voice-teams-row">
+          <div class="season-voice-team winner">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:800;">WINNER (TEAM A)</div>
+            <div style="font-weight:800; color:var(--win-color, #059669); font-size:1.05rem;">${teamAStr}</div>
+            <div class="season-voice-score-badge">${parsed.scoreA}</div>
+          </div>
+          <div style="font-weight:900; color:var(--text-muted); font-size:0.9rem;">VS</div>
+          <div class="season-voice-team">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:800;">RUNNER UP (TEAM B)</div>
+            <div style="font-weight:700; color:var(--text-primary); font-size:1.05rem;">${teamBStr}</div>
+            <div class="season-voice-score-badge">${parsed.scoreB}</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (applyBtn) {
+      applyBtn.disabled = !parsed.isValid;
+    }
+  }
+
+  async function applyVoiceMatchToForm() {
+    if (!lastParsedVoiceMatch || !lastParsedVoiceMatch.isValid) {
+      if (typeof showToast === 'function') showToast('⚠️ Incomplete match details. Please complete in form.', 'warn');
+      return;
+    }
+
+    const p = lastParsedVoiceMatch;
+    SeasonState.matchEntry.matchType = p.matchType;
+    SeasonState.matchEntry.player1 = p.player1;
+    SeasonState.matchEntry.player2 = p.player2;
+    SeasonState.matchEntry.player3 = p.player3;
+    SeasonState.matchEntry.player4 = p.player4;
+    SeasonState.matchEntry.scoreA = String(p.scoreA);
+    SeasonState.matchEntry.scoreB = String(p.scoreB);
+
+    closeVoiceMatchModal();
+    renderRecordMatch();
+
+    try {
+      const savedPayload = await saveMatch(SeasonState.matchEntry);
+      SeasonState.matchEntry.lastSavedSummary = formatMatchSummary(savedPayload);
+      SeasonState.matchEntry.scoreA = '';
+      SeasonState.matchEntry.scoreB = '';
+      if (typeof showToast === 'function') {
+        showToast(`✓ Voice match recorded: ${SeasonState.matchEntry.lastSavedSummary}`, 'success');
+      }
+      renderRecordMatch();
+    } catch (err) {
+      console.warn('Voice auto-save error:', err);
+      if (typeof showToast === 'function') showToast(`⚠️ Populated into form. Click Save to submit: ${err.message}`, 'warn');
+    }
+  }
+
+  // Photo OCR Scoresheet Scanner Handlers
+  function openScorePhotoModal() {
+    ocrExtractedMatches = [];
+    const modal = document.getElementById('seasonOcrModal');
+    const uploadZone = document.getElementById('seasonOcrUploadZone');
+    const procEl = document.getElementById('seasonOcrProcessing');
+    const resEl = document.getElementById('seasonOcrResults');
+    const saveBtn = document.getElementById('seasonOcrBatchSaveBtn');
+
+    if (uploadZone) uploadZone.style.display = 'block';
+    if (procEl) procEl.style.display = 'none';
+    if (resEl) resEl.style.display = 'none';
+    if (saveBtn) saveBtn.disabled = true;
+
+    if (modal) modal.classList.add('open');
+  }
+
+  function closeScorePhotoModal() {
+    const modal = document.getElementById('seasonOcrModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  function parseScoreSheetText(rawText) {
+    if (!rawText) return [];
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+    const extracted = [];
+
+    lines.forEach((line, idx) => {
+      const parsed = parseVoiceMatchTranscript(line);
+      if (parsed && (parsed.player1 || parsed.player3)) {
+        extracted.push({
+          id: 'ocr_' + idx,
+          selected: parsed.isValid,
+          lineText: line,
+          matchType: parsed.matchType,
+          player1: parsed.player1,
+          player2: parsed.player2,
+          player3: parsed.player3,
+          player4: parsed.player4,
+          player1Name: parsed.player1Name,
+          player2Name: parsed.player2Name,
+          player3Name: parsed.player3Name,
+          player4Name: parsed.player4Name,
+          scoreA: parsed.scoreA,
+          scoreB: parsed.scoreB,
+          isValid: parsed.isValid
+        });
+      }
+    });
+
+    return extracted;
+  }
+
+  async function handleScorePhotoUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const uploadZone = document.getElementById('seasonOcrUploadZone');
+    const procEl = document.getElementById('seasonOcrProcessing');
+    const progText = document.getElementById('seasonOcrProgressText');
+
+    if (uploadZone) uploadZone.style.display = 'none';
+    if (procEl) procEl.style.display = 'block';
+    if (progText) progText.textContent = 'Preprocessing image contrast & sharpness...';
+
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+      const imageSrc = e.target.result;
+      await scanScoreSheetImage(imageSrc);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function scanScoreSheetImage(imageSrc) {
+    const procEl = document.getElementById('seasonOcrProcessing');
+    const progText = document.getElementById('seasonOcrProgressText');
+    const resEl = document.getElementById('seasonOcrResults');
+
+    try {
+      // Preprocess image via canvas
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageSrc;
+      });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const maxDim = 1600;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Contrast & Grayscale optimization
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+        // High contrast binarization
+        const threshold = avg > 140 ? 255 : 0;
+        data[i] = threshold;
+        data[i + 1] = threshold;
+        data[i + 2] = threshold;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      if (progText) progText.textContent = 'Running optical character recognition (OCR)...';
+
+      let recognizedText = '';
+      if (typeof Tesseract !== 'undefined') {
+        const ocrRes = await Tesseract.recognize(canvas, 'eng', {
+          logger: m => {
+            if (m.status === 'recognizing text' && progText) {
+              progText.textContent = `Extracting scoresheet: ${Math.round((m.progress || 0) * 100)}%`;
+            }
+          }
+        });
+        recognizedText = ocrRes.data.text;
+      } else {
+        throw new Error('Tesseract OCR engine is initializing. Please retry in a moment.');
+      }
+
+      if (procEl) procEl.style.display = 'none';
+      ocrExtractedMatches = parseScoreSheetText(recognizedText);
+
+      renderOcrResultsList();
+    } catch (err) {
+      console.error('[OCR Error]', err);
+      if (procEl) procEl.style.display = 'none';
+      if (resEl) {
+        resEl.style.display = 'block';
+        const listEl = document.getElementById('seasonOcrMatchList');
+        if (listEl) {
+          listEl.innerHTML = `
+            <div class="season-empty-state" style="padding:20px;">
+              <span style="font-size:2rem;">⚠️</span>
+              <p style="font-weight:700; color:#ef4444; margin:6px 0;">Could not extract scores</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">${err.message || 'Please upload a clear photo or type scores manually.'}</p>
+            </div>
+          `;
+        }
+      }
+    }
+  }
+
+  function renderOcrResultsList() {
+    const resEl = document.getElementById('seasonOcrResults');
+    const listEl = document.getElementById('seasonOcrMatchList');
+    const countEl = document.getElementById('seasonOcrMatchCount');
+    const saveBtn = document.getElementById('seasonOcrBatchSaveBtn');
+
+    if (!resEl || !listEl) return;
+    resEl.style.display = 'block';
+
+    if (countEl) countEl.textContent = String(ocrExtractedMatches.length);
+
+    if (ocrExtractedMatches.length === 0) {
+      listEl.innerHTML = `
+        <div class="season-empty-state" style="padding:16px;">
+          <p style="font-weight:700;">No clear badminton scores detected</p>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Try taking a closer photo with good lighting, or use Voice Score Entry.</p>
+        </div>
+      `;
+      if (saveBtn) saveBtn.disabled = true;
+      return;
+    }
+
+    listEl.innerHTML = ocrExtractedMatches.map((m, i) => {
+      const isDoubles = m.matchType === 'DOUBLES';
+      const teamAStr = isDoubles ? `${m.player1Name || '?'} & ${m.player2Name || '?'}` : (m.player1Name || '?');
+      const teamBStr = isDoubles ? `${m.player3Name || '?'} & ${m.player4Name || '?'}` : (m.player3Name || '?');
+
+      return `
+        <div class="season-ocr-match-item ${m.isValid ? 'valid' : 'invalid'}">
+          <input type="checkbox" ${m.selected ? 'checked' : ''} ${!m.isValid ? 'disabled' : ''} onchange="SeasonApp.toggleOcrMatchSelected(${i}, this.checked)">
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:800; color:var(--text-primary); font-size:0.88rem;">${teamAStr} (${m.scoreA}) vs ${teamBStr} (${m.scoreB})</span>
+              <span class="season-pill-badge" style="font-size:0.7rem; ${m.isValid ? 'background:#d1fae5; color:#065f46;' : 'background:#fee2e2; color:#991b1b;'}">
+                ${m.isValid ? '✓ Valid' : '⚠️ Missing player'}
+              </span>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">
+              Raw line: "<em>${m.lineText}</em>"
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const validSelectedCount = ocrExtractedMatches.filter(m => m.selected && m.isValid).length;
+    if (saveBtn) {
+      saveBtn.disabled = validSelectedCount === 0;
+      saveBtn.textContent = `💾 Save (${validSelectedCount}) Matches to Season`;
+    }
+  }
+
+  function toggleOcrMatchSelected(index, checked) {
+    if (ocrExtractedMatches[index]) {
+      ocrExtractedMatches[index].selected = checked;
+      const saveBtn = document.getElementById('seasonOcrBatchSaveBtn');
+      const validSelectedCount = ocrExtractedMatches.filter(m => m.selected && m.isValid).length;
+      if (saveBtn) {
+        saveBtn.disabled = validSelectedCount === 0;
+        saveBtn.textContent = `💾 Save (${validSelectedCount}) Matches to Season`;
+      }
+    }
+  }
+
+  async function saveAllOcrMatches() {
+    const toSave = ocrExtractedMatches.filter(m => m.selected && m.isValid);
+    if (toSave.length === 0) return;
+
+    const saveBtn = document.getElementById('seasonOcrBatchSaveBtn');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving Matches...';
+    }
+
+    let savedCount = 0;
+    for (const m of toSave) {
+      try {
+        const payload = {
+          matchType: m.matchType,
+          player1: m.player1,
+          player2: m.player2,
+          player3: m.player3,
+          player4: m.player4,
+          scoreA: String(m.scoreA),
+          scoreB: String(m.scoreB)
+        };
+        await saveMatch(payload);
+        savedCount++;
+      } catch (err) {
+        console.warn('OCR batch save item error:', err);
+      }
+    }
+
+    closeScorePhotoModal();
+    if (typeof showToast === 'function') {
+      showToast(`✓ Successfully recorded ${savedCount} matches from scoresheet!`, 'success');
+    }
+    renderRecordMatch();
+  }
+
   // 23. Initialization
   function initSeasonApp() {
     if (SeasonState.initialized) return;
@@ -6743,7 +7440,23 @@
     renderTournamentSeeding,
     renderSeedingSnapshot: openSnapshotDetailModal,
     switchExportTab,
-    copyExportContent
+    copyExportContent,
+
+    // Voice & OCR Scanner API
+    openVoiceMatchModal,
+    closeVoiceMatchModal,
+    toggleVoiceRecording,
+    startVoiceRecording,
+    stopVoiceRecording,
+    parseVoiceMatchTranscript,
+    applyVoiceMatchToForm,
+    openScorePhotoModal,
+    closeScorePhotoModal,
+    handleScorePhotoUpload,
+    scanScoreSheetImage,
+    parseScoreSheetText,
+    toggleOcrMatchSelected,
+    saveAllOcrMatches
   };
 
   // Global helper aliases for HTML onclick handlers

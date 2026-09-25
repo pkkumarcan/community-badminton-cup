@@ -67,6 +67,9 @@
             </button>
           </div>
 
+          <button type="button" id="appRefreshBtn" class="header-pill-btn refresh-pill-btn" onclick="forceAppRefresh()" title="Sync live cloud data and refresh to latest version">
+            <span id="appRefreshIcon">🔄</span> <span>Sync & Reload</span>
+          </button>
           <button type="button" id="organizerAuthBtn" class="header-pill-btn auth-pill-btn" onclick="handleOrganizerAuthClick()" title="Sign in as Authorized Scorekeeper / Organizer">
             <span>🔑</span> <span>Sign In</span>
           </button>
@@ -1115,18 +1118,96 @@
     </div>
   </div>
 
-  <!-- PHASE 10: SNAPSHOT DETAIL VIEW MODAL -->
-  <div id="seasonSnapshotDetailModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeSnapshotDetailModal()">
-    <div class="season-modal-card" style="max-width:700px; text-align:left;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:10px;">
-        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">📜 Historical Seeding Snapshot</h3>
-        <button type="button" class="btn-icon" onclick="SeasonApp.closeSnapshotDetailModal()" aria-label="Close modal">✕</button>
+  <!-- VOICE MATCH RECORDING MODAL -->
+  <div id="seasonVoiceModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeVoiceMatchModal()">
+    <div class="season-modal-card" style="max-width:520px; text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">🎙️ Voice Match Score Entry</h3>
+        <button type="button" class="btn-icon" onclick="SeasonApp.closeVoiceMatchModal()" aria-label="Close modal">✕</button>
       </div>
-      <div id="seasonSnapshotDetailBody">
-        <!-- Injected dynamically by SeasonApp.renderSnapshotDetailModal() -->
+      
+      <div class="season-voice-mic-wrap">
+        <button type="button" id="seasonVoiceMicBtn" class="season-voice-mic-btn" onclick="SeasonApp.toggleVoiceRecording()" title="Click to start/stop voice recording">
+          <span class="season-voice-mic-icon">🎙️</span>
+        </button>
+        <div id="seasonVoiceStatus" class="season-voice-status">Tap microphone and speak...</div>
+      </div>
+
+      <div class="season-voice-transcript-card">
+        <div class="season-voice-transcript-title">Heard:</div>
+        <div id="seasonVoiceTranscript" class="season-voice-transcript-text">"Say e.g. Pardeep and Ajeet defeated Om and Naresh 21-14"</div>
+      </div>
+
+      <div id="seasonVoicePreview" class="season-voice-preview" style="display:none;">
+        <!-- Injected dynamically on parse -->
+      </div>
+
+      <div class="season-voice-hints">
+        💡 <strong>Examples:</strong><br>
+        • <em>"Pardeep and Ajeet defeated Om and Naresh 21-14"</em> (Doubles)<br>
+        • <em>"Rohit beat Sunil 21 to 18"</em> (Singles)<br>
+        • <em>"Pardeep Ajeet won 21 15 against Om Naresh"</em>
+      </div>
+
+      <div class="modal-btn-row" style="margin-top:16px;">
+        <button type="button" class="btn-secondary" onclick="SeasonApp.closeVoiceMatchModal()">Cancel</button>
+        <button type="button" id="seasonVoiceApplyBtn" class="btn-primary" style="flex:2;" disabled onclick="SeasonApp.applyVoiceMatchToForm()">💾 Save Match</button>
       </div>
     </div>
   </div>
 
+  <!-- OCR PHOTO SCORESHEET SCANNER MODAL -->
+  <div id="seasonOcrModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeScorePhotoModal()">
+    <div class="season-modal-card" style="max-width:640px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">📷 Scan Scoresheet / Photo Upload</h3>
+        <button type="button" class="btn-icon" onclick="SeasonApp.closeScorePhotoModal()" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="season-ocr-upload-zone" id="seasonOcrUploadZone" onclick="document.getElementById('seasonScorePhotoInput').click()">
+        <input type="file" id="seasonScorePhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="SeasonApp.handleScorePhotoUpload(event)">
+        <div style="font-size:2.2rem; margin-bottom:6px;">📸</div>
+        <div style="font-weight:700; color:var(--text-primary); margin-bottom:4px;">Take Photo or Upload Scoresheet Image</div>
+        <div style="font-size:0.8rem; color:var(--text-muted);">Supports camera photos, phone gallery, handwritten and printed scores</div>
+      </div>
+
+      <div id="seasonOcrProcessing" class="season-ocr-processing" style="display:none;">
+        <div class="loading-spinner" style="width:28px; height:28px; margin:0 auto 10px;"></div>
+        <div id="seasonOcrProgressText" style="font-weight:700; font-size:0.9rem;">Reading and extracting match scores...</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Processing OCR with contrast optimization</div>
+      </div>
+
+      <div id="seasonOcrResults" class="season-ocr-results" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin:12px 0 8px;">
+          <h4 style="margin:0; font-size:0.95rem; font-weight:800;">Extracted Matches (<span id="seasonOcrMatchCount">0</span>)</h4>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Review and confirm before saving</span>
+        </div>
+        <div id="seasonOcrMatchList" class="season-ocr-match-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <div class="modal-btn-row" style="margin-top:16px;">
+        <button type="button" class="btn-secondary" onclick="SeasonApp.closeScorePhotoModal()">Close</button>
+        <button type="button" id="seasonOcrBatchSaveBtn" class="btn-primary" style="flex:2;" disabled onclick="SeasonApp.saveAllOcrMatches()">💾 Save All Matches to Season</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Firebase Web SDK Compat (v9.23.0) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+  <!-- Tesseract.js OCR Engine (Client-side fast OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- Application Modules -->
+  <script src="js/firebase-config.js?v=36"></script>
+  <script src="js/app.js?v=36"></script>
+  <script src="js/season.js?v=36"></script>
 </body>
 </html>

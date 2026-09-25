@@ -7334,4 +7334,37 @@ Try asking:<br>
     switchTab('home');
   });
 
+  // Global Hard Sync & Refresh Handler
+  window.forceAppRefresh = async function () {
+    const btn = document.getElementById('appRefreshBtn');
+    const icon = document.getElementById('appRefreshIcon');
+    if (icon) icon.style.display = 'inline-block';
+    if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+    if (typeof showToast === 'function') {
+      showToast('🔄 Syncing live data and updating to latest version...', 'info');
+    }
+
+    if ('caches' in window) {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      } catch (e) {
+        console.warn('Cache clear error:', e);
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('_sync', Date.now());
+      window.location.replace(url.toString());
+    }, 350);
+  };
+
 })();
