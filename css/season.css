@@ -1724,6 +1724,552 @@
 }
 
 /* --------------------------------------------------------------------------
+   Phase 7 Player Profile, Partner Synergy & Head-to-Head Styles
+   -------------------------------------------------------------------------- */
+.season-profile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: seasonFadeIn 0.2s ease-in-out;
+}
+
+.season-profile-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.season-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  padding: 8px 14px;
+  border-radius: var(--radius-md, 10px);
+  color: var(--text-secondary, #475569);
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.season-back-btn:hover {
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--primary, #2563eb);
+  border-color: var(--primary-border, #bfdbfe);
+}
+
+[data-theme="dark"] .season-back-btn {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-profile-header-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+[data-theme="dark"] .season-profile-header-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-profile-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.season-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.season-profile-avatar-xl {
+  width: 58px;
+  height: 58px;
+  border-radius: var(--radius-full, 9999px);
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.5rem;
+  font-family: 'Outfit', sans-serif;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.season-profile-name-xl {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 6px 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-profile-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.season-profile-elo-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.season-profile-elo-box {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 12px);
+  padding: 12px 18px;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-theme="dark"] .season-profile-elo-box {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.35);
+}
+
+.season-profile-elo-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #475569);
+  text-transform: uppercase;
+}
+
+.season-profile-elo-val {
+  font-size: 1.45rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-primary, #0f172a);
+}
+
+.season-profile-elo-val.doubles-elo {
+  color: var(--primary, #2563eb);
+}
+
+.season-profile-elo-val.singles-elo {
+  color: #7c3aed;
+}
+
+.season-profile-tab-bar {
+  display: flex;
+  background: var(--bg-card-hover, #f1f5f9);
+  padding: 4px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  gap: 6px;
+}
+
+[data-theme="dark"] .season-profile-tab-bar {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-profile-tab {
+  flex: 1;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm, 6px);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #475569);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.season-profile-tab.active {
+  background: var(--bg-card, #ffffff);
+  color: var(--primary, #2563eb);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .season-profile-tab.active {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+}
+
+.season-profile-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.season-profile-stat-cell {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-theme="dark"] .season-profile-stat-cell {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-stat-cell-lbl {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #475569);
+  text-transform: uppercase;
+}
+
+.season-stat-cell-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-primary, #0f172a);
+}
+
+.season-profile-form-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px dashed var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+}
+
+[data-theme="dark"] .season-profile-form-wrap {
+  background: rgba(15, 23, 42, 0.35);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-form-bar-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-secondary, #475569);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.season-streak-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #475569);
+  margin-left: auto;
+}
+
+.season-streak-pill {
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: var(--win-color, #059669);
+}
+
+/* Elo Chart & Summary Card */
+.season-chart-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 20px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+[data-theme="dark"] .season-chart-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.season-chart-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-elo-summary-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.season-elo-stat-chip {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--bg-card-hover, #f1f5f9);
+  color: var(--text-secondary, #475569);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+[data-theme="dark"] .season-elo-stat-chip {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-chart-svg-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card-hover, #f8fafc);
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .season-chart-svg-container {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.season-elo-svg {
+  width: 100%;
+  height: auto;
+  min-height: 180px;
+  display: block;
+}
+
+/* Two Column Grid for Synergy & H2H */
+.season-two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.season-partner-synergy-card,
+.season-h2h-card,
+.season-recent-matches-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-card, #cbd5e1);
+  border-radius: var(--radius-lg, 16px);
+  padding: 20px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[data-theme="dark"] .season-partner-synergy-card,
+[data-theme="dark"] .season-h2h-card,
+[data-theme="dark"] .season-recent-matches-card {
+  background: var(--bg-card, #1e293b);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.season-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.season-section-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-best-partner-highlight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.25);
+  border-radius: var(--radius-md, 10px);
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--win-color, #059669);
+}
+
+.season-partner-top-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--win-color, #059669);
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Mini Table for Profile Synergy / H2H */
+.season-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.season-mini-table th {
+  padding: 8px 10px;
+  background: var(--bg-card-hover, #f8fafc);
+  color: var(--text-secondary, #475569);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  text-align: left;
+}
+
+[data-theme="dark"] .season-mini-table th {
+  background: rgba(15, 23, 42, 0.5);
+  border-bottom-color: rgba(71, 85, 105, 0.35);
+}
+
+.season-mini-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  vertical-align: middle;
+}
+
+[data-theme="dark"] .season-mini-table td {
+  border-bottom-color: rgba(71, 85, 105, 0.25);
+}
+
+.season-clickable-link {
+  font-weight: 700;
+  color: var(--primary, #2563eb);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.season-clickable-link:hover {
+  text-decoration: underline;
+}
+
+/* Recent Matches inside Profile */
+.season-profile-matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.season-profile-match-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  gap: 12px;
+}
+
+[data-theme="dark"] .season-profile-match-card {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+.season-profile-match-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.season-profile-match-result-badge {
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.78rem;
+  font-family: 'Outfit', sans-serif;
+  flex-shrink: 0;
+}
+
+.season-profile-match-result-badge.w {
+  background: rgba(5, 150, 105, 0.15);
+  color: var(--win-color, #059669);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.season-profile-match-result-badge.l {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.season-profile-match-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.season-profile-match-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.season-profile-match-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+}
+
+.season-profile-match-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.season-profile-match-score {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+}
+
+.season-profile-match-score.win {
+  color: var(--win-color, #059669);
+}
+
+.season-profile-match-score.loss {
+  color: var(--text-muted, #64748b);
+}
+
+/* --------------------------------------------------------------------------
    Mobile Responsiveness
    -------------------------------------------------------------------------- */
 body.season-active .mobile-bottom-nav {
@@ -1781,5 +2327,25 @@ body.season-active .mobile-bottom-nav {
   }
   .season-lb-count-info {
     justify-content: space-between;
+  }
+  .season-profile-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .season-profile-elo-cards {
+    width: 100%;
+  }
+  .season-profile-elo-box {
+    flex: 1;
+  }
+  .season-profile-form-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .season-streak-info {
+    margin-left: 0;
+  }
+  .season-two-col-grid {
+    grid-template-columns: 1fr;
   }
 }
