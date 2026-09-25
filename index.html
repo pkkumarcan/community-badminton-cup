@@ -1211,6 +1211,19 @@
     </div>
   </div>
 
+  <!-- PHASE D: UNIFIED MATCH DRAFT CONFIRMATION MODAL -->
+  <div id="seasonMatchConfirmModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.cancelMatchDraft()">
+    <div class="season-modal-card season-confirm-modal-card" style="max-width:540px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+        <h3 class="season-modal-title" style="margin:0; font-size:1.15rem;">🏸 Confirm &amp; Save Match</h3>
+        <button type="button" class="btn-icon" onclick="SeasonApp.cancelMatchDraft()" aria-label="Close modal">✕</button>
+      </div>
+      <div id="seasonMatchConfirmBody">
+        <!-- Injected dynamically by SeasonApp.openMatchConfirmationModal(draft) -->
+      </div>
+    </div>
+  </div>
+
   <!-- VOICE MATCH RECORDING MODAL -->
   <div id="seasonVoiceModal" class="modal-overlay" onclick="if(event.target===this) SeasonApp.closeVoiceMatchModal()">
     <div class="season-modal-card" style="max-width:520px; text-align:center;">

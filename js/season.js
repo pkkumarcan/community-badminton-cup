@@ -135,6 +135,8 @@
       lastSavedSummary: null,
       saving: false
     },
+    activeDraft: null,
+    isSavingDraft: false,
     computed: {
       playerStats: {},
       doublesElo: {},
@@ -577,7 +579,7 @@
     }
   }
 
-  // 9. Match Entry & Validation Engine (Phase 3)
+  // 9. Unified MatchDraft & Validation Engine (Phase 3 & Phase D)
   function setMatchType(type) {
     const valid = type === 'SINGLES' ? 'SINGLES' : 'DOUBLES';
     SeasonState.matchEntry.matchType = valid;
@@ -592,67 +594,162 @@
     return [me.player1, me.player2, me.player3, me.player4].filter(Boolean);
   }
 
-  function validateMatchEntry(entry = SeasonState.matchEntry) {
+  // Canonical Match Draft Factory
+  function createMatchDraft(params = {}) {
+    const rawMatchType = (params.matchType || (params.player1 && !params.player2 && params.player3 && !params.player4 ? 'SINGLES' : 'DOUBLES')).toUpperCase();
+    const matchType = rawMatchType === 'SINGLES' ? 'SINGLES' : 'DOUBLES';
+    const source = params.source || 'manual'; // 'manual' | 'voice' | 'ocr'
+
+    // Extract players from various possible inputs (singles/doubles/team objects)
+    let p1 = params.player1 || (params.teamA && params.teamA.player1) || params.playerA || '';
+    let p2 = params.player2 || (params.teamA && params.teamA.player2) || '';
+    let p3 = params.player3 || (params.teamB && params.teamB.player1) || params.playerB || '';
+    let p4 = params.player4 || (params.teamB && params.teamB.player2) || '';
+
+    const rawScoreA = params.scoreA !== undefined ? params.scoreA : (params.score1 !== undefined ? params.score1 : '');
+    const rawScoreB = params.scoreB !== undefined ? params.scoreB : (params.score2 !== undefined ? params.score2 : '');
+
+    let numScoreA = (rawScoreA !== '' && rawScoreA !== null && !isNaN(Number(rawScoreA))) ? parseInt(rawScoreA, 10) : NaN;
+    let numScoreB = (rawScoreB !== '' && rawScoreB !== null && !isNaN(Number(rawScoreB))) ? parseInt(rawScoreB, 10) : NaN;
+
+    const draft = {
+      id: params.id || generateMatchId(),
+      matchType: matchType,
+      source: source,
+      matchDate: params.matchDate || getTodayDateString(),
+      court: params.court || '',
+      session: params.session || '',
+      notes: params.notes || '',
+      player1: p1,
+      player2: p2,
+      player3: p3,
+      player4: p4,
+      playerA: p1,
+      playerB: p3,
+      teamA: matchType === 'DOUBLES' ? { player1: p1, player2: p2 } : { player1: p1 },
+      teamB: matchType === 'DOUBLES' ? { player1: p3, player2: p4 } : { player1: p3 },
+      scoreA: isNaN(numScoreA) ? rawScoreA : numScoreA,
+      scoreB: isNaN(numScoreB) ? rawScoreB : numScoreB,
+      rawScoreA: rawScoreA,
+      rawScoreB: rawScoreB,
+      winner: null,
+      errors: [],
+      warnings: [],
+      isValid: false,
+      createdAt: Date.now()
+    };
+
+    const val = validateMatchDraft(draft);
+    draft.isValid = val.isValid;
+    draft.errors = val.errors;
+    draft.warnings = val.warnings;
+    draft.winner = val.winner;
+    if (val.isValid) {
+      draft.scoreA = val.sA;
+      draft.scoreB = val.sB;
+    }
+
+    return draft;
+  }
+
+  function validateMatchDraft(draft) {
+    const errors = [];
+    const warnings = [];
+
+    if (!draft) {
+      return { isValid: false, errors: ['Match draft is missing.'], warnings: [], winner: null, sA: NaN, sB: NaN };
+    }
+
     // 1. Check Season Status
     if (SeasonState.config && SeasonState.config.status && SeasonState.config.status !== 'ACTIVE') {
-      throw new Error(`This season is currently ${SeasonState.config.status} and not accepting new matches.`);
+      errors.push(`This season is currently ${SeasonState.config.status} and not accepting new matches.`);
     }
 
     // 2. Score Validation
-    if (entry.scoreA === '' || entry.scoreA === null || entry.scoreA === undefined ||
-        entry.scoreB === '' || entry.scoreB === null || entry.scoreB === undefined) {
-      throw new Error('Please enter both team scores.');
+    const rawA = draft.rawScoreA !== undefined ? draft.rawScoreA : draft.scoreA;
+    const rawB = draft.rawScoreB !== undefined ? draft.rawScoreB : draft.scoreB;
+
+    if (rawA === '' || rawA === null || rawA === undefined ||
+        rawB === '' || rawB === null || rawB === undefined) {
+      errors.push('Please enter both team scores.');
     }
 
-    const sA = parseInt(entry.scoreA, 10);
-    const sB = parseInt(entry.scoreB, 10);
+    const sA = (typeof rawA === 'number') ? rawA : parseInt(rawA, 10);
+    const sB = (typeof rawB === 'number') ? rawB : parseInt(rawB, 10);
 
     if (isNaN(sA) || isNaN(sB)) {
-      throw new Error('Scores must be valid numbers.');
-    }
-    if (sA < 0 || sB < 0) {
-      throw new Error('Scores cannot be negative.');
-    }
-    if (sA === sB) {
-      throw new Error('Ties are not allowed. One team must win the match.');
+      errors.push('Scores must be valid numbers.');
+    } else {
+      if (sA < 0 || sB < 0) {
+        errors.push('Scores cannot be negative.');
+      }
+      if (sA === sB) {
+        errors.push('Ties are not allowed. One team must win the match.');
+      }
     }
 
-    // 3. Player Selection & Anti-Duplicate Validation
-    if (entry.matchType === 'SINGLES') {
-      if (!entry.player1 || !entry.player3) {
-        throw new Error('Please select both Player A and Player B for Singles.');
-      }
-      if (entry.player1 === entry.player3) {
-        throw new Error('Player A and Player B cannot be the same player.');
-      }
-      const pA = getPlayerById(entry.player1);
-      const pB = getPlayerById(entry.player3);
-      if (!pA || pA.active === false) {
-        throw new Error(`Player A (${pA ? pA.name : 'Unknown'}) is not an active player.`);
-      }
-      if (!pB || pB.active === false) {
-        throw new Error(`Player B (${pB ? pB.name : 'Unknown'}) is not an active player.`);
+    // 3. Player Selection & Distinct / Active Validation
+    if (draft.matchType === 'SINGLES') {
+      const p1 = draft.player1 || draft.playerA;
+      const p3 = draft.player3 || draft.playerB;
+
+      if (!p1 || !p3) {
+        errors.push('Please select both Player A and Player B for Singles.');
+      } else if (p1 === p3) {
+        errors.push('Player A and Player B cannot be the same player.');
+      } else {
+        const pA = getPlayerById(p1);
+        const pB = getPlayerById(p3);
+        if (!pA) {
+          errors.push(`Player A (ID: ${p1}) does not exist in season roster.`);
+        } else if (pA.active === false) {
+          errors.push(`Player A (${pA.name}) is not an active player.`);
+        }
+        if (!pB) {
+          errors.push(`Player B (ID: ${p3}) does not exist in season roster.`);
+        } else if (pB.active === false) {
+          errors.push(`Player B (${pB.name}) is not an active player.`);
+        }
       }
     } else {
       // Doubles
-      if (!entry.player1 || !entry.player2 || !entry.player3 || !entry.player4) {
-        throw new Error('Please select all 4 distinct players for Doubles.');
-      }
-      const pList = [entry.player1, entry.player2, entry.player3, entry.player4];
-      const uniqueSet = new Set(pList);
-      if (uniqueSet.size !== 4) {
-        throw new Error('All 4 players in Doubles must be different.');
-      }
-      for (let i = 0; i < pList.length; i++) {
-        const p = getPlayerById(pList[i]);
-        if (!p || p.active === false) {
-          throw new Error(`Player (${p ? p.name : 'Unknown'}) is not an active player in this season.`);
+      const p1 = draft.player1 || (draft.teamA && draft.teamA.player1);
+      const p2 = draft.player2 || (draft.teamA && draft.teamA.player2);
+      const p3 = draft.player3 || (draft.teamB && draft.teamB.player1);
+      const p4 = draft.player4 || (draft.teamB && draft.teamB.player2);
+
+      if (!p1 || !p2 || !p3 || !p4) {
+        errors.push('Please select all 4 distinct players for Doubles.');
+      } else {
+        const pList = [p1, p2, p3, p4];
+        const uniqueSet = new Set(pList);
+        if (uniqueSet.size !== 4) {
+          errors.push('All 4 players in Doubles must be different.');
+        }
+        for (let i = 0; i < pList.length; i++) {
+          const pid = pList[i];
+          const p = getPlayerById(pid);
+          if (!p) {
+            errors.push(`Player (ID: ${pid}) does not exist in season roster.`);
+          } else if (p.active === false) {
+            errors.push(`Player (${p.name}) is not an active player in this season.`);
+          }
         }
       }
     }
 
-    const winner = sA > sB ? 'A' : 'B';
-    return { sA, sB, winner };
+    const winner = (!isNaN(sA) && !isNaN(sB) && sA !== sB) ? (sA > sB ? 'A' : 'B') : null;
+    const isValid = errors.length === 0;
+
+    return { isValid, errors, warnings, winner, sA, sB };
+  }
+
+  function validateMatchEntry(entry = SeasonState.matchEntry) {
+    const val = validateMatchDraft(entry);
+    if (!val.isValid) {
+      throw new Error(val.errors[0] || 'Invalid match details.');
+    }
+    return { sA: val.sA, sB: val.sB, winner: val.winner };
   }
 
   function buildMatchPayload(entry = SeasonState.matchEntry, matchId = generateMatchId(), authUser = null) {
@@ -664,17 +761,24 @@
     const uid = authUser ? authUser.uid : 'anonymous';
     const userName = authUser ? (authUser.displayName || authUser.email || 'Organizer') : 'Organizer';
     const dateStr = entry.matchDate || getTodayDateString();
+    const source = entry.source || 'manual';
+
+    const p1 = entry.player1 || (entry.teamA && entry.teamA.player1) || entry.playerA;
+    const p2 = entry.player2 || (entry.teamA && entry.teamA.player2);
+    const p3 = entry.player3 || (entry.teamB && entry.teamB.player1) || entry.playerB;
+    const p4 = entry.player4 || (entry.teamB && entry.teamB.player2);
 
     if (entry.matchType === 'SINGLES') {
       return {
         id: matchId,
         matchType: 'SINGLES',
+        source: source,
         matchDate: dateStr,
         createdAt: serverTimestamp,
         enteredByUid: uid,
         enteredByName: userName,
-        playerA: entry.player1,
-        playerB: entry.player3,
+        playerA: p1,
+        playerB: p3,
         scoreA: sA,
         scoreB: sB,
         winner: winner,
@@ -689,17 +793,18 @@
       return {
         id: matchId,
         matchType: 'DOUBLES',
+        source: source,
         matchDate: dateStr,
         createdAt: serverTimestamp,
         enteredByUid: uid,
         enteredByName: userName,
         teamA: {
-          player1: entry.player1,
-          player2: entry.player2
+          player1: p1,
+          player2: p2
         },
         teamB: {
-          player1: entry.player3,
-          player2: entry.player4
+          player1: p3,
+          player2: p4
         },
         scoreA: sA,
         scoreB: sB,
@@ -733,6 +838,243 @@
     }
   }
 
+  // Shared Confirmation Modal Handlers (Phase D)
+  function openMatchConfirmationModal(draft) {
+    if (!draft) return;
+    SeasonState.activeDraft = draft;
+    SeasonState.isSavingDraft = false;
+
+    const modal = document.getElementById('seasonMatchConfirmModal');
+    const body = document.getElementById('seasonMatchConfirmBody');
+    if (!modal || !body) return;
+
+    const isDoubles = draft.matchType === 'DOUBLES';
+
+    // Resolve player names
+    let teamANames = '';
+    let teamBNames = '';
+    if (isDoubles) {
+      const p1 = getPlayerById(draft.player1);
+      const p2 = getPlayerById(draft.player2);
+      const p3 = getPlayerById(draft.player3);
+      const p4 = getPlayerById(draft.player4);
+      teamANames = `${p1 ? p1.name : (draft.player1 || '?')} & ${p2 ? p2.name : (draft.player2 || '?')}`;
+      teamBNames = `${p3 ? p3.name : (draft.player3 || '?')} & ${p4 ? p4.name : (draft.player4 || '?')}`;
+    } else {
+      const pA = getPlayerById(draft.player1 || draft.playerA);
+      const pB = getPlayerById(draft.player3 || draft.playerB);
+      teamANames = pA ? pA.name : (draft.player1 || draft.playerA || '?');
+      teamBNames = pB ? pB.name : (draft.player3 || draft.playerB || '?');
+    }
+
+    const sourceLabelMap = {
+      manual: '✍️ Manual Entry',
+      voice: '🎙️ Voice Recognition',
+      ocr: '📷 OCR Scoresheet'
+    };
+    const sourceLabel = sourceLabelMap[draft.source] || '✍️ Manual Entry';
+    const isWinnerA = draft.winner === 'A';
+    const isWinnerB = draft.winner === 'B';
+
+    let winnerBannerHtml = '';
+    if (draft.winner) {
+      const winnerTeamName = isWinnerA ? teamANames : teamBNames;
+      const winnerScore = isWinnerA ? `${draft.scoreA}–${draft.scoreB}` : `${draft.scoreB}–${draft.scoreA}`;
+      winnerBannerHtml = `
+        <div class="season-confirm-winner-banner">
+          <span>🏆</span>
+          <span><strong>Winner:</strong> ${winnerTeamName} (${winnerScore})</span>
+        </div>
+      `;
+    }
+
+    let errorHtml = '';
+    if (draft.errors && draft.errors.length > 0) {
+      errorHtml = `
+        <div class="season-confirm-errors">
+          ⚠️ <strong>Validation Issues:</strong>
+          <ul style="margin:4px 0 0 16px; padding:0;">
+            ${draft.errors.map(e => `<li>${e}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    let metaDetailsHtml = '';
+    const hasMeta = draft.matchDate || draft.court || draft.session || draft.notes;
+    if (hasMeta) {
+      metaDetailsHtml = `
+        <div class="season-confirm-meta-card">
+          <div class="season-confirm-meta-row">
+            <span class="season-confirm-meta-label">Date</span>
+            <span class="season-confirm-meta-val">${draft.matchDate || getTodayDateString()}</span>
+          </div>
+          ${draft.court ? `
+            <div class="season-confirm-meta-row">
+              <span class="season-confirm-meta-label">Court</span>
+              <span class="season-confirm-meta-val">${draft.court}</span>
+            </div>
+          ` : ''}
+          ${draft.session ? `
+            <div class="season-confirm-meta-row">
+              <span class="season-confirm-meta-label">Session</span>
+              <span class="season-confirm-meta-val">${draft.session}</span>
+            </div>
+          ` : ''}
+          ${draft.notes ? `
+            <div class="season-confirm-meta-row">
+              <span class="season-confirm-meta-label">Notes</span>
+              <span class="season-confirm-meta-val">${draft.notes}</span>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    body.innerHTML = `
+      <div class="season-confirm-badges">
+        <span class="season-confirm-badge season-confirm-badge-type">${isDoubles ? '👥 Doubles (2v2)' : '👤 Singles (1v1)'}</span>
+        <span class="season-confirm-badge season-confirm-badge-source">${sourceLabel}</span>
+        <span class="season-confirm-badge season-confirm-badge-date">📅 ${draft.matchDate || getTodayDateString()}</span>
+      </div>
+
+      <div class="season-confirm-match-box">
+        <!-- TEAM A -->
+        <div class="season-confirm-team ${isWinnerA ? 'winner' : ''}">
+          <div class="season-confirm-team-header">${isDoubles ? 'TEAM A' : 'PLAYER A'}</div>
+          <div class="season-confirm-team-names">${teamANames}</div>
+          <div class="season-confirm-score-wrap">
+            <span class="season-confirm-score">${isNaN(draft.scoreA) ? (draft.rawScoreA || '-') : draft.scoreA}</span>
+            ${isWinnerA ? `<div class="season-confirm-winner-pill">🏆 WINNER</div>` : ''}
+          </div>
+        </div>
+
+        <!-- VS -->
+        <div class="season-confirm-vs">
+          <span>VS</span>
+        </div>
+
+        <!-- TEAM B -->
+        <div class="season-confirm-team ${isWinnerB ? 'winner' : ''}">
+          <div class="season-confirm-team-header">${isDoubles ? 'TEAM B' : 'PLAYER B'}</div>
+          <div class="season-confirm-team-names">${teamBNames}</div>
+          <div class="season-confirm-score-wrap">
+            <span class="season-confirm-score">${isNaN(draft.scoreB) ? (draft.rawScoreB || '-') : draft.scoreB}</span>
+            ${isWinnerB ? `<div class="season-confirm-winner-pill">🏆 WINNER</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      ${winnerBannerHtml}
+      ${metaDetailsHtml}
+      ${errorHtml}
+
+      <div class="season-confirm-btn-row">
+        <button type="button" id="seasonCancelDraftBtn" class="btn-secondary" onclick="SeasonApp.cancelMatchDraft()">✕ Cancel</button>
+        <button type="button" id="seasonEditDraftBtn" class="btn-secondary" onclick="SeasonApp.editMatchDraft()">✏️ Edit</button>
+        <button type="button" id="seasonConfirmDraftSaveBtn" class="btn-primary season-btn-confirm-save" ${!draft.isValid ? 'disabled' : ''} onclick="SeasonApp.confirmAndSaveDraft()">✓ Confirm &amp; Save</button>
+      </div>
+    `;
+
+    modal.classList.add('open');
+  }
+
+  function closeMatchConfirmationModal() {
+    const modal = document.getElementById('seasonMatchConfirmModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  function cancelMatchDraft() {
+    SeasonState.activeDraft = null;
+    SeasonState.isSavingDraft = false;
+    closeMatchConfirmationModal();
+  }
+
+  function editMatchDraft() {
+    if (SeasonState.activeDraft) {
+      const d = SeasonState.activeDraft;
+      SeasonState.matchEntry.matchType = d.matchType;
+      SeasonState.matchEntry.player1 = d.player1;
+      SeasonState.matchEntry.player2 = d.player2;
+      SeasonState.matchEntry.player3 = d.player3;
+      SeasonState.matchEntry.player4 = d.player4;
+      SeasonState.matchEntry.scoreA = (d.scoreA !== undefined && !isNaN(d.scoreA)) ? String(d.scoreA) : (d.rawScoreA || '');
+      SeasonState.matchEntry.scoreB = (d.scoreB !== undefined && !isNaN(d.scoreB)) ? String(d.scoreB) : (d.rawScoreB || '');
+      SeasonState.matchEntry.matchDate = d.matchDate || getTodayDateString();
+      SeasonState.matchEntry.court = d.court || '';
+      SeasonState.matchEntry.session = d.session || '';
+      SeasonState.matchEntry.notes = d.notes || '';
+    }
+    cancelMatchDraft();
+    switchSeasonTab('record');
+    renderRecordMatch();
+  }
+
+  async function confirmAndSaveDraft() {
+    if (!SeasonState.activeDraft) return;
+    if (SeasonState.isSavingDraft) return; // Prevent double-tap
+
+    const val = validateMatchDraft(SeasonState.activeDraft);
+    if (!val.isValid) {
+      if (typeof showToast === 'function') {
+        showToast(`⚠️ ${val.errors[0] || 'Cannot save invalid draft'}`, 'error');
+      }
+      return;
+    }
+
+    SeasonState.isSavingDraft = true;
+    const saveBtn = document.getElementById('seasonConfirmDraftSaveBtn');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving to Ledger...';
+    }
+
+    try {
+      const savedPayload = await saveMatch(SeasonState.activeDraft);
+      SeasonState.matchEntry.lastSavedSummary = formatMatchSummary(savedPayload);
+      SeasonState.matchEntry.scoreA = '';
+      SeasonState.matchEntry.scoreB = '';
+
+      closeMatchConfirmationModal();
+      SeasonState.activeDraft = null;
+      SeasonState.isSavingDraft = false;
+
+      // Deterministic stats recalculation if local / testing environment
+      if (typeof firebase === 'undefined' || !firebase.database) {
+        recalculatePlayerStats();
+        recalculateElo();
+        recalculateAnalytics();
+        recalculateWeeklyAnalytics();
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(`✓ Match recorded: ${SeasonState.matchEntry.lastSavedSummary}`, 'success');
+      }
+
+      renderRecordMatch();
+    } catch (saveErr) {
+      SeasonState.isSavingDraft = false;
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '✓ Confirm & Save';
+      }
+      const body = document.getElementById('seasonMatchConfirmBody');
+      if (body) {
+        let errDiv = body.querySelector('.season-confirm-errors');
+        if (!errDiv) {
+          errDiv = document.createElement('div');
+          errDiv.className = 'season-confirm-errors';
+          body.appendChild(errDiv);
+        }
+        errDiv.textContent = `⚠️ Save failed: ${saveErr.message}`;
+      }
+      if (typeof showToast === 'function') {
+        showToast(`⚠️ ${saveErr.message}`, 'error');
+      }
+      console.error('[SeasonApp] Match draft save error:', saveErr);
+    }
+  }
+
   async function saveMatch(entry = SeasonState.matchEntry) {
     if (!isSeasonWritable()) {
       throw new Error('Season is frozen. Recording new matches is locked.');
@@ -748,7 +1090,7 @@
       }
     }
 
-    const matchId = generateMatchId();
+    const matchId = entry.id || generateMatchId();
     const auditId = generateAuditId();
     const actorUid = authUser ? authUser.uid : 'community_scorekeeper';
     const matchPayload = buildMatchPayload(entry, matchId, authUser || { uid: actorUid, displayName: 'Community Scorekeeper' });
@@ -1699,45 +2041,34 @@
     renderRecordMatch();
   }
 
-  async function handleMatchFormSubmit(event) {
+  function handleMatchFormSubmit(event) {
     if (event && event.preventDefault) event.preventDefault();
 
     const warn = document.getElementById('seasonMatchWarn');
-    const submitBtn = document.getElementById('seasonSaveMatchBtn');
-    const submitBtnText = document.getElementById('seasonSaveMatchBtnText');
-
     if (warn) warn.textContent = '';
 
-    try {
-      validateMatchEntry(SeasonState.matchEntry);
-    } catch (valErr) {
-      if (warn) warn.textContent = `⚠️ ${valErr.message}`;
+    const draft = createMatchDraft({
+      matchType: SeasonState.matchEntry.matchType,
+      source: 'manual',
+      player1: SeasonState.matchEntry.player1,
+      player2: SeasonState.matchEntry.player2,
+      player3: SeasonState.matchEntry.player3,
+      player4: SeasonState.matchEntry.player4,
+      scoreA: SeasonState.matchEntry.scoreA,
+      scoreB: SeasonState.matchEntry.scoreB,
+      matchDate: SeasonState.matchEntry.matchDate,
+      court: SeasonState.matchEntry.court,
+      session: SeasonState.matchEntry.session,
+      notes: SeasonState.matchEntry.notes
+    });
+
+    const val = validateMatchDraft(draft);
+    if (!val.isValid) {
+      if (warn) warn.textContent = `⚠️ ${val.errors[0] || 'Invalid match details'}`;
       return;
     }
 
-    SeasonState.matchEntry.saving = true;
-    if (submitBtn) submitBtn.disabled = true;
-    if (submitBtnText) submitBtnText.textContent = 'Saving to Cloud Ledger...';
-
-    try {
-      const savedPayload = await saveMatch(SeasonState.matchEntry);
-      SeasonState.matchEntry.saving = false;
-      SeasonState.matchEntry.lastSavedSummary = formatMatchSummary(savedPayload);
-      SeasonState.matchEntry.scoreA = '';
-      SeasonState.matchEntry.scoreB = '';
-
-      if (typeof showToast === 'function') {
-        showToast(`✓ Match recorded: ${SeasonState.matchEntry.lastSavedSummary}`, 'success');
-      }
-
-      renderRecordMatch();
-    } catch (saveErr) {
-      SeasonState.matchEntry.saving = false;
-      if (submitBtn) submitBtn.disabled = false;
-      if (submitBtnText) submitBtnText.textContent = 'Save Game Result';
-      if (warn) warn.textContent = `⚠️ ${saveErr.message}`;
-      console.error('[SeasonApp] Match save error:', saveErr);
-    }
+    openMatchConfirmationModal(draft);
   }
 
   // 14. Render Players Screen
@@ -7395,30 +7726,19 @@
     }
 
     const p = lastParsedVoiceMatch;
-    SeasonState.matchEntry.matchType = p.matchType;
-    SeasonState.matchEntry.player1 = p.player1;
-    SeasonState.matchEntry.player2 = p.player2;
-    SeasonState.matchEntry.player3 = p.player3;
-    SeasonState.matchEntry.player4 = p.player4;
-    SeasonState.matchEntry.scoreA = String(p.scoreA);
-    SeasonState.matchEntry.scoreB = String(p.scoreB);
+    const draft = createMatchDraft({
+      matchType: p.matchType,
+      source: 'voice',
+      player1: p.player1,
+      player2: p.player2,
+      player3: p.player3,
+      player4: p.player4,
+      scoreA: p.scoreA,
+      scoreB: p.scoreB
+    });
 
     closeVoiceMatchModal();
-    renderRecordMatch();
-
-    try {
-      const savedPayload = await saveMatch(SeasonState.matchEntry);
-      SeasonState.matchEntry.lastSavedSummary = formatMatchSummary(savedPayload);
-      SeasonState.matchEntry.scoreA = '';
-      SeasonState.matchEntry.scoreB = '';
-      if (typeof showToast === 'function') {
-        showToast(`✓ Voice match recorded: ${SeasonState.matchEntry.lastSavedSummary}`, 'success');
-      }
-      renderRecordMatch();
-    } catch (err) {
-      console.warn('Voice auto-save error:', err);
-      if (typeof showToast === 'function') showToast(`⚠️ Populated into form. Click Save to submit: ${err.message}`, 'warn');
-    }
+    openMatchConfirmationModal(draft);
   }
 
   // Photo OCR Scoresheet Scanner Handlers
@@ -7649,6 +7969,24 @@
     const toSave = ocrExtractedMatches.filter(m => m.selected && m.isValid);
     if (toSave.length === 0) return;
 
+    if (toSave.length === 1) {
+      const m = toSave[0];
+      const draft = createMatchDraft({
+        matchType: m.matchType,
+        source: 'ocr',
+        player1: m.player1,
+        player2: m.player2,
+        player3: m.player3,
+        player4: m.player4,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        notes: `OCR: ${m.lineText || ''}`
+      });
+      closeScorePhotoModal();
+      openMatchConfirmationModal(draft);
+      return;
+    }
+
     const saveBtn = document.getElementById('seasonOcrBatchSaveBtn');
     if (saveBtn) {
       saveBtn.disabled = true;
@@ -7658,17 +7996,21 @@
     let savedCount = 0;
     for (const m of toSave) {
       try {
-        const payload = {
+        const draft = createMatchDraft({
           matchType: m.matchType,
+          source: 'ocr',
           player1: m.player1,
           player2: m.player2,
           player3: m.player3,
           player4: m.player4,
-          scoreA: String(m.scoreA),
-          scoreB: String(m.scoreB)
-        };
-        await saveMatch(payload);
-        savedCount++;
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          notes: `OCR: ${m.lineText || ''}`
+        });
+        if (draft.isValid) {
+          await saveMatch(draft);
+          savedCount++;
+        }
       } catch (err) {
         console.warn('OCR batch save item error:', err);
       }
@@ -7768,14 +8110,21 @@
     checkDuplicateNameOnInput,
     handleAddPlayerSubmit,
 
-    // Phase 3 Match Entry API
+    // Phase 3 & Phase D Match Entry & MatchDraft Pipeline API
     generateMatchId,
     generateAuditId,
     setMatchType,
     getSelectedMatchPlayers,
+    createMatchDraft,
+    validateMatchDraft,
     validateMatchEntry,
     buildMatchPayload,
     formatMatchSummary,
+    openMatchConfirmationModal,
+    closeMatchConfirmationModal,
+    editMatchDraft,
+    cancelMatchDraft,
+    confirmAndSaveDraft,
     saveMatch,
     resetMatchScores,
     resetMatchEntry,

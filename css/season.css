@@ -4006,4 +4006,243 @@ body.season-active .mobile-bottom-nav {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+/* ==========================================================================
+   PHASE D: MATCH DRAFT CONFIRMATION MODAL & PIPELINE STYLES
+   ========================================================================== */
+
+.season-confirm-modal-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.25);
+  padding: 20px;
+}
+
+.season-confirm-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.season-confirm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.season-confirm-badge-type {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.season-confirm-badge-source {
+  background: rgba(147, 51, 234, 0.12);
+  color: #7c3aed;
+  border: 1px solid rgba(147, 51, 234, 0.25);
+}
+
+.season-confirm-badge-date {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+  border: 1px solid rgba(107, 114, 128, 0.25);
+}
+
+.season-confirm-match-box {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.season-confirm-team {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 12px;
+  background: var(--bg-card-hover, #f8fafc);
+  border: 2px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.season-confirm-team.winner {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.06);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.season-confirm-team-header {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.season-confirm-team-names {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  line-height: 1.35;
+  margin-bottom: 10px;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.season-confirm-score-wrap {
+  margin-top: auto;
+}
+
+.season-confirm-score {
+  display: inline-block;
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: var(--text-primary, #0f172a);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.season-confirm-team.winner .season-confirm-score {
+  color: #059669;
+}
+
+.season-confirm-winner-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #065f46;
+  background: #d1fae5;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  margin-top: 4px;
+}
+
+.season-confirm-vs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: var(--text-muted, #94a3b8);
+  padding: 0 4px;
+}
+
+.season-confirm-winner-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.18));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-md, 8px);
+  color: #065f46;
+  font-weight: 800;
+  font-size: 0.92rem;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.season-confirm-meta-card {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  margin-bottom: 14px;
+}
+
+.season-confirm-meta-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--border-subtle, #e2e8f0);
+}
+
+.season-confirm-meta-row:last-child {
+  border-bottom: none;
+}
+
+.season-confirm-meta-label {
+  color: var(--text-muted, #64748b);
+  font-weight: 600;
+}
+
+.season-confirm-meta-val {
+  color: var(--text-primary, #0f172a);
+  font-weight: 700;
+}
+
+.season-confirm-errors {
+  padding: 10px 12px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-md, 8px);
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.season-confirm-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.season-btn-confirm-save {
+  flex: 2;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 0.95rem !important;
+  padding: 12px 16px !important;
+  border-radius: var(--radius-md, 8px) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+.season-btn-confirm-save:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  transform: translateY(-1px);
+}
+
+.season-btn-confirm-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+
+@media (max-width: 480px) {
+  .season-confirm-match-box {
+    gap: 6px;
+  }
+  .season-confirm-team {
+    padding: 10px 6px;
+  }
+  .season-confirm-score {
+    font-size: 1.5rem;
+  }
+  .season-confirm-btn-row {
+    flex-direction: column-reverse;
+  }
+  .season-btn-confirm-save {
+    width: 100%;
+  }
+}
+
+
 
